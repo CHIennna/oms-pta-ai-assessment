@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="OMS 智能上机评测" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a80e8'/%3E%3Cpath d='M8 9h16v11H13l-5 4V9z' fill='white'/%3E%3Cpath d='M14 12l-3 2 3 2m4-4 3 2-3 2' fill='none' stroke='%232a80e8' stroke-width='1.6'/%3E%3C/svg%3E" />
+  <title>程序设计基础上机考试 · OMS</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="polish.css" />
+  <link rel="stylesheet" href="judge.css" />
+</head>
+<body>
+  <div class="exam-app">
+    <header class="pat-header">
+      <div class="exam-title"><button class="round-icon" aria-label="返回">←</button><span class="title-text">程序设计基础上机考试</span><span class="title-divider"></span><span class="oms-badge">OMS 监控中</span></div>
+      <div class="machine-strip"><span><i class="online"></i>上机号 <b>PC-08</b></span><span>姓名 <b>陈小雅</b></span><span>学号 <b>202401050128</b></span><span class="remain">剩余 <b id="countdown">01:42:36</b></span></div>
+      <div class="header-actions"><button class="round-icon" title="考试公告">▣</button><button class="round-icon" title="考试设置">⚙</button><button id="manage-button" class="teacher-btn">考试管理</button><button class="user-avatar">CY</button><span class="user-name">ciena</span></div>
+    </header>
+    <aside class="rail" aria-label="主导航"><button class="rail-item selected" data-view="exam"><span>▤</span><small>题目<br>列表</small></button><button class="rail-item" data-view="submissions"><span>☷</span><small>提交<br>列表</small></button></aside>
+    <main id="exam-view" class="exam-screen view active">
+      <aside class="problem-sidebar"><div class="sidebar-tabs"><button class="sidebar-tab active">编程题 <em>5</em></button></div><div class="problem-counter"><span>编程题</span><span>2 / 5</span></div><div class="matrix-label"><span>编程题</span><span>ⓘ 图例</span></div><div id="problem-matrix" class="problem-matrix"></div><div class="sidebar-foot">当前 1 – 5 题，共 5 题<br><button>第 1 页⌄</button></div></aside>
+      <section class="workbench">
+        <div class="problem-bar"><button class="breadcrumb">‹ &nbsp;编程题</button><strong id="bar-title">1003 个位数统计</strong><div><button id="prev-btn">‹ &nbsp;上一题</button><button id="next-btn">下一题&nbsp; ›</button></div></div>
+        <div class="mode-tabs"><button class="active">题目描述</button></div>
+        <div id="resizable" class="split-area">
+          <article class="question-pane"><div class="question-inner"><div class="question-heading"><div><h1 id="problem-title">1003 个位数统计</h1><span class="score-label">分数 20</span></div><div class="tools"><button>全屏浏览</button><button>切换布局</button><span>作者 OMS 教研组</span></div></div><div id="problem-content" class="problem-content"></div><h3>输入格式：</h3><p>输入一个不超过 1000 位的正整数 <code>N</code>。</p><h3>输出格式：</h3><p>按数字从小到大的顺序，输出每个出现过的个位数字及其出现次数。</p><h3>输入样例：</h3><pre>100311</pre><h3>输出样例：</h3><pre>0:2
+1:3
+3:1</pre></div></article>
+          <div id="drag-handle" class="drag-handle" title="拖动调整题面与编辑器宽度"><i></i></div>
+          <section class="editor-pane"><div class="editor-toolbar"><select id="language"><option>C++ (g++)</option><option>Python 3</option><option>Java 17</option></select><span class="toolbar-line"></span><button title="编辑器设置">⚙</button><button title="帮助">?</button><button title="全屏">⛶</button></div><div class="code-editor"><div id="line-numbers" class="line-numbers"></div><textarea id="code" spellcheck="false" aria-label="代码编辑器"></textarea></div><div id="test-panel" class="test-panel"><div class="test-tabs"><button class="active" data-result-tab="test">测试用例</button><button data-result-tab="compiler">编译器输出</button><span>?</span><button id="fold-test" class="fold" title="收起测试区">⌃</button></div><div id="test-body" class="test-body"><div class="sample-fields"><label>标准输入<textarea id="sample-input" spellcheck="false">100311</textarea></label><label>预期输出<pre>0:2\n1:3\n3:1</pre></label><div class="run-wrap"><button id="run-sample">运行样例</button><small id="run-state">等待运行</small></div></div><div id="ai-feedback" class="ai-feedback"><span>✦</span><p><b>AI 助教已就绪</b><br>提交后将检查逻辑、边界条件与代码规范。</p></div></div><div id="compiler-body" class="compiler-body">暂无编译器输出。运行样例或提交后将在此显示结果。</div></div></section>
+        </div>
+        <footer class="submit-footer"><span id="submit-state">无提交记录</span><button id="submit-btn">提交本题作答</button></footer>
+      </section>
+    </main>
+    <main id="submissions-view" class="record-view view"><div class="record-head"><button class="breadcrumb">‹ &nbsp;返回题目</button><h1>提交列表</h1></div><div class="record-card"><div class="record-row"><span>题目</span><span>语言</span><span>状态</span><span>提交时间</span></div><div class="record-row muted-row"><span>暂无提交记录</span><span>—</span><span>—</span><span>—</span></div></div></main>
+  </div>
+  <dialog id="manage-dialog"><form method="dialog"><button class="close" value="cancel">×</button><p class="dialog-eyebrow">OMS 教师工作台</p><h2>创建考试</h2><label>考试名称<input value="程序设计基础上机考试" required></label><label>考试时长<select><option>120 分钟</option><option>90 分钟</option><option>60 分钟</option></select></label><label>题目数量<input type="number" value="5" min="1"></label><div class="dialog-actions"><button value="cancel" class="cancel">取消</button><button value="default" class="create">保存为草稿</button></div></form></dialog>
+  <dialog id="judge-dialog"><div class="judge-dialog"><button id="close-judge" class="close" aria-label="关闭">×</button><p class="dialog-eyebrow">评测结果</p><div id="judge-summary"></div><div id="judge-points" class="judge-points"></div><div class="judge-dialog-actions"><button id="view-submissions">查看提交记录</button><button id="judge-confirm">确定</button></div></div></dialog>
+  <script src="app.js"></script>
+  <script src="polish.js"></script>
+  <script src="judge.js"></script>
+</body>
+</html>
