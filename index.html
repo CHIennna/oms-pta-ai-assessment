@@ -8,27 +8,28 @@
   <link rel="stylesheet" href="pta-clone.css" />
   <link rel="stylesheet" href="pta-clone-fix.css" />
   <link rel="stylesheet" href="pta-clone-interactions.css" />
-  <link rel="stylesheet" href="code-highlight.css" />
+  <link rel="stylesheet" href="codemirror.css" />
+  <link rel="stylesheet" href="pta-icons.css" />
   <link rel="stylesheet" href="judge-machine.css" />
   <link rel="stylesheet" href="pta-geometry.css" />
 </head>
 <body>
   <div id="pta-app" class="pta-app">
     <header class="topbar">
-      <div class="brand"><button class="round" title="返回">←</button><strong id="exam-name">程序设计基础上机考试</strong><span class="oms-chip">OMS 监控中</span></div>
+      <div class="brand"><button class="round" title="返回" aria-label="返回"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></svg></button><strong id="exam-name">程序设计基础上机考试</strong><span class="oms-chip">OMS 监控中</span></div>
       <div class="machine-info"><span><i></i>上机号 <b id="seat">PC-08</b></span><span>姓名 <b id="candidate">陈小雅</b></span><span>学号 <b id="student-id">202401050128</b></span><span class="remain">剩余 <b id="countdown">01:30:00</b></span></div>
-      <div class="account"><button class="round" title="公告">▣</button><button class="round" title="设置">⚙</button><button id="open-admin" class="admin-button">考试管理</button><span class="avatar">CY</span><b>ciena</b></div>
+      <div class="account"><button class="round" title="公告" aria-label="公告"><svg class="icon" viewBox="0 0 24 24"><path d="M5 5h14v14H5zM8 9h8M8 13h5"/></svg></button><button class="round" title="设置" aria-label="设置"><svg class="icon" viewBox="0 0 24 24"><path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Z"/><path d="m19.4 15 .1 1.8-2 1.2-1.4-1a7.7 7.7 0 0 1-1.6.9l-.4 1.7h-4l-.4-1.7a7.7 7.7 0 0 1-1.6-.9l-1.4 1-2-1.2.1-1.8a7.7 7.7 0 0 1 0-1.9l-1.6-.9v-2.4l1.6-.9a7.7 7.7 0 0 1 0-1.9L4.7 6l2-1.2 1.4 1a7.7 7.7 0 0 1 1.6-.9l.4-1.7h4l.4 1.7a7.7 7.7 0 0 1 1.6.9l1.4-1 2 1.2-.1 1.8a7.7 7.7 0 0 1 0 1.9l1.6.9v2.4l-1.6.9a7.7 7.7 0 0 1 0 1.9Z"/></svg></button><button id="open-admin" class="admin-button">考试管理</button><span class="avatar">CY</span><b>ciena</b></div>
     </header>
     <nav class="rail" aria-label="考试导航">
-      <button class="rail-button active" data-route="exam"><span>▤</span><small>题目<br>列表</small></button>
-      <button class="rail-button" data-route="submissions"><span>☷</span><small>提交<br>列表</small></button>
-      <button class="rail-button" data-route="info"><span>ⓘ</span><small>考试<br>信息</small></button>
-      <button class="rail-button" data-route="students"><span>♚</span><small>考生<br>情况</small></button>
+      <button class="rail-button active" data-route="exam"><span><svg class="icon" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5zM8 9h7M8 13h7M8 17h5"/></svg></span><small>题目<br>列表</small></button>
+      <button class="rail-button" data-route="submissions"><span><svg class="icon" viewBox="0 0 24 24"><path d="M8 6h11M8 12h11M8 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></span><small>提交<br>列表</small></button>
+      <button class="rail-button" data-route="info"><span><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span><small>考试<br>信息</small></button>
+      <button class="rail-button" data-route="students"><span><svg class="icon" viewBox="0 0 24 24"><path d="m4 8 4 4 4-7 4 7 4-4-2 8H6zM8 20h8"/></svg></span><small>考生<br>情况</small></button>
     </nav>
     <aside id="overview" class="overview">
       <div class="overview-head"><b>题目总览</b><span>作答 / 题数</span></div>
-      <button class="category"><span>⌁&nbsp; 编程题</span><em id="answer-count">0 / 5</em></button>
-      <div class="matrix-head"><b>编程题</b><span>ⓘ 图例</span></div><div id="question-grid" class="question-grid"></div>
+      <button class="category"><span><svg class="icon" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg>&nbsp; 编程题</span><em id="answer-count">0 / 5</em></button>
+      <div class="matrix-head"><b>编程题</b><span><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg> 图例</span></div><div id="question-grid" class="question-grid"></div>
     </aside>
     <main id="workspace" class="workspace">
       <div class="workspace-bar"><button id="overview-toggle" class="collapse-toggle" title="收起题目总览">▯</button><button class="crumb">‹&nbsp; 编程题</button><strong id="bar-title">1003 个位数统计</strong><div><button id="previous">‹&nbsp; 上一题</button><button id="next">下一题&nbsp; ›</button></div></div>
@@ -36,7 +37,7 @@
       <div class="workspace-middle">
         <section class="statement"><div class="statement-inner"><div class="problem-meta"><div><h1 id="problem-title">1003 个位数统计</h1><span id="score">分数 20</span></div><div class="problem-tools"><button>全屏浏览</button><button>切换布局</button><span>作者 OMS 教研组</span></div></div><div id="problem-text"></div></div></section>
         <div class="resize-handle"><i></i></div>
-        <section class="coding"><div class="editor-toolbar"><select id="language"><option>C++ (g++)</option><option>Python 3</option><option>Java 17</option></select><i></i><button>⚙</button><button>?</button><button>⛶</button></div><div class="editor"><pre id="lines"></pre><textarea id="code" spellcheck="false" aria-label="代码编辑器"></textarea></div></section>
+        <section class="coding"><div class="editor-toolbar"><select id="language"><option>C++ (g++)</option><option>Python 3</option><option>Java 17</option></select><i></i><button title="编辑器设置" aria-label="编辑器设置"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.1l1.6-1.3-2-3.4-1.9.8a7 7 0 0 0-1.9-1.1L14.5 4h-4L10 5.9A7 7 0 0 0 8.1 7L6.2 6.2l-2 3.4 1.6 1.3a7 7 0 0 0 0 2.2l-1.6 1.3 2 3.4 1.9-.8a7 7 0 0 0 1.9 1.1l.5 1.9h4l.5-1.9a7 7 0 0 0 1.9-1.1l1.9.8 2-3.4-1.6-1.3c.1-.4.1-.7.1-1.1Z"/></svg></button><button title="帮助" aria-label="帮助"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.5 2.5 0 1 1 4.4 1.7c-1.1 1.1-2.1 1.5-2.1 3M12 17h.01"/></svg></button><button title="全屏" aria-label="全屏"><svg class="icon" viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M8 20H4v-4M20 16v4h-4"/></svg></button></div><div class="editor"><pre id="lines"></pre><textarea id="code" spellcheck="false" aria-label="代码编辑器"></textarea></div></section>
       </div>
       <section id="tester" class="tester"><div class="tester-tabs"><button class="active" data-tab="test">测试用例</button><button data-tab="compiler">编译器输出</button><span>?</span><button id="tester-toggle">⌃</button></div><div id="test-content" class="test-content"><label>标准输入<textarea id="sample-input">100311</textarea></label><label>预期输出<pre id="expected">0:2\n1:3\n3:1</pre></label><div class="test-actions"><button id="reset-test">重置测试用例</button><button id="run-test">▷ 运行测试</button><small id="run-state">等待运行</small></div></div><pre id="compiler-output" class="compiler-output">暂无编译器输出。</pre></section>
       <footer class="submit-bar"><span id="submit-state">无提交记录</span><button id="submit">提交本题作答</button></footer>
@@ -46,7 +47,7 @@
   <dialog id="admin-dialog"><form id="admin-form"><button type="button" class="close">×</button><p>OMS 管理员设置</p><h2>考试配置</h2><div class="form-grid"><label>考试标题<input name="title" required /></label><label>考试时长（分钟）<input name="duration" type="number" min="5" required /></label><label>机位号<input name="seat" required /></label><label>考生姓名<input name="candidateName" required /></label><label>考生学号<input name="studentId" required /></label><label>考试人数<input name="registered" type="number" min="1" required /></label></div><div class="import-row"><label>导入外部试题<input id="import-file" type="file" accept=".md,.json,.csv,text/markdown,application/json,text/csv" /></label><small>支持 Markdown、JSON、CSV；Markdown 自动识别题号、题名和分值。</small></div><div id="import-note"></div><div id="question-settings"></div><div class="form-actions"><button class="cancel" type="button">取消</button><button class="save" type="submit">保存并应用</button></div></form></dialog>
   <script src="pta-clone.js"></script>
   <script src="pta-clone-interactions.js"></script>
-  <script src="code-highlight.js"></script>
+  <script type="module" src="codemirror-editor.js"></script>
   <script src="judge-machine.js"></script>
   <script src="pta-geometry.js"></script>
 </body>

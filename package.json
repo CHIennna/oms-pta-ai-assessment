@@ -1,0 +1,33 @@
+{
+  "name": "oms-pta-ai-assessment",
+  "version": "1.0.0",
+  "description": "直接双击 `index.html` 即可预览。页面包含 OMS 考生顶栏、PTA 风格的题目导航和代码工作区、教师考试管理页，以及创建/参加考试的交互。",
+  "main": "admin.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "build:editor": "esbuild codemirror-entry.js --bundle --format=iife --target=es2020 --outfile=codemirror-editor.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CHIennna/oms-pta-ai-assessment.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/CHIennna/oms-pta-ai-assessment/issues"
+  },
+  "homepage": "https://github.com/CHIennna/oms-pta-ai-assessment#readme",
+  "devDependencies": {
+    "@codemirror/lang-cpp": "^6.0.3",
+    "@codemirror/lang-java": "^6.0.2",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lezer/highlight": "^1.2.4",
+    "esbuild": "^0.28.2"
+  }
+}
