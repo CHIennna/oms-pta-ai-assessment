@@ -19889,7 +19889,7 @@
         { tag: [tags.meta, tags.processingInstruction], color: "#80baff" },
         { tag: [tags.keyword, tags.controlKeyword, tags.definitionKeyword, tags.operatorKeyword], color: "#ff7587" },
         { tag: [tags.typeName, tags.className, tags.namespace], color: "#7dbbff" },
-        { tag: [tags.function(tags.variableName), tags.labelName], color: "#80c7ff" },
+        { tag: [tags.name, tags.variableName, tags.definition(tags.variableName), tags.function(tags.variableName), tags.function(tags.name), tags.standard(tags.variableName), tags.standard(tags.name), tags.propertyName, tags.labelName], color: "#80c7ff" },
         { tag: [tags.string, tags.special(tags.string)], color: "#c3d880" },
         { tag: [tags.number, tags.bool, tags.null], color: "#d1a1ff" },
         { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "#85909a" }
