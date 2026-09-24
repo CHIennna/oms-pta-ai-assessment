@@ -1,0 +1,5 @@
+/* Keep the OMS navigation views mutually exclusive. */
+.exam-app > .view { display: none !important; }
+.exam-app > .home-view.view.active,
+.exam-app > .record-view.view.active { display: block !important; }
+.exam-app > .exam-screen.view.active { display: grid !important; }
