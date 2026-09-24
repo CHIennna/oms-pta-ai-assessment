@@ -54,7 +54,7 @@ function syncPage(){
   document.querySelector('#home-pass-count').textContent = adminConfig.passed;
   const rate = adminConfig.registered ? Math.round(adminConfig.passed / adminConfig.registered * 1000) / 10 : 0;
   document.querySelector('#home-pass-rate').textContent = `通过率 ${rate}% · 共 ${adminConfig.registered} 名考生`;
-  document.querySelector('#home-questions').innerHTML = adminConfig.questions.map((question, index) => `<div class="home-question"><i>${String(index + 1).padStart(2,'0')}</i><span>${escapeHtml(question.name)}</span><b>${question.score} 分 · ${question.tests} 个测试点</b></div>`).join('');
+  document.querySelector('#home-questions').innerHTML = adminConfig.questions.map((question, index) => `<div class="home-question"><i>${String(index + 1).padStart(2,'0')}</i><strong>${escapeHtml(question.name)}</strong><span>${question.score} 分 · ${question.tests} 个测试点</span></div>`).join('');
   syncProblemArray(); renderStudents();
 }
 function tickCountdown(){
