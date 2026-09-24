@@ -9,17 +9,19 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="polish.css" />
   <link rel="stylesheet" href="judge.css" />
+  <link rel="stylesheet" href="admin.css" />
 </head>
 <body>
   <div class="exam-app">
     <header class="pat-header">
-      <div class="exam-title"><button class="round-icon" aria-label="返回">←</button><span class="title-text">程序设计基础上机考试</span><span class="title-divider"></span><span class="oms-badge">OMS 监控中</span></div>
-      <div class="machine-strip"><span><i class="online"></i>上机号 <b>PC-08</b></span><span>姓名 <b>陈小雅</b></span><span>学号 <b>202401050128</b></span><span class="remain">剩余 <b id="countdown">01:42:36</b></span></div>
+      <div class="exam-title"><button class="round-icon" aria-label="返回">←</button><span id="exam-title-display" class="title-text">程序设计基础上机考试</span><span class="title-divider"></span><span class="oms-badge">OMS 监控中</span></div>
+      <div class="machine-strip"><span><i class="online"></i>上机号 <b id="seat-display">PC-08</b></span><span>姓名 <b id="candidate-name-display">陈小雅</b></span><span>学号 <b id="student-id-display">202401050128</b></span><span id="remaining-box" class="remain">剩余 <b id="countdown">01:42:36</b></span></div>
       <div class="header-actions"><button class="round-icon" title="考试公告">▣</button><button class="round-icon" title="考试设置">⚙</button><button id="manage-button" class="teacher-btn">考试管理</button><button class="user-avatar">CY</button><span class="user-name">ciena</span></div>
     </header>
-    <aside class="rail" aria-label="主导航"><button class="rail-item selected" data-view="exam"><span>▤</span><small>题目<br>列表</small></button><button class="rail-item" data-view="submissions"><span>☷</span><small>提交<br>列表</small></button></aside>
-    <main id="exam-view" class="exam-screen view active">
-      <aside class="problem-sidebar"><div class="sidebar-tabs"><button class="sidebar-tab active">编程题 <em>5</em></button></div><div class="problem-counter"><span>编程题</span><span>2 / 5</span></div><div class="matrix-label"><span>编程题</span><span>ⓘ 图例</span></div><div id="problem-matrix" class="problem-matrix"></div><div class="sidebar-foot">当前 1 – 5 题，共 5 题<br><button>第 1 页⌄</button></div></aside>
+    <aside class="rail" aria-label="主导航"><button class="rail-item selected" data-view="home"><span>ⓘ</span><small>考试<br>信息</small></button><button class="rail-item" data-view="exam"><span>▤</span><small>考试<br>题目</small></button><button class="rail-item" data-view="submissions"><span>☷</span><small>提交<br>记录</small></button><button class="rail-item" data-view="students"><span>♚</span><small>考生<br>情况</small></button></aside>
+    <main id="home-view" class="home-view view active"><div class="home-inner"><div class="home-head"><div><p>OMS 考试中心</p><h1 id="home-title">程序设计基础上机考试</h1><span id="home-time">—</span></div><button class="home-enter" data-go-exam>进入考试题目 →</button></div><div class="home-score"><span>本场考试总分</span><b id="home-total-score">95</b><em>分</em><small id="home-question-count">共 5 道编程题</small></div><div class="home-grid"><section><h2>考试信息</h2><dl><div><dt>考试时间</dt><dd id="home-time-detail">—</dd></div><div><dt>考试时长</dt><dd id="home-duration">120 分钟</dd></div><div><dt>考生信息</dt><dd id="home-candidate">陈小雅 · 202401050128</dd></div></dl></section><section><h2>题目与分数</h2><div id="home-questions" class="home-questions"></div></section><section><h2>考生情况</h2><div class="pass-stat"><b id="home-pass-count">26</b><span>人已通过</span></div><p id="home-pass-rate">通过率 54.2% · 共 48 名考生</p><button data-go-students>查看考生情况</button></section></div></div></main>
+    <main id="exam-view" class="exam-screen view">
+      <aside class="problem-sidebar"><div class="sidebar-tabs"><button class="sidebar-tab active">编程题 <em id="question-count-badge">5</em></button></div><div class="problem-counter"><span>编程题</span><span>2 / 5</span></div><div class="score-summary"><span>本场总分</span><b id="sidebar-total-score">95 分</b></div><div class="matrix-label"><span>编程题</span><span>ⓘ 图例</span></div><div id="problem-matrix" class="problem-matrix"></div><div class="sidebar-foot">当前 1 – 5 题，共 5 题<br><button>第 1 页⌄</button></div></aside>
       <section class="workbench">
         <div class="problem-bar"><button class="breadcrumb">‹ &nbsp;编程题</button><strong id="bar-title">1003 个位数统计</strong><div><button id="prev-btn">‹ &nbsp;上一题</button><button id="next-btn">下一题&nbsp; ›</button></div></div>
         <div class="mode-tabs"><button class="active">题目描述</button></div>
@@ -34,11 +36,13 @@
       </section>
     </main>
     <main id="submissions-view" class="record-view view"><div class="record-head"><button class="breadcrumb">‹ &nbsp;返回题目</button><h1>提交列表</h1></div><div class="record-card"><div class="record-row"><span>题目</span><span>语言</span><span>状态</span><span>提交时间</span></div><div class="record-row muted-row"><span>暂无提交记录</span><span>—</span><span>—</span><span>—</span></div></div></main>
+    <main id="students-view" class="record-view view"><div class="record-head"><button class="breadcrumb">‹ &nbsp;考试信息</button><h1>考生情况</h1></div><div id="student-stats" class="student-stats"></div><div class="record-card"><div class="record-row student-row"><span>考生</span><span>学号</span><span>已得分</span><span>状态</span></div><div id="student-table"></div></div></main>
   </div>
-  <dialog id="manage-dialog"><form method="dialog"><button class="close" value="cancel">×</button><p class="dialog-eyebrow">OMS 教师工作台</p><h2>创建考试</h2><label>考试名称<input value="程序设计基础上机考试" required></label><label>考试时长<select><option>120 分钟</option><option>90 分钟</option><option>60 分钟</option></select></label><label>题目数量<input type="number" value="5" min="1"></label><div class="dialog-actions"><button value="cancel" class="cancel">取消</button><button value="default" class="create">保存为草稿</button></div></form></dialog>
+  <dialog id="manage-dialog"><form id="admin-form"><button class="close" type="button" value="cancel">×</button><p class="dialog-eyebrow">OMS 管理员设置</p><h2>考试配置</h2><div class="admin-form-grid"><label>考试标题<input name="title" required></label><label>考试开始时间<input name="startAt" type="datetime-local" required></label><label>考试时长（分钟）<input name="duration" type="number" min="5" max="600" required></label><label>机位号<input name="seat" required></label><label>考生姓名<input name="candidateName" required></label><label>考生学号<input name="studentId" required></label><label>考试人数<input name="registered" type="number" min="1" required></label><label>已通过人数<input name="passed" type="number" min="0" required></label></div><div class="question-setting-head"><h3>考试题目</h3><span>设置题目名称、分数和测试点数量</span></div><div class="import-strip"><label class="import-button">导入外部试题<input id="question-file" type="file" accept=".json,.csv,application/json,text/csv" hidden></label><span>支持 JSON 或 CSV：编号、题目名称、分数、测试点数量</span><b id="import-state"></b></div><div id="question-settings" class="question-settings"></div><div class="dialog-actions admin-actions"><button id="reset-config" type="button" class="cancel">恢复默认</button><button type="submit" class="create">保存并应用</button></div></form></dialog>
   <dialog id="judge-dialog"><div class="judge-dialog"><button id="close-judge" class="close" aria-label="关闭">×</button><p class="dialog-eyebrow">评测结果</p><div id="judge-summary"></div><div id="judge-points" class="judge-points"></div><div class="judge-dialog-actions"><button id="view-submissions">查看提交记录</button><button id="judge-confirm">确定</button></div></div></dialog>
   <script src="app.js"></script>
   <script src="polish.js"></script>
   <script src="judge.js"></script>
+  <script src="admin.js"></script>
 </body>
 </html>

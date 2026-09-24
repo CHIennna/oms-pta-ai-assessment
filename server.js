@@ -16,7 +16,7 @@ const compilerCandidates = [
 ].filter(Boolean);
 const compilerPath = compilerCandidates.find(candidate => fsSync.existsSync(candidate));
 const publicFiles = new Map([
-  ['/', 'index.html'], ['/index.html', 'index.html'], ['/styles.css', 'styles.css'], ['/polish.css', 'polish.css'], ['/judge.css', 'judge.css'], ['/app.js', 'app.js'], ['/polish.js', 'polish.js'], ['/judge.js', 'judge.js']
+  ['/', 'index.html'], ['/index.html', 'index.html'], ['/styles.css', 'styles.css'], ['/polish.css', 'polish.css'], ['/judge.css', 'judge.css'], ['/admin.css', 'admin.css'], ['/app.js', 'app.js'], ['/polish.js', 'polish.js'], ['/judge.js', 'judge.js'], ['/admin.js', 'admin.js']
 ]);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 
