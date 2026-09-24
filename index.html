@@ -7,6 +7,8 @@
   <title>程序设计基础上机考试 · OMS</title>
   <link rel="stylesheet" href="pta-clone.css" />
   <link rel="stylesheet" href="pta-clone-fix.css" />
+  <link rel="stylesheet" href="pta-clone-interactions.css" />
+  <link rel="stylesheet" href="code-highlight.css" />
 </head>
 <body>
   <div id="pta-app" class="pta-app">
@@ -41,5 +43,7 @@
   </div>
   <dialog id="admin-dialog"><form id="admin-form"><button type="button" class="close">×</button><p>OMS 管理员设置</p><h2>考试配置</h2><div class="form-grid"><label>考试标题<input name="title" required /></label><label>考试时长（分钟）<input name="duration" type="number" min="5" required /></label><label>机位号<input name="seat" required /></label><label>考生姓名<input name="candidateName" required /></label><label>考生学号<input name="studentId" required /></label><label>考试人数<input name="registered" type="number" min="1" required /></label></div><div class="import-row"><label>导入外部试题<input id="import-file" type="file" accept=".md,.json,.csv,text/markdown,application/json,text/csv" /></label><small>支持 Markdown、JSON、CSV；Markdown 自动识别题号、题名和分值。</small></div><div id="import-note"></div><div id="question-settings"></div><div class="form-actions"><button class="cancel" type="button">取消</button><button class="save" type="submit">保存并应用</button></div></form></dialog>
   <script src="pta-clone.js"></script>
+  <script src="pta-clone-interactions.js"></script>
+  <script src="code-highlight.js"></script>
 </body>
 </html>
