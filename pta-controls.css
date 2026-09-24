@@ -1,0 +1,20 @@
+/* PAT-style question overview: full panel or a compact reopening rail. */
+.sidebar-collapse {
+  width: 28px;
+  height: 30px;
+  margin: 10px 10px 0 auto;
+  border: 1px solid #686868;
+  border-radius: 3px;
+  background: #454545;
+  color: #b7b7b7;
+  cursor: pointer;
+  font-size: 16px;
+}
+.sidebar-collapse:hover { color: #2a8cf4; border-color: #2a8cf4; }
+.exam-screen.questions-collapsed { grid-template-columns: 46px minmax(0, 1fr); }
+.questions-collapsed .problem-sidebar { overflow: hidden; align-items: center; }
+.questions-collapsed .problem-sidebar > :not(.sidebar-collapse) { display: none; }
+.questions-collapsed .sidebar-collapse { margin: 14px 0 0; }
+.problem-cell.correct { border: 1px solid #3eaa7f; color: #55d6a1; font-size: 19px; }
+.problem-cell.wrong { border: 1px solid #d85353; color: #ff6060; font-size: 20px; }
+.problem-cell.active { border-color: #2a8cf4; color: #bce0ff; }
