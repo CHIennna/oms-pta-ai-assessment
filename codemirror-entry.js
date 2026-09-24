@@ -20,11 +20,11 @@ const languageFor = () => ({
 }[languageSelect.value] || cpp());
 
 const ptaTheme = EditorView.theme({
-  '&': {height: '100%', color: '#e2e2e2', backgroundColor: '#3e3e3e'},
+  '&': {height: '100%', color: '#d9d9d9', backgroundColor: '#404040'},
   '.cm-scroller': {fontFamily: mono, lineHeight: '1.75'},
   '.cm-content': {padding: '0.5rem 0', caretColor: '#f2f2f2'},
   '.cm-line': {paddingLeft: '0.5rem'},
-  '.cm-gutters': {minWidth: '58px', color: '#999', backgroundColor: '#3e3e3e', borderRight: '1px solid #505050'},
+  '.cm-gutters': {minWidth: '58px', color: '#999', backgroundColor: '#404040', borderRight: '1px solid rgba(255,255,255,.06)'},
   '.cm-lineNumbers .cm-gutterElement': {padding: '0 1rem', boxSizing: 'content-box'},
   '.cm-activeLine': {backgroundColor: '#444'},
   '.cm-activeLineGutter': {backgroundColor: '#444'},
