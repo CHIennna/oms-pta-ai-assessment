@@ -26,6 +26,17 @@
 
   const menu = document.createElement('div');
   menu.className = 'account-menu';
-  [...account.querySelectorAll('.round'), account.querySelector('.admin-button')].forEach(control => menu.append(control));
+  const admin = account.querySelector('.admin-button');
+  const preferences = document.createElement('button'); preferences.type = 'button'; preferences.className = 'account-menu-item'; preferences.textContent = '设置'; preferences.addEventListener('click', () => admin.click());
+  const theme = document.createElement('button'); theme.type = 'button'; theme.className = 'account-menu-item';
+  const setTheme = light => { app.classList.toggle('light-mode', light); theme.textContent = light ? '切换深色模式' : '切换浅色模式'; localStorage.setItem('oms-pta-theme', light ? 'light' : 'dark'); };
+  setTheme(localStorage.getItem('oms-pta-theme') === 'light'); theme.addEventListener('click', () => setTheme(!app.classList.contains('light-mode')));
+  menu.append(admin, preferences, theme);
   account.prepend(menu);
+  const avatar = account.querySelector('.avatar');
+  avatar.setAttribute('role', 'button'); avatar.tabIndex = 0; avatar.setAttribute('aria-expanded', 'false');
+  const toggleAccountMenu = () => { const open = account.classList.toggle('menu-open'); avatar.setAttribute('aria-expanded', String(open)); };
+  avatar.addEventListener('click', toggleAccountMenu);
+  avatar.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleAccountMenu(); } });
+  document.addEventListener('click', event => { if (!account.contains(event.target)) { account.classList.remove('menu-open'); avatar.setAttribute('aria-expanded', 'false'); } });
 })();

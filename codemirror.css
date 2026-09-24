@@ -1,1 +1,2 @@
 .editor{padding-top:0!important}.editor>.cm-editor{min-height:0;flex:1}.editor #code[hidden],.editor #lines[hidden]{display:none!important}
+.cm-editor .cm-loop-variable,.cm-editor .cm-loop-variable *{color:#d9d9d9!important}.cm-editor .cm-include-header,.cm-editor .cm-include-header *{color:#80baff!important}.cm-editor .cm-content{cursor:text;user-select:text;-webkit-user-select:text}.cm-editor .cm-selectionBackground,.cm-editor.cm-focused .cm-selectionBackground{background:#3c72a8!important}

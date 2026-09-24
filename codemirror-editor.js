@@ -19870,15 +19870,17 @@
       var language2 = new Compartment();
       var languageFor = () => ({
         "C++ (g++)": cpp(),
+        "C (gcc)": cpp(),
         "Python 3": python(),
         "Java 17": java()
       })[languageSelect.value] || cpp();
-      function indentationDots(view2) {
+      function whitespaceDots(view2) {
         const marks2 = [];
         for (const range of view2.visibleRanges) {
           for (let line = view2.state.doc.lineAt(range.from); ; line = view2.state.doc.line(line.number + 1)) {
-            const indentation2 = line.text.match(/^[\t ]+/)?.[0] || "";
-            if (indentation2) marks2.push(Decoration.mark({ class: "cm-indent-marker" }).range(line.from, line.from + indentation2.length));
+            for (const match of line.text.matchAll(/[\t ]+/g)) {
+              marks2.push(Decoration.mark({ class: "cm-indent-marker" }).range(line.from + match.index, line.from + match.index + match[0].length));
+            }
             if (line.to >= range.to || line.number === view2.state.doc.lines) break;
           }
         }
@@ -19886,18 +19888,25 @@
       }
       var indentationDotPlugin = ViewPlugin.fromClass(class {
         constructor(view2) {
-          this.decorations = indentationDots(view2);
+          this.decorations = whitespaceDots(view2);
         }
         update(update) {
-          if (update.docChanged || update.viewportChanged) this.decorations = indentationDots(update.view);
+          if (update.docChanged || update.viewportChanged) this.decorations = whitespaceDots(update.view);
         }
       }, { decorations: (value) => value.decorations });
       function localLoopVariables(view2) {
+        const names = /* @__PURE__ */ new Set();
+        for (let number2 = 1; number2 <= view2.state.doc.lines; number2++) {
+          const declaration = view2.state.doc.line(number2).text.match(/\bfor\s*\(\s*(?:(?:const|unsigned|signed|long|short)\s+)*(?:[A-Za-z_]\w*(?:::[A-Za-z_]\w*)?(?:\s*<[^>]+>)?\s+)+([A-Za-z_]\w*)\s*(?:=|:)/);
+          if (declaration) names.add(declaration[1]);
+        }
+        if (!names.size) return Decoration.none;
+        const matcher = new RegExp(`\\b(?:${[...names].map((name2) => name2.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")).join("|")})\\b`, "g");
         const marks2 = [];
         for (const range of view2.visibleRanges) {
           for (let line = view2.state.doc.lineAt(range.from); ; line = view2.state.doc.line(line.number + 1)) {
-            const matcher = /\b(?:ch|i)\b/g;
             for (let match; match = matcher.exec(line.text); ) marks2.push(Decoration.mark({ class: "cm-loop-variable" }).range(line.from + match.index, line.from + match.index + match[0].length));
+            matcher.lastIndex = 0;
             if (line.to >= range.to || line.number === view2.state.doc.lines) break;
           }
         }
@@ -19911,13 +19920,36 @@
           if (update.docChanged || update.viewportChanged) this.decorations = localLoopVariables(update.view);
         }
       }, { decorations: (value) => value.decorations });
+      function includeHeaders(view2) {
+        const marks2 = [];
+        for (const range of view2.visibleRanges) {
+          for (let line = view2.state.doc.lineAt(range.from); ; line = view2.state.doc.line(line.number + 1)) {
+            const header = /^\s*#\s*include\s*(<[^>\n]+>|"[^"\n]+")/.exec(line.text);
+            if (header) {
+              const start = line.text.indexOf(header[1]);
+              marks2.push(Decoration.mark({ class: "cm-include-header" }).range(line.from + start, line.from + start + header[1].length));
+            }
+            if (line.to >= range.to || line.number === view2.state.doc.lines) break;
+          }
+        }
+        return Decoration.set(marks2, true);
+      }
+      var includeHeaderPlugin = ViewPlugin.fromClass(class {
+        constructor(view2) {
+          this.decorations = includeHeaders(view2);
+        }
+        update(update) {
+          if (update.docChanged || update.viewportChanged) this.decorations = includeHeaders(update.view);
+        }
+      }, { decorations: (value) => value.decorations });
       var ptaTheme = EditorView.theme({
         "&": { height: "100%", color: "#d9d9d9", backgroundColor: "#404040" },
-        ".cm-scroller": { fontFamily: mono, lineHeight: "1.75" },
+        ".cm-scroller": { fontFamily: mono, lineHeight: "1.55" },
         ".cm-content": { padding: "0.5rem 0", caretColor: "#f2f2f2" },
         ".cm-line": { paddingLeft: "0.5rem" },
         ".cm-indent-marker": { backgroundImage: "radial-gradient(circle, #797979 1px, transparent 1.2px)", backgroundPosition: "0 52%", backgroundRepeat: "repeat-x", backgroundSize: "8.4px 4px" },
         ".cm-loop-variable": { color: "#d9d9d9 !important" },
+        ".cm-include-header": { color: "#80baff !important" },
         ".cm-gutters": { minWidth: "58px", color: "#999", backgroundColor: "#404040", borderRight: "1px solid rgba(255,255,255,.06)" },
         ".cm-lineNumbers .cm-gutterElement": { padding: "0 1rem", boxSizing: "content-box" },
         ".cm-activeLine": { backgroundColor: "#444" },
@@ -19964,11 +19996,21 @@
           return true;
         }
         if (key === "s") {
-          localStorage.setItem("oms-pta-code-draft", editor.state.doc.toString());
+          window.dispatchEvent(new Event("oms-code-save-draft"));
           event.preventDefault();
           return true;
         }
         return false;
+      }
+      function insertIndentation(event, editor) {
+        if (event.key !== "Tab" || event.ctrlKey || event.metaKey || event.altKey) return false;
+        const transaction = editor.state.changeByRange((range) => ({
+          changes: { from: range.from, to: range.to, insert: "    " },
+          range: EditorSelection.cursor(range.from + 4)
+        }));
+        editor.dispatch(transaction);
+        event.preventDefault();
+        return true;
       }
       var commonShortcuts = EditorView.domEventHandlers({ keydown: handleShortcut });
       var view = new EditorView({
@@ -19983,6 +20025,7 @@
             highlightActiveLine(),
             indentationDotPlugin,
             localLoopVariablePlugin,
+            includeHeaderPlugin,
             commonShortcuts,
             ptaTheme,
             syntaxHighlighting(ptaHighlight),
@@ -20000,8 +20043,35 @@
         parent: input.parentElement
       });
       view.contentDOM.addEventListener("keydown", (event) => {
-        if (handleShortcut(event, view)) event.stopImmediatePropagation();
+        if (insertIndentation(event, view) || handleShortcut(event, view)) event.stopImmediatePropagation();
       }, true);
+      var mouseSelection = null;
+      var selectionPosition = (event) => view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
+      view.contentDOM.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || event.shiftKey || event.detail !== 1) return;
+        const start = selectionPosition(event);
+        if (start == null) return;
+        mouseSelection = { pointerId: event.pointerId, anchor: start };
+        view.focus();
+        view.dispatch({ selection: { anchor: start, head: start } });
+        view.contentDOM.setPointerCapture(event.pointerId);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }, true);
+      view.contentDOM.addEventListener("pointermove", (event) => {
+        if (!mouseSelection || event.pointerId !== mouseSelection.pointerId) return;
+        const head = selectionPosition(event);
+        if (head == null) return;
+        view.dispatch({ selection: { anchor: mouseSelection.anchor, head } });
+        event.preventDefault();
+      }, true);
+      var finishMouseSelection = (event) => {
+        if (!mouseSelection || event.pointerId !== mouseSelection.pointerId) return;
+        if (view.contentDOM.hasPointerCapture(event.pointerId)) view.contentDOM.releasePointerCapture(event.pointerId);
+        mouseSelection = null;
+      };
+      view.contentDOM.addEventListener("pointerup", finishMouseSelection, true);
+      view.contentDOM.addEventListener("pointercancel", finishMouseSelection, true);
       input.hidden = true;
       legacyGutter.hidden = true;
       input.addEventListener("input", () => {
