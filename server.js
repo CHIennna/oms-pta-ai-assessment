@@ -16,7 +16,7 @@ const compilerCandidates = [
 ].filter(Boolean);
 const compilerPath = compilerCandidates.find(candidate => fsSync.existsSync(candidate));
 const publicFiles = new Map([
-  ['/', 'index.html'], ['/index.html', 'index.html'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/code-highlight.css', 'code-highlight.css'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/code-highlight.js', 'code-highlight.js']
+  ['/', 'index.html'], ['/index.html', 'index.html'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/code-highlight.css', 'code-highlight.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/code-highlight.js', 'code-highlight.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
 ]);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 
@@ -54,15 +54,23 @@ function digitStats(input) {
   const count = Array(10).fill(0); for (const char of value) count[Number(char)]++;
   return count.map((n, digit) => n ? `${digit}:${n}` : '').filter(Boolean).join('\n');
 }
-function getTests(problemId, mode, input) {
-  if (problemId !== '1003') return null;
-  if (mode === 'sample') { const expected = digitStats(input); return expected === null ? [] : [{ input, expected }]; }
+function suppliedTests(value) {
+  if (!Array.isArray(value) || !value.length || value.length > 50) return null;
+  const tests = value.map(test => ({ input: String(test && test.input || ''), expected: String(test && test.expected || '') }));
+  if (tests.some(test => test.input.length > 65536 || test.expected.length > 65536)) return null;
+  return tests;
+}
+function getTests(payload) {
+  const configured = suppliedTests(payload.tests);
+  if (configured) return configured;
+  if (payload.problemId !== '1003') return null;
+  if (payload.mode === 'sample') { const expected = digitStats(payload.input || ''); return expected === null ? [] : [{ input: payload.input || '', expected }]; }
   return ['100311', '909090', '1234567890'].map(value => ({ input: value, expected: digitStats(value) }));
 }
 async function judge(payload) {
   if (!compilerPath) return { verdict: 'ServerError', message: '没有找到 Dev-C++ 的 g++.exe。请设置 DEVCXX_GPP_PATH 后重启服务。', compilerOutput: '' };
   if (payload.language !== 'C++ (g++)') return { verdict: 'UnsupportedLanguage', message: '本机评测当前只配置了 Dev-C++ 的 C++ 编译器。', compilerOutput: '' };
-  const tests = getTests(payload.problemId, payload.mode, payload.input || '');
+  const tests = getTests(payload);
   if (tests === null) return { verdict: 'NotConfigured', message: '该题尚未配置测试数据，无法给出真实判题结论。', compilerOutput: '' };
   if (!tests.length) return { verdict: 'WrongAnswer', message: '标准输入应为仅包含数字的正整数。', compilerOutput: '' };
   const runsRoot = path.join(os.tmpdir(), 'oms-pta-judge'); await fs.mkdir(runsRoot, { recursive: true });
