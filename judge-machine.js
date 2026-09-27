@@ -49,4 +49,28 @@
       if (mode === 'submit') { results[current] = result.verdict === 'Accepted' ? 'accepted' : 'wrong'; $('#submit-state').textContent = `刚刚提交 · ${label}`; render(); }
     } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = '评测失败'; }
   };
+
+  function renderAiReview(result) {
+    const verdict = { LikelyAccepted: '大概率正确', LikelyWrongAnswer: '存在错误风险', NeedsReview: '需要人工核验' }[result.verdict] || '需要人工核验';
+    const tests = (result.testCases || []).map((test, index) => `测试点 ${index + 1}${test.reason ? `（${test.reason}）` : ''}\n输入：\n${test.input || '(无)'}\n预期输出：\n${test.expected || '(AI 未可靠推导)'}`).join('\n\n');
+    const findings = (result.findings || []).map(item => `- ${item}`).join('\n') || '- 未发现明确问题';
+    const suggestions = (result.suggestions || []).map(item => `- ${item}`).join('\n') || '- 暂无额外建议';
+    return `AI 辅助评测（未实际执行代码）\n结论：${verdict} · 置信度：${result.confidence || '低'}\n\n${result.summary || ''}\n\n生成测试点：\n${tests || '(未生成)'}\n\n风险分析：\n${findings}\n\n修改建议：\n${suggestions}`;
+  }
+  async function aiAssess() {
+    const state = $('#run-state'), question = config.questions[current];
+    state.textContent = 'DeepSeek 正在生成测试点与分析…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
+    try {
+      const endpoint = document.querySelector('meta[name="oms-ai-assess-endpoint"]')?.content.trim() || '/api/ai-assess';
+      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:code.value, language:$('#language').value, problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
+      const result = await response.json();
+      if (!response.ok) throw Error(result.detail || result.message || 'AI 辅助评测服务不可用。');
+      $('#compiler-output').textContent = renderAiReview(result); setTab('compiler');
+      state.textContent = `AI 辅助评测完成 · ${ { LikelyAccepted:'大概率正确', LikelyWrongAnswer:'存在风险', NeedsReview:'待核验' }[result.verdict] || '待核验' }`;
+    } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = 'AI 辅助评测失败'; }
+  }
+  const aiButton = document.createElement('button');
+  aiButton.type = 'button'; aiButton.id = 'run-ai-assessment'; aiButton.textContent = '✦ AI 辅助评测'; aiButton.title = 'DeepSeek 生成测试点并分析代码，不会实际执行程序';
+  aiButton.addEventListener('click', aiAssess);
+  document.querySelector('#run-test')?.before(aiButton);
 })();
