@@ -58,6 +58,30 @@
     const suggestions = (result.suggestions || []).map(item => `- ${item}`).join('\n') || '- 暂无额外建议';
     return `DeepSeek 智能评测（模型推理，未实际执行代码）\n结论：${verdict} · 置信度：${result.confidence || '低'}\n\n${result.summary || ''}\n\n生成测试点：\n${tests || '(未生成)'}\n\n风险分析：\n${findings}\n\n修改建议：\n${suggestions}`;
   }
+  const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[char]);
+  const displayTime = value => new Intl.DateTimeFormat('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(value).replaceAll('/', '/');
+  function showSubmissionResult(result, question) {
+    const dialog = document.querySelector('#submission-dialog');
+    const accepted = result.verdict === 'LikelyAccepted';
+    const maxScore = Number(String($('#score').textContent || '').match(/\d+/)?.[0]) || 20;
+    const testCases = result.testCases || [];
+    const perCaseScore = testCases.length ? (maxScore / testCases.length) : maxScore;
+    const finalScore = accepted ? maxScore : 0;
+    const verdict = accepted ? '大概率正确' : result.verdict === 'LikelyWrongAnswer' ? '存在错误风险' : '需要人工核验';
+    $('#submission-problem').textContent = `${question.id} ${question.name}`;
+    $('#submission-user').textContent = $('#candidate').textContent || '考生';
+    $('#submission-time').textContent = displayTime(new Date());
+    $('#submission-language').textContent = $('#language').value;
+    $('#submission-reviewed-at').textContent = displayTime(new Date());
+    $('#submission-verdict').textContent = verdict;
+    $('#submission-verdict').className = accepted ? 'accepted' : 'review';
+    $('#submission-score').textContent = `${finalScore} / ${maxScore}`;
+    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ reason: result.summary }]).map((test, index) => `<tr><td>${index}</td><td>${escapeHtml(test.reason || 'AI 生成测试点')}</td><td>AI 评测 / --</td><td class="${accepted ? 'accepted' : 'review'}">${verdict}</td><td>${accepted ? `${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore} / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}` : `0 / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}`}</td></tr>`).join('');
+    $('#submission-code').textContent = code.value;
+    if (!dialog.open) dialog.showModal();
+  }
+  document.querySelector('#close-submission-dialog')?.addEventListener('click', () => document.querySelector('#submission-dialog')?.close());
+  document.querySelector('#submission-dialog')?.addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
   async function aiAssess(mode) {
     const state = $('#run-state'), question = config.questions[current];
     state.textContent = mode === 'submit' ? 'DeepSeek 正在评测并提交…' : 'DeepSeek 正在生成测试点与分析…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
@@ -73,6 +97,7 @@
         results[current] = accepted ? 'accepted' : 'wrong';
         $('#submit-state').textContent = `刚刚提交 · DeepSeek 评测：${accepted ? '大概率正确' : '待修改或人工核验'}`;
         render();
+        showSubmissionResult(result, question);
       }
     } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = 'AI 辅助评测失败'; }
   }

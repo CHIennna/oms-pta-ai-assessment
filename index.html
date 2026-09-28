@@ -48,6 +48,18 @@
     <main id="secondary" class="secondary" hidden></main>
   </div>
   <dialog id="admin-dialog"><form id="admin-form"><button type="button" class="close">×</button><p>OMS 管理员设置</p><h2>考试配置</h2><div class="form-grid"><label>考试标题<input name="title" required /></label><label>考试时长（分钟）<input name="duration" type="number" min="5" required /></label><label>倒计时开始时间<input name="startAt" type="datetime-local" required /></label><label>倒计时结束时间<input name="endAt" type="datetime-local" required /></label><label>机位号<input name="seat" required /></label><label>考生姓名<input name="candidateName" required /></label><label>考生学号<input name="studentId" required /></label><label>考试人数<input name="registered" type="number" min="1" required /></label></div><div class="import-row"><label>导入外部试题<input id="import-file" type="file" accept=".md,.json,.csv,text/markdown,application/json,text/csv" /></label><small>支持 Markdown、JSON、CSV；Markdown 自动识别题号、题名和分值。</small></div><div id="import-note"></div><div id="question-settings"></div><div class="form-actions"><button class="cancel" type="button">取消</button><button class="save" type="submit">保存并应用</button></div></form></dialog>
+  <dialog id="submission-dialog" class="submission-dialog" aria-labelledby="submission-dialog-title">
+    <section class="submission-modal">
+      <header class="submission-modal-head"><h2 id="submission-dialog-title">提交结果</h2><button type="button" id="close-submission-dialog" aria-label="关闭提交结果">×</button></header>
+      <section class="submission-summary"><dl>
+        <div><dt>题目</dt><dd id="submission-problem"></dd></div><div><dt>用户</dt><dd id="submission-user"></dd></div><div><dt>提交时间</dt><dd id="submission-time"></dd></div>
+        <div><dt>编译器</dt><dd id="submission-language"></dd></div><div><dt>评测方式</dt><dd>DeepSeek AI</dd></div><div><dt>评测时间</dt><dd id="submission-reviewed-at"></dd></div>
+        <div><dt>状态</dt><dd id="submission-verdict"></dd></div><div><dt>建议分数</dt><dd id="submission-score"></dd></div><div><dt>运行指标</dt><dd>AI 评测 / --</dd></div>
+      </dl></section>
+      <section class="submission-section"><h3>评测详情</h3><div class="submission-table-wrap"><table class="submission-table"><thead><tr><th>测试点</th><th>提示</th><th>运行指标</th><th>结果</th><th>建议得分</th></tr></thead><tbody id="submission-test-rows"></tbody></table></div></section>
+      <section class="submission-section submission-code"><h3>提交代码</h3><pre id="submission-code"></pre></section>
+    </section>
+  </dialog>
   <script src="pta-clone.js"></script>
   <script src="pta-clone-interactions.js"></script>
   <script type="module" src="codemirror-editor.js"></script>
