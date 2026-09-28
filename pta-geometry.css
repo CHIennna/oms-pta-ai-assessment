@@ -40,9 +40,13 @@
   .coding>.tester.collapsed{height:42px!important;min-height:42px;max-height:42px}
   .coding>.tester:not(.collapsed){display:flex;flex-direction:column}
   .coding>.tester .tester-tabs{flex:none}
-  .coding>.tester .test-content{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding-bottom:18px}
+  .coding>.tester:not(.collapsed) .test-content{display:block;flex:none;height:calc(100% - 42px);min-height:0;overflow-y:scroll!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:16px 22px 22px;scrollbar-gutter:stable}
+  .coding>.tester .test-content label{display:block;margin:0 0 14px}
+  .coding>.tester .test-content textarea,.coding>.tester .test-content pre{min-height:92px}
+  .coding>.tester .test-actions{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:9px;min-width:0;padding-top:2px}
+  .coding>.tester .test-actions small{margin-left:auto}
   .coding>.tester.expanded{height:min(58dvh,460px)}
-  .coding>.tester.expanded .test-content{min-height:0;overflow-y:auto}
+  .coding>.tester.expanded .test-content{height:calc(100% - 42px)}
   .submit-bar{position:static;min-height:62px;box-shadow:none}
   .workspace-bar .collapse-toggle{top:20px;left:24px}
 }

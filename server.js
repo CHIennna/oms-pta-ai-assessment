@@ -15,9 +15,13 @@ const publicFiles = new Map([
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 const oneCompilerLanguages = {
   'C++ (g++)': { language: 'cpp', file: 'main.cpp' },
+  'C++ (clang++)': { language: 'cpp', file: 'main.cpp' },
   'C (gcc)': { language: 'c', file: 'main.c' },
+  'C (clang)': { language: 'c', file: 'main.c' },
+  'Java': { language: 'java', file: 'Main.java' },
   'Python 3': { language: 'python', file: 'main.py' },
-  'Java 17': { language: 'java', file: 'Main.java' }
+  'Python 2': { language: 'python2', file: 'main.py' },
+  'PyPy': { language: 'python', file: 'main.py' }
 };
 const rateBuckets = new Map();
 
