@@ -36,7 +36,12 @@
   .resize-handle{display:none}
   .coding{height:min(78dvh,680px);min-height:500px;flex:none;border-top:8px solid #484848}
   .coding>.editor{min-height:250px}
-  .coding>.tester{max-height:340px}
-  .submit-bar{position:sticky;bottom:0;z-index:14;box-shadow:0 -7px 18px #252525aa}
+  .coding>.tester{height:min(52dvh,420px);max-height:420px;min-height:210px;overflow:hidden}
+  .coding>.tester:not(.collapsed){display:flex;flex-direction:column}
+  .coding>.tester .tester-tabs{flex:none}
+  .coding>.tester .test-content{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding-bottom:18px}
+  .coding>.tester.expanded{height:min(58dvh,460px)}
+  .coding>.tester.expanded .test-content{min-height:0;overflow-y:auto}
+  .submit-bar{position:static;min-height:62px;box-shadow:none}
   .workspace-bar .collapse-toggle{top:20px;left:24px}
 }
