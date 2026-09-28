@@ -6,7 +6,24 @@
   const middle = document.querySelector('.workspace-middle');
   const statement = document.querySelector('.statement');
   const handle = document.querySelector('.resize-handle');
+  const app = document.querySelector('#pta-app');
+  const overviewToggle = document.querySelector('#overview-toggle');
   if (!tester || !coding || !toggle) return;
+  const compact = window.matchMedia('(max-width: 760px)');
+  const syncOverview = () => {
+    if (!app || !overviewToggle) return;
+    const expanded = !app.classList.contains('overview-collapsed');
+    overviewToggle.setAttribute('aria-expanded', String(expanded));
+    overviewToggle.setAttribute('aria-label', expanded ? '收起题目总览' : '展开题目总览');
+  };
+  if (compact.matches && app) app.classList.add('overview-collapsed');
+  compact.addEventListener('change', event => {
+    if (!app) return;
+    if (event.matches) app.classList.add('overview-collapsed');
+    else app.classList.remove('overview-collapsed');
+    syncOverview();
+  });
+  overviewToggle?.addEventListener('click', () => requestAnimationFrame(syncOverview));
   coding.append(tester);
   const sync = () => {
     const collapsed = tester.classList.contains('collapsed');
@@ -45,4 +62,5 @@
     });
   }
   sync();
+  syncOverview();
 })();

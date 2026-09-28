@@ -21,3 +21,22 @@
 .pta-app.light-mode{--bg-site:hsl(220 20% 96%);--bg-base:hsl(0 0% 100%);--bg-light:hsl(220 18% 94%);--bg-normal:hsl(220 18% 90%);--border-all:hsl(220 14% 78% / .72);--text-darkest:hsl(220 22% 17%);--text-dark:hsl(220 18% 25%);--text-normal:hsl(220 13% 38%);--text-light:hsl(220 10% 50%);--text-lightest:hsl(220 8% 60%)}.pta-app.light-mode .cm-editor,.pta-app.light-mode .cm-gutters,.pta-app.light-mode .editor{background:var(--bg-base)!important;color:var(--text-dark)}.pta-app.light-mode .cm-gutters{border-color:var(--border-all)!important}.pta-app.light-mode .cm-line{color:var(--text-dark)}
 .question-grid{width:100%;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 8px;padding:0 12px 28px;overflow:hidden}.question-grid button{width:100%;height:auto;max-height:40px;aspect-ratio:1;border-radius:6px;font-size:13px}.question-grid button svg{width:16px;height:16px}.collapse-toggle{width:20px!important;height:20px!important}.collapse-toggle:before{width:12px!important;height:12px!important}.collapse-toggle:after{top:4px!important;left:6px!important;height:9px!important}
 .workspace-bar{position:relative}.workspace-bar strong{display:none}.workspace-bar .collapse-toggle{position:absolute;top:20px;left:24px}
+@media (max-width:760px){
+  html,body{height:auto;min-height:100%;overflow:auto}
+  .pta-app{height:auto;min-height:100dvh;grid-template-rows:54px auto}
+  .topbar{position:sticky;top:0;z-index:40}
+  .rail{position:fixed;z-index:35;top:54px;bottom:0;left:0;width:52px;overflow-y:auto}
+  .overview{display:block;position:fixed;z-index:45;top:54px;bottom:0;left:52px;width:min(286px,calc(100vw - 52px));max-width:calc(100vw - 52px);overflow:auto;border-right:1px solid var(--line);box-shadow:12px 0 28px #111b;opacity:0;transform:translateX(-105%);pointer-events:none;transition:opacity .18s ease,transform .22s cubic-bezier(.2,.75,.2,1)}
+  .pta-app:not(.overview-collapsed) .overview{opacity:1;transform:translateX(0);pointer-events:auto}
+  .workspace{min-height:calc(100dvh - 54px);overflow:visible}
+  .workspace-bar{position:sticky;top:54px;z-index:12;background:var(--bg-base)}
+  .workspace-middle{display:flex;flex:none;min-height:0;overflow:visible}
+  .statement{height:auto;overflow:visible;flex:none;background:linear-gradient(to bottom,var(--bg-light) 0 58px,var(--bg-base) 58px)}
+  .statement-inner{height:auto;margin-top:58px;overflow:visible;padding:20px 22px 28px}
+  .resize-handle{display:none}
+  .coding{height:min(78dvh,680px);min-height:500px;flex:none;border-top:8px solid #484848}
+  .coding>.editor{min-height:250px}
+  .coding>.tester{max-height:340px}
+  .submit-bar{position:sticky;bottom:0;z-index:14;box-shadow:0 -7px 18px #252525aa}
+  .workspace-bar .collapse-toggle{top:20px;left:24px}
+}
