@@ -37,6 +37,7 @@
   .coding{height:min(78dvh,680px);min-height:500px;flex:none;border-top:8px solid #484848}
   .coding>.editor{min-height:250px}
   .coding>.tester{height:min(52dvh,420px);max-height:420px;min-height:210px;overflow:hidden}
+  .coding>.tester.collapsed{height:42px!important;min-height:42px;max-height:42px}
   .coding>.tester:not(.collapsed){display:flex;flex-direction:column}
   .coding>.tester .tester-tabs{flex:none}
   .coding>.tester .test-content{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding-bottom:18px}
