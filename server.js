@@ -64,7 +64,7 @@ async function oneCompilerRun(language, source, input) {
 }
 function aiReviewResult(value) {
   const raw = value && typeof value === 'object' ? value : {};
-  const verdicts = new Set(['LikelyAccepted', 'LikelyWrongAnswer', 'NeedsReview']);
+  const verdicts = new Set(['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded', 'NeedsReview']);
   const text = value => String(value || '').trim().slice(0, 4000);
   const testCases = Array.isArray(raw.testCases) ? raw.testCases.slice(0, 5).map(test => ({
     input: text(test && test.input), expected: text(test && test.expected), reason: text(test && test.reason)
@@ -85,10 +85,10 @@ async function assessWithDeepSeek(payload) {
   const problem = payload.problem && typeof payload.problem === 'object' ? payload.problem : {};
   const title = String(problem.title || '').slice(0, 500);
   const statement = String(problem.statement || '').slice(0, 16000);
-  if (!code.trim()) return { verdict: 'NeedsReview', confidence: '高', summary: '请先编写代码，再进行 AI 辅助评测。', testCases: [], findings: [], suggestions: [] };
+  if (!code.trim()) return { verdict: 'CompilationError', confidence: '高', summary: '请先编写代码，再进行 AI 辅助评测。', testCases: [], findings: [], suggestions: [] };
   if (!title || !statement) throw Error('题目信息不完整，暂不能进行 AI 辅助评测。');
   if (code.length > 65536) throw Error('代码长度超过 64 KB 限制。');
-  const system = '你是程序设计考试的 AI 辅助评测员。不能声称自己实际执行过代码，也不能把推测写成确定通过。请基于题目与代码，生成覆盖边界情况的测试点并做静态推理。只返回 JSON 对象，不要 Markdown。JSON 格式：{"verdict":"LikelyAccepted|LikelyWrongAnswer|NeedsReview","confidence":"高|中|低","summary":"简洁结论","testCases":[{"input":"","expected":"","reason":""}],"findings":[""],"suggestions":[""]}。预期输出必须来自你可解释的推导；无法可靠推导时，测试点 expected 写空并在 reason 说明。';
+  const system = '你是程序设计考试的 AI 辅助评测员。不能声称自己实际执行过代码；所有结论都是基于题目与代码的静态推理。生成覆盖边界情况的测试点并判断最可能的 PTA 式评测状态。只返回 JSON 对象，不要 Markdown。JSON 格式：{"verdict":"Accepted|WrongAnswer|CompilationError|RuntimeError|TimeLimitExceeded|NeedsReview","confidence":"高|中|低","summary":"简洁结论，明确说明这是静态推理","testCases":[{"input":"","expected":"","reason":""}],"findings":[""],"suggestions":[""]}。Accepted 仅用于逻辑和边界均未发现问题时；WrongAnswer 用于可推导的输出错误；CompilationError 用于明显语法或语言错误；RuntimeError 仅用于明显异常访问、空指针或越界等运行时崩溃风险；TimeLimitExceeded 仅用于复杂度明显超过题目限制；其余一律 NeedsReview。预期输出必须来自你可解释的推导；无法可靠推导时，测试点 expected 写空并在 reason 说明。';
   const user = `题目：${title}\n\n题目描述：\n${statement}\n\n语言：${language}\n\n考生代码：\n${code}`;
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 25000);
   try {

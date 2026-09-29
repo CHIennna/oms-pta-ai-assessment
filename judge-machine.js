@@ -51,8 +51,16 @@
     } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = '评测失败'; }
   };
 
+  const aiVerdict = verdict => ({
+    Accepted: { label: '答案正确', tone: 'accepted' },
+    WrongAnswer: { label: '答案错误', tone: 'wrong' },
+    CompilationError: { label: '编译错误', tone: 'error' },
+    RuntimeError: { label: '段错误', tone: 'error' },
+    TimeLimitExceeded: { label: '运行超时', tone: 'timeout' },
+    NeedsReview: { label: '等待人工核验', tone: 'review' }
+  }[verdict] || { label: '等待人工核验', tone: 'review' });
   function renderAiReview(result) {
-    const verdict = { LikelyAccepted: '大概率正确', LikelyWrongAnswer: '存在错误风险', NeedsReview: '需要人工核验' }[result.verdict] || '需要人工核验';
+    const verdict = aiVerdict(result.verdict).label;
     const tests = (result.testCases || []).map((test, index) => `测试点 ${index + 1}${test.reason ? `（${test.reason}）` : ''}\n输入：\n${test.input || '(无)'}\n预期输出：\n${test.expected || '(AI 未可靠推导)'}`).join('\n\n');
     const findings = (result.findings || []).map(item => `- ${item}`).join('\n') || '- 未发现明确问题';
     const suggestions = (result.suggestions || []).map(item => `- ${item}`).join('\n') || '- 暂无额外建议';
@@ -62,21 +70,22 @@
   const displayTime = value => new Intl.DateTimeFormat('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(value).replaceAll('/', '/');
   function showSubmissionResult(result, question) {
     const dialog = document.querySelector('#submission-dialog');
-    const accepted = result.verdict === 'LikelyAccepted';
+    const status = aiVerdict(result.verdict);
+    const accepted = result.verdict === 'Accepted';
     const maxScore = Number(String($('#score').textContent || '').match(/\d+/)?.[0]) || 20;
     const testCases = result.testCases || [];
     const perCaseScore = testCases.length ? (maxScore / testCases.length) : maxScore;
     const finalScore = accepted ? maxScore : 0;
-    const verdict = accepted ? '大概率正确' : result.verdict === 'LikelyWrongAnswer' ? '存在错误风险' : '需要人工核验';
+    const verdict = status.label;
     $('#submission-problem').textContent = `${question.id} ${question.name}`;
     $('#submission-user').textContent = $('#candidate').textContent || '考生';
     $('#submission-time').textContent = displayTime(new Date());
     $('#submission-language').textContent = $('#language').value;
     $('#submission-reviewed-at').textContent = displayTime(new Date());
     $('#submission-verdict').textContent = verdict;
-    $('#submission-verdict').className = accepted ? 'accepted' : 'review';
+    $('#submission-verdict').className = status.tone;
     $('#submission-score').textContent = `${finalScore} / ${maxScore}`;
-    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ reason: result.summary }]).map((test, index) => `<tr><td>${index}</td><td>${escapeHtml(test.reason || 'AI 生成测试点')}</td><td>AI 评测 / --</td><td class="${accepted ? 'accepted' : 'review'}">${verdict}</td><td>${accepted ? `${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore} / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}` : `0 / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}`}</td></tr>`).join('');
+    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ reason: result.summary }]).map((test, index) => `<tr><td>${index}</td><td>${escapeHtml(test.reason || 'AI 生成测试点')}</td><td>AI 静态推理 / --</td><td class="${status.tone}">${verdict}</td><td>${accepted ? `${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore} / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}` : `0 / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}`}</td></tr>`).join('');
     $('#submission-code').textContent = code.value;
     if (!dialog.open) dialog.showModal();
   }
@@ -91,11 +100,11 @@
       const result = await response.json();
       if (!response.ok) throw Error(result.detail || result.message || 'AI 辅助评测服务不可用。');
       $('#compiler-output').textContent = renderAiReview(result); setTab('compiler');
-      state.textContent = `AI 辅助评测完成 · ${ { LikelyAccepted:'大概率正确', LikelyWrongAnswer:'存在风险', NeedsReview:'待核验' }[result.verdict] || '待核验' }`;
+      state.textContent = `AI 辅助评测完成 · ${aiVerdict(result.verdict).label}`;
       if (mode === 'submit') {
-        const accepted = result.verdict === 'LikelyAccepted';
+        const accepted = result.verdict === 'Accepted';
         results[current] = accepted ? 'accepted' : 'wrong';
-        $('#submit-state').textContent = `刚刚提交 · DeepSeek 评测：${accepted ? '大概率正确' : '待修改或人工核验'}`;
+        $('#submit-state').textContent = `刚刚提交 · DeepSeek 评测：${aiVerdict(result.verdict).label}`;
         render();
         showSubmissionResult(result, question);
       }
