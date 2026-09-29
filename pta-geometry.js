@@ -8,6 +8,7 @@
   const handle = document.querySelector('.resize-handle');
   const app = document.querySelector('#pta-app');
   const overviewToggle = document.querySelector('#overview-toggle');
+  const overview = document.querySelector('#overview');
   if (!tester || !coding || !toggle) return;
   const compact = window.matchMedia('(max-width: 760px)');
   const syncOverview = () => {
@@ -24,6 +25,17 @@
     syncOverview();
   });
   overviewToggle?.addEventListener('click', () => requestAnimationFrame(syncOverview));
+  if (overview && app) {
+    const closeOverview = document.createElement('button');
+    closeOverview.type = 'button'; closeOverview.id = 'mobile-overview-close'; closeOverview.textContent = '×';
+    closeOverview.setAttribute('aria-label', '收起题目总览');
+    closeOverview.addEventListener('click', () => { app.classList.add('overview-collapsed'); syncOverview(); });
+    overview.prepend(closeOverview);
+    overview.addEventListener('click', event => {
+      if (!compact.matches || !event.target.closest('.question-grid button')) return;
+      app.classList.add('overview-collapsed'); syncOverview();
+    });
+  }
   coding.append(tester);
   const sync = () => {
     const collapsed = tester.classList.contains('collapsed');
