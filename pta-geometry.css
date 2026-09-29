@@ -47,6 +47,8 @@
   .coding>.tester .test-actions small{margin-left:auto}
   .coding>.tester.expanded{height:min(58dvh,460px)}
   .coding>.tester.expanded .test-content{height:calc(100% - 42px)}
+  .coding>.tester.compiler .test-content{display:none!important}
+  .coding>.tester.compiler .compiler-output{display:block;height:calc(100% - 42px);overflow-y:auto}
   .submit-bar{position:static;min-height:62px;box-shadow:none}
   .workspace-bar .collapse-toggle{top:20px;left:24px}
 }
