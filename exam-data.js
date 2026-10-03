@@ -334,3 +334,20 @@ window.OMS_EXAM_DATA = {
     }
   ]
 };
+window.OMS_EXAM_ARCHIVE = [
+  {
+    "examVersion": "legacy-demo",
+    "title": "程序设计基础上机考试",
+    "date": "2026-09-29",
+    "duration": 120,
+    "totalScore": 95,
+    "status": "已结束",
+    "questions": [
+      { "id": "1001", "name": "打印沙漏", "score": 20 },
+      { "id": "1002", "name": "写出这个数", "score": 20 },
+      { "id": "1003", "name": "个位数统计", "score": 20 },
+      { "id": "1004", "name": "成绩转换", "score": 15 },
+      { "id": "1005", "name": "继续(3n+1)猜想", "score": 20 }
+    ]
+  }
+];
