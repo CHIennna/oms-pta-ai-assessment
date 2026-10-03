@@ -2,6 +2,7 @@ const fs = require('fs');
 
 const sourcePath = process.argv[2];
 const targetPath = process.argv[3];
+const examVersion = process.argv[4] || '2026-10-04-first-weekly-practice-800';
 const source = fs.readFileSync(sourcePath, 'utf8').replace(/\r\n?/g, '\n');
 const readMeta = (label, fallback = '') => (source.match(new RegExp(`\\*\\*${label}[：:]\\s*([^*]+)\\*\\*`)) || [])[1]?.trim() || fallback;
 const scoreLine = /^\s*\*{0,2}\s*分数\s*[：:]?\s*(\d+)\s*分?\s*\*{0,2}\s*$/m;
@@ -10,9 +11,13 @@ const fencedAfter = (block, label) => {
   const match = new RegExp(pattern, 'm').exec(block);
   return match ? match[1].trimEnd() : '';
 };
-const headings = [...source.matchAll(/^#\s+(\d+)\s+(.+?)\s*$/gm)];
+const topLevelHeadings = [...source.matchAll(/^#\s+(.+?)\s*$/gm)];
+const headings = topLevelHeadings.slice(1).map(heading => {
+  const parsed = heading[1].match(/^(\d+)(?:[.、．]\s*|\s+)(.+)$/);
+  return parsed ? { index: heading.index, text: heading[0], id: parsed[1], name: parsed[2].trim() } : null;
+}).filter(Boolean);
 const questions = headings.map((heading, index) => {
-  const body = source.slice(heading.index + heading[0].length, headings[index + 1]?.index ?? source.length).trim();
+  const body = source.slice(heading.index + heading.text.length, headings[index + 1]?.index ?? source.length).trim();
   const score = Number((body.match(scoreLine) || [])[1]) || 0;
   const testHeading = /^###\s+测试点\s+(\d+)\s*(?:（(\d+)\s*分）|\((\d+)\s*分\))?\s*$/gm;
   const markers = [...body.matchAll(testHeading)];
@@ -26,8 +31,8 @@ const questions = headings.map((heading, index) => {
   }).filter(test => test.input || test.expected);
   const publicStatement = body.split(/^##\s+测试点\s*$/m)[0].replace(scoreLine, '').trim();
   return {
-    id: heading[1],
-    name: heading[2].trim(),
+    id: heading.id,
+    name: heading.name,
     score,
     tests: testCases.length,
     sampleInput: fencedAfter(publicStatement, '## 样例输入') || testCases[0]?.input || '',
@@ -37,8 +42,8 @@ const questions = headings.map((heading, index) => {
   };
 });
 const exam = {
-  examVersion: '2026-10-04-first-weekly-practice-800',
-  title: readMeta('考试名称', (source.match(/^#\s+(?!\d+\s)(.+?)\s*$/m) || [])[1] || '2026-10-04 转专业第一次周练'),
+  examVersion,
+  title: readMeta('考试名称', topLevelHeadings[0]?.[1]?.trim() || '程序设计考试'),
   duration: Number(readMeta('考试时长', '120').match(/\d+/)?.[0]) || 120,
   totalScore: Number(readMeta('总分', '100').match(/\d+/)?.[0]) || 100,
   questions
