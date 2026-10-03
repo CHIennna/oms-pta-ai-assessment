@@ -19,7 +19,7 @@
 .rendered-markdown h3{font-weight:500}
 .machine-info{margin-left:0}.account{margin-left:auto}
 .pta-app.light-mode{--bg-site:hsl(220 20% 96%);--bg-base:hsl(0 0% 100%);--bg-light:hsl(220 18% 94%);--bg-normal:hsl(220 18% 90%);--border-all:hsl(220 14% 78% / .72);--text-darkest:hsl(220 22% 17%);--text-dark:hsl(220 18% 25%);--text-normal:hsl(220 13% 38%);--text-light:hsl(220 10% 50%);--text-lightest:hsl(220 8% 60%)}.pta-app.light-mode .cm-editor,.pta-app.light-mode .cm-gutters,.pta-app.light-mode .editor{background:var(--bg-base)!important;color:var(--text-dark)}.pta-app.light-mode .cm-gutters{border-color:var(--border-all)!important}.pta-app.light-mode .cm-line{color:var(--text-dark)}
-.question-grid{width:100%;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 8px;padding:0 12px 28px;overflow:hidden}.question-grid button{width:100%;height:auto;max-height:40px;aspect-ratio:1;border-radius:6px;font-size:13px}.question-grid button svg{width:16px;height:16px}.collapse-toggle{width:20px!important;height:20px!important}.collapse-toggle:before{width:12px!important;height:12px!important}.collapse-toggle:after{top:4px!important;left:6px!important;height:9px!important}
+.question-grid{width:100%;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 8px;padding:0 12px 28px;overflow:hidden}.question-grid button{width:100%;height:auto;max-height:40px;aspect-ratio:1;border-radius:6px;font-size:15px}.question-grid button svg{width:16px;height:16px}.collapse-toggle{width:20px!important;height:20px!important}.collapse-toggle:before{width:12px!important;height:12px!important}.collapse-toggle:after{top:4px!important;left:6px!important;height:9px!important}
 .workspace-bar{position:relative}.workspace-bar strong{display:none}.workspace-bar .collapse-toggle{position:absolute;top:20px;left:24px}
 #mobile-overview-close{display:none}
 @media (max-width:760px){
@@ -60,5 +60,82 @@
 @media (max-width:560px){.exam-home-head{align-items:stretch;flex-direction:column}.exam-total{width:100%}.secondary[data-page="info"] .info-grid{grid-template-columns:1fr 1fr;gap:9px}.secondary[data-page="info"] .info-grid div{padding:13px}.secondary[data-page="info"] .info-grid b{font-size:17px}.exam-question-list>header{align-items:flex-start;flex-direction:column;gap:4px}}
 .exam-center-nav{margin-top:auto}.secondary[data-page="center"]{padding:28px clamp(18px,4vw,54px)}.exam-center-head{max-width:1100px;margin-bottom:22px}.exam-center-head p{margin:0 0 5px;color:var(--color-primary);font:600 12px var(--font-mono);letter-spacing:.08em}.exam-center-head h1{margin:0 0 7px;font-size:24px}.exam-center-head>span{color:var(--text-light);font-size:13px}.exam-archive-list{display:grid;gap:14px;width:100%;max-width:1100px}.exam-archive-card{border:1px solid var(--border-all);background:var(--bg-light)}.exam-archive-card>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 20px;align-items:center;gap:22px;padding:19px 20px;cursor:pointer;list-style:none}.exam-archive-card>summary::-webkit-details-marker{display:none}.archive-card-title{display:flex;min-width:0;align-items:center;gap:13px}.archive-card-title>div{min-width:0}.archive-card-title h2{margin:0;overflow:hidden;color:var(--text-dark);font-size:17px;text-overflow:ellipsis;white-space:nowrap}.archive-card-title p{margin:5px 0 0;color:var(--text-light);font:12px var(--font-mono)}.archive-status{flex:none;padding:4px 8px;border-radius:3px;background:var(--bg-normal);color:var(--text-light);font-size:11px}.archive-status.current{background:hsl(211 75% 45%/.18);color:var(--color-primary)}.archive-metrics{display:flex;gap:25px}.archive-metrics span{min-width:58px}.archive-metrics small{display:block;color:var(--text-light);font-size:11px}.archive-metrics b{display:block;margin-top:4px;color:var(--text-dark);font-size:13px}.exam-archive-card summary>i{color:var(--text-light);font-style:normal;transition:transform .18s}.exam-archive-card[open] summary>i{transform:rotate(180deg)}.archive-question-list{border-top:1px solid var(--border-all);background:var(--bg-base)}.archive-question-list>header,.archive-question-row{display:grid;grid-template-columns:minmax(0,1fr) 90px;align-items:center;gap:14px;padding:10px 20px}.archive-question-list>header{color:var(--text-light);font-size:11px}.archive-question-row{grid-template-columns:34px minmax(0,1fr) 90px;border-top:1px solid hsl(0 0% 100%/.05)}.archive-question-row>span{display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:var(--bg-normal);color:var(--text-light);font:11px var(--font-mono)}.archive-question-row div{display:flex;min-width:0;flex-direction:column;gap:3px}.archive-question-row b{overflow:hidden;color:var(--text-normal);font-size:13px;text-overflow:ellipsis;white-space:nowrap}.archive-question-row small{color:var(--text-light);font-size:10px}.archive-question-row strong{color:var(--text-dark);font:600 13px var(--font-mono);text-align:right}
 @media (max-width:760px){.secondary[data-page="center"]{padding:20px 14px}.exam-archive-card>summary{grid-template-columns:minmax(0,1fr) 18px;padding:15px}.archive-metrics{grid-column:1/-1;grid-row:2;justify-content:space-between;gap:10px;padding-left:0}.exam-archive-card summary>i{grid-column:2;grid-row:1}.archive-question-list>header,.archive-question-row{padding-left:14px;padding-right:14px}.exam-center-head h1{font-size:21px}}
+
 .exam-center-tabs{display:flex;width:100%;max-width:1100px;margin-bottom:18px;border-bottom:1px solid var(--border-all)}.exam-center-tabs button{min-width:112px;padding:11px 18px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--text-light);font-size:14px;cursor:pointer}.exam-center-tabs button.active{border-bottom-color:var(--color-primary);color:var(--color-primary)}.exam-center-panel{width:100%;max-width:1100px}.exam-center-panel[hidden]{display:none}.exam-center-panel>header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:12px}.exam-center-panel>header h2{margin:0;color:var(--text-dark);font-size:18px}.exam-center-panel>header span{color:var(--text-light);font-size:12px}.exam-center-empty{display:flex;min-height:150px;align-items:center;justify-content:center;flex-direction:column;gap:7px;border:1px dashed var(--border-all);background:var(--bg-light);color:var(--text-light)}.exam-center-empty b{color:var(--text-normal);font-size:15px}.archive-question-row[type="button"]{width:100%;border-right:0;border-bottom:0;border-left:0;background:transparent;text-align:left;cursor:pointer}.archive-question-row[type="button"]:hover{background:hsl(0 0% 100%/.035)}.archive-question-row em{color:var(--color-primary);font-size:11px;font-style:normal;text-align:right}.archive-question-row[type="button"]{grid-template-columns:34px minmax(0,1fr) 90px 90px}
 @media (max-width:760px){.archive-question-row[type="button"]{grid-template-columns:34px minmax(0,1fr) auto}.archive-question-row[type="button"] em{grid-column:2/4;text-align:left}.exam-center-tabs button{flex:1;min-width:0}}
+
+/* Final PAT fidelity layer: quiet separators, flat controls and fine line icons. */
+.coding>.tester{border-left-color:var(--border-all)}
+.resize-handle{background:linear-gradient(to bottom,var(--bg-light) 0 58px,var(--bg-light) 58px)}
+.topbar,.workspace-bar,.description-tab,.editor-toolbar,.tester-tabs,.submit-bar{box-shadow:none}
+.rail-button,.category,.matrix-head,.workspace-bar button,.problem-tools button,.editor-toolbar select,.editor-toolbar button,.tester-tabs button,.submit-bar button{font-weight:400}
+.rail-button.active{background:var(--bg-light);color:var(--color-primary)}
+.round:hover,.rail-button:hover,.category:hover{background:var(--bg-light)}
+.question-grid button{border-color:hsl(0 0% 100% / .105)}
+.question-grid button svg{stroke-width:1.45}
+
+/* Match PTA's relaxed problem-statement reading rhythm. */
+.statement-inner{font-size:16px;line-height:1.72}
+.statement .rendered-markdown{line-height:1.72}
+.statement .rendered-markdown p{margin:.68em 0 1em}
+.statement .rendered-markdown h2{line-height:1.45;margin:1.25em 0 .55em}
+.statement .rendered-markdown h3{line-height:1.5;margin:1.18em 0 .48em}
+.statement .rendered-markdown h4{line-height:1.5;margin:1em 0 .45em}
+.statement .rendered-markdown ul,.statement .rendered-markdown ol{margin:.75em 0 1em}
+.statement .rendered-markdown li{margin:.22em 0}
+.statement .rendered-markdown blockquote{margin:1em 0}
+
+/* PTA light theme: white canvas, cool-gray chrome and readable syntax colors. */
+.pta-app.light-mode{
+  --bg-site:#fff;--bg-base:#fff;--bg-light:#f6f7f9;--bg-normal:#eef0f3;
+  --border-all:#e6e8eb;--text-darkest:#171c24;--text-dark:#2f3744;
+  --text-normal:#515b6b;--text-light:#858d98;--text-lightest:#a3a9b2;
+  --code-bg:#fff;--code-text:#3f4854;--code-gutter:#9aa0a8;--code-border:#edf0f2;
+  --code-active-line:#f5f7f9;--code-selection:rgba(43,140,255,.2);--code-caret:#202630;--code-indent:#c4c9cf;
+  --syntax-meta:#2869a6;--syntax-keyword:#e54852;--syntax-type:#176fbd;
+  --syntax-name:#246b9f;--syntax-string:#587a26;--syntax-number:#8250a8;--syntax-comment:#7c8792;
+  color-scheme:light;
+}
+.pta-app.light-mode .topbar,.pta-app.light-mode .rail,.pta-app.light-mode .overview,.pta-app.light-mode .workspace,.pta-app.light-mode .coding,.pta-app.light-mode .tester,.pta-app.light-mode .submit-bar,.pta-app.light-mode .secondary{background:var(--bg-base);border-color:var(--border-all)}
+.pta-app.light-mode .workspace-bar{background:var(--bg-base);border-color:var(--border-all)}
+.pta-app.light-mode .statement{background:linear-gradient(to bottom,var(--bg-light) 0 58px,var(--bg-base) 58px)}
+.pta-app.light-mode .description-tab,.pta-app.light-mode .editor-toolbar,.pta-app.light-mode .tester-tabs,.pta-app.light-mode .category,.pta-app.light-mode .round{background:var(--bg-light);border-color:var(--border-all)}
+.pta-app.light-mode .resize-handle{background:linear-gradient(to bottom,var(--bg-light) 0 58px,#f0f2f4 58px)}
+.pta-app.light-mode .resize-handle i{border-color:#c9cdd2;background:radial-gradient(#9da4ac 1px,transparent 1.4px) 1px 2px/5px 6px}
+.pta-app.light-mode .brand strong,.pta-app.light-mode .account b,.pta-app.light-mode .problem-meta h1,.pta-app.light-mode .problem-copy h2,.pta-app.light-mode .problem-copy h3,.pta-app.light-mode .problem-copy h4,.pta-app.light-mode .tester-tabs button.active{color:var(--text-darkest)}
+.pta-app.light-mode .machine-info,.pta-app.light-mode .problem-tools,.pta-app.light-mode .problem-tools button,.pta-app.light-mode .matrix-head span,.pta-app.light-mode .tester-tabs button,.pta-app.light-mode .test-content label,.pta-app.light-mode .submit-bar span,.pta-app.light-mode .editor-toolbar button{color:var(--text-light)}
+.pta-app.light-mode .oms-chip{border-color:#d8dde3;color:#737d89}
+.pta-app.light-mode .admin-button,.pta-app.light-mode .editor-toolbar select{border-color:#d9dde2;background:#fff;color:var(--text-dark)}
+.pta-app.light-mode .rail-button{background:#fff;color:#6f7781}
+.pta-app.light-mode .rail-button.active,.pta-app.light-mode .rail-button:hover{background:var(--bg-light);color:var(--color-primary)}
+.pta-app.light-mode .category{color:var(--color-primary)}
+.pta-app.light-mode .category em,.pta-app.light-mode .matrix-head{color:var(--text-normal)}
+.pta-app.light-mode .question-grid button{border-color:#e2e5e9;background:#fff;color:var(--text-light);box-shadow:none}
+.pta-app.light-mode .question-grid button.accepted{border-color:#ffccc7;background:#fff2f0;color:#f03b42}
+.pta-app.light-mode .question-grid button.wrong{border-color:#b7ebc6;background:#f0fff4;color:#39a862}
+.pta-app.light-mode .question-grid button.current{border-color:var(--color-primary);background:#fff;box-shadow:0 0 0 1px rgba(43,140,255,.16),0 0 6px rgba(43,140,255,.3)}
+.pta-app.light-mode .problem-meta{border-color:var(--border-all)}
+.pta-app.light-mode .problem-meta h1+span{background:var(--bg-light);color:var(--text-light)}
+.pta-app.light-mode .rendered-markdown,.pta-app.light-mode .problem-copy{color:var(--text-normal)}
+.pta-app.light-mode .rendered-markdown strong{color:var(--text-dark)}
+.pta-app.light-mode .rendered-markdown blockquote{border-color:#d9dde2;color:var(--text-normal)}
+.pta-app.light-mode .rendered-markdown code{background:#f4f5f7;color:#d33f49}
+.pta-app.light-mode .rendered-markdown pre code,.pta-app.light-mode .sample-rows code{background:transparent;color:var(--text-dark)}
+.pta-app.light-mode .rendered-markdown pre,.pta-app.light-mode .sample-block,.pta-app.light-mode .problem-limits{border-color:var(--border-all);background:#fff;color:var(--text-normal)}
+.pta-app.light-mode .sample-toolbar,.pta-app.light-mode .sample-rows span,.pta-app.light-mode .sample-rows>div+div{border-color:var(--border-all)}
+.pta-app.light-mode .test-content textarea,.pta-app.light-mode .test-content pre,.pta-app.light-mode .compiler-output{border-color:var(--border-all);background:#fff;color:var(--text-dark)}
+.pta-app.light-mode .tester-tabs button.active{background:#fff}
+.pta-app.light-mode .cm-editor,.pta-app.light-mode .cm-scroller,.pta-app.light-mode .cm-content,.pta-app.light-mode .cm-gutters,.pta-app.light-mode .editor{background:var(--code-bg)!important;color:var(--code-text)!important}
+.pta-app.light-mode .cm-gutters{border-color:var(--code-border)!important}
+.pta-app.light-mode .cm-line,.pta-app.light-mode .cm-loop-variable,.pta-app.light-mode .cm-loop-variable *{color:var(--code-text)!important}
+.pta-app.light-mode .cm-include-header,.pta-app.light-mode .cm-include-header *{color:var(--syntax-meta)!important}
+.pta-app.light-mode .cm-activeLine,.pta-app.light-mode .cm-activeLineGutter{background:var(--code-active-line)!important}
+.pta-app.light-mode .cm-selectionBackground,.pta-app.light-mode .cm-editor.cm-focused .cm-selectionBackground{background:var(--code-selection)!important}
+.pta-app.light-mode .cm-indent-marker{background-image:radial-gradient(circle,var(--code-indent) 1px,transparent 1.2px)!important}
+.pta-app.light-mode .syntax-highlight{color:var(--code-text)}
+.pta-app.light-mode .syntax-highlight .pp{color:var(--syntax-meta)}
+.pta-app.light-mode .syntax-highlight .key{color:var(--syntax-keyword)}
+.pta-app.light-mode .syntax-highlight .type,.pta-app.light-mode .syntax-highlight .fn{color:var(--syntax-type)}
+.pta-app.light-mode .syntax-highlight .str{color:var(--syntax-string)}
+.pta-app.light-mode .syntax-highlight .num{color:var(--syntax-number)}
+.pta-app.light-mode #mobile-overview-close{background:var(--bg-normal);color:var(--text-normal)}

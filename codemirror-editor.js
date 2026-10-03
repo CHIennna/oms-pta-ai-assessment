@@ -19952,28 +19952,28 @@
         }
       }, { decorations: (value) => value.decorations });
       var ptaTheme = EditorView.theme({
-        "&": { height: "100%", color: "#d9d9d9", backgroundColor: "#404040" },
+        "&": { height: "100%", color: "var(--code-text, #d9d9d9)", backgroundColor: "var(--code-bg, #404040)" },
         ".cm-scroller": { fontFamily: mono, lineHeight: "1.55" },
-        ".cm-content": { padding: "0.5rem 0", caretColor: "#f2f2f2" },
+        ".cm-content": { padding: "0.5rem 0", caretColor: "var(--code-caret, #f2f2f2)" },
         ".cm-line": { paddingLeft: "0.5rem" },
-        ".cm-indent-marker": { backgroundImage: "radial-gradient(circle, #797979 1px, transparent 1.2px)", backgroundPosition: "0 52%", backgroundRepeat: "repeat-x", backgroundSize: "8.4px 4px" },
-        ".cm-loop-variable": { color: "#d9d9d9 !important" },
-        ".cm-include-header": { color: "#80baff !important" },
-        ".cm-gutters": { minWidth: "58px", color: "#999", backgroundColor: "#404040", borderRight: "1px solid rgba(255,255,255,.06)" },
+        ".cm-indent-marker": { backgroundImage: "radial-gradient(circle, var(--code-indent, #797979) 1px, transparent 1.2px)", backgroundPosition: "0 52%", backgroundRepeat: "repeat-x", backgroundSize: "8.4px 4px" },
+        ".cm-loop-variable": { color: "var(--code-text, #d9d9d9) !important" },
+        ".cm-include-header": { color: "var(--syntax-meta, #80baff) !important" },
+        ".cm-gutters": { minWidth: "58px", color: "var(--code-gutter, #999)", backgroundColor: "var(--code-bg, #404040)", borderRight: "1px solid var(--code-border, rgba(255,255,255,.06))" },
         ".cm-lineNumbers .cm-gutterElement": { padding: "0 1rem", boxSizing: "content-box" },
-        ".cm-activeLine": { backgroundColor: "#444" },
-        ".cm-activeLineGutter": { backgroundColor: "#444" },
-        ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "rgba(49,135,235,.45) !important" },
-        ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#f2f2f2" }
+        ".cm-activeLine": { backgroundColor: "var(--code-active-line, #444)" },
+        ".cm-activeLineGutter": { backgroundColor: "var(--code-active-line, #444)" },
+        ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "var(--code-selection, rgba(49,135,235,.45)) !important" },
+        ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--code-caret, #f2f2f2)" }
       }, { dark: true });
       var ptaHighlight = HighlightStyle.define([
-        { tag: [tags.meta, tags.processingInstruction], color: "#80baff" },
-        { tag: [tags.keyword, tags.controlKeyword, tags.definitionKeyword, tags.operatorKeyword], color: "#ff7587" },
-        { tag: [tags.typeName, tags.className, tags.namespace], color: "#7dbbff" },
-        { tag: [tags.name, tags.variableName, tags.definition(tags.variableName), tags.function(tags.variableName), tags.function(tags.name), tags.standard(tags.variableName), tags.standard(tags.name), tags.propertyName, tags.labelName], color: "#80c7ff" },
-        { tag: [tags.string, tags.special(tags.string)], color: "#c3d880" },
-        { tag: [tags.number, tags.bool, tags.null], color: "#d1a1ff" },
-        { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "#85909a" }
+        { tag: [tags.meta, tags.processingInstruction], color: "var(--syntax-meta, #80baff)" },
+        { tag: [tags.keyword, tags.controlKeyword, tags.definitionKeyword, tags.operatorKeyword], color: "var(--syntax-keyword, #ff7587)" },
+        { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--syntax-type, #7dbbff)" },
+        { tag: [tags.name, tags.variableName, tags.definition(tags.variableName), tags.function(tags.variableName), tags.function(tags.name), tags.standard(tags.variableName), tags.standard(tags.name), tags.propertyName, tags.labelName], color: "var(--syntax-name, #80c7ff)" },
+        { tag: [tags.string, tags.special(tags.string)], color: "var(--syntax-string, #c3d880)" },
+        { tag: [tags.number, tags.bool, tags.null], color: "var(--syntax-number, #d1a1ff)" },
+        { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "var(--syntax-comment, #85909a)" }
       ]);
       var replacing = false;
       var editingHistory = { undo: [], redo: [] };
