@@ -4,6 +4,7 @@ const sourcePath = process.argv[2];
 const targetPath = process.argv[3];
 const source = fs.readFileSync(sourcePath, 'utf8').replace(/\r\n?/g, '\n');
 const readMeta = (label, fallback = '') => (source.match(new RegExp(`\\*\\*${label}[：:]\\s*([^*]+)\\*\\*`)) || [])[1]?.trim() || fallback;
+const scoreLine = /^\s*\*{0,2}\s*分数\s*[：:]?\s*(\d+)\s*分?\s*\*{0,2}\s*$/m;
 const fencedAfter = (block, label) => {
   const pattern = '(?:^|\\n)\\s*' + label + '[：:]\\s*\\n\\s*```[^\\n]*\\n([\\s\\S]*?)\\n\\s*```';
   const match = new RegExp(pattern, 'm').exec(block);
@@ -12,7 +13,7 @@ const fencedAfter = (block, label) => {
 const headings = [...source.matchAll(/^#\s+(\d+)\s+(.+?)\s*$/gm)];
 const questions = headings.map((heading, index) => {
   const body = source.slice(heading.index + heading[0].length, headings[index + 1]?.index ?? source.length).trim();
-  const score = Number((body.match(/^分数\s+(\d+)\s*$/m) || [])[1]) || 0;
+  const score = Number((body.match(scoreLine) || [])[1]) || 0;
   const testHeading = /^###\s+测试点\s+(\d+)\s*(?:（(\d+)\s*分）|\((\d+)\s*分\))?\s*$/gm;
   const markers = [...body.matchAll(testHeading)];
   const testCases = markers.map((marker, testIndex) => {
@@ -23,7 +24,7 @@ const questions = headings.map((heading, index) => {
       score: Number(marker[2] || marker[3]) || 0
     };
   }).filter(test => test.input || test.expected);
-  const publicStatement = body.split(/^##\s+测试点\s*$/m)[0].replace(/^分数\s+\d+\s*$/m, '').trim();
+  const publicStatement = body.split(/^##\s+测试点\s*$/m)[0].replace(scoreLine, '').trim();
   return {
     id: heading[1],
     name: heading[2].trim(),
@@ -36,8 +37,8 @@ const questions = headings.map((heading, index) => {
   };
 });
 const exam = {
-  examVersion: '2026-10-04-first-weekly-practice',
-  title: readMeta('考试名称', '2026-10-04 转专业第一次周练'),
+  examVersion: '2026-10-04-first-weekly-practice-800',
+  title: readMeta('考试名称', (source.match(/^#\s+(?!\d+\s)(.+?)\s*$/m) || [])[1] || '2026-10-04 转专业第一次周练'),
   duration: Number(readMeta('考试时长', '120').match(/\d+/)?.[0]) || 120,
   totalScore: Number(readMeta('总分', '100').match(/\d+/)?.[0]) || 100,
   questions
