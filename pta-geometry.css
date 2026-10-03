@@ -139,3 +139,6 @@
 .pta-app.light-mode .syntax-highlight .str{color:var(--syntax-string)}
 .pta-app.light-mode .syntax-highlight .num{color:var(--syntax-number)}
 .pta-app.light-mode #mobile-overview-close{background:var(--bg-normal);color:var(--text-normal)}
+
+/* Inline variables belong to prose: keep the same size, weight and color as surrounding text. */
+.statement .rendered-markdown p code,.statement .rendered-markdown li code,.statement .rendered-markdown td code,.statement .rendered-markdown blockquote code{padding:0;background:transparent;color:inherit;font:inherit}
