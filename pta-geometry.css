@@ -99,6 +99,9 @@
   color-scheme:light;
 }
 .pta-app.light-mode .topbar,.pta-app.light-mode .rail,.pta-app.light-mode .overview,.pta-app.light-mode .workspace,.pta-app.light-mode .coding,.pta-app.light-mode .tester,.pta-app.light-mode .submit-bar,.pta-app.light-mode .secondary{background:var(--bg-base);border-color:var(--border-all)}
+.pta-app.light-mode .secondary .card{border-color:var(--border-all);background:#fff}
+.pta-app.light-mode .secondary .row{border-color:var(--border-all);background:#fff;color:var(--text-normal)}
+.pta-app.light-mode .secondary .row.head{background:var(--bg-light);color:var(--text-light)}
 .pta-app.light-mode .workspace-bar{background:var(--bg-base);border-color:var(--border-all)}
 .pta-app.light-mode .statement{background:linear-gradient(to bottom,var(--bg-light) 0 58px,var(--bg-base) 58px)}
 .pta-app.light-mode .description-tab,.pta-app.light-mode .editor-toolbar,.pta-app.light-mode .tester-tabs,.pta-app.light-mode .category,.pta-app.light-mode .round{background:var(--bg-light);border-color:var(--border-all)}
