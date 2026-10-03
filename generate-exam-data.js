@@ -18,8 +18,9 @@ const headings = topLevelHeadings.slice(1).map(heading => {
   return parsed ? { index: heading.index, text: heading[0], id: parsed[1], name: parsed[2].trim() } : null;
 }).filter(Boolean);
 const totalScore = Number((source.match(/满分\s*(\d+)\s*分/) || [])[1]) || Number(readMeta('总分', '100').match(/\d+/)?.[0]) || 100;
-const defaultQuestionScore = headings.length ? totalScore / headings.length : 0;
-const questions = headings.map((heading, index) => {
+const declaredQuestionCount = Number(readMeta('原题数量').match(/\d+/)?.[0]) || headings.length;
+const defaultQuestionScore = declaredQuestionCount ? totalScore / declaredQuestionCount : 0;
+const parsedQuestions = headings.map((heading, index) => {
   const body = source.slice(heading.index + heading.text.length, headings[index + 1]?.index ?? source.length).trim();
   const score = Number((body.match(scoreLine) || [])[1]) || defaultQuestionScore;
   const testHeading = /^###\s+测试点\s+(\d+)\s*(?:（(\d+)\s*分）|\((\d+)\s*分\))?\s*$/gm;
@@ -48,7 +49,23 @@ const questions = headings.map((heading, index) => {
     judgeable: testCases.length > 0
   };
 });
-const fallbackTitle = (topLevelHeadings[0]?.[1]?.trim() || '程序设计考试').replace(/题目[（(]题解校正版[）)]$/, '').trim();
+const archiveIdPrefix = String(examVersion).match(/^\d{4}/)?.[0] || examVersion;
+const questions = outputMode === 'archive' && declaredQuestionCount > parsedQuestions.length
+  ? Array.from({ length: declaredQuestionCount }, (_, index) => parsedQuestions.find(question => question.id === `${archiveIdPrefix}-${index + 1}`) || {
+      id: `${archiveIdPrefix}-${index + 1}`,
+      name: `第 ${index + 1} 题（资料缺失）`,
+      score: defaultQuestionScore,
+      tests: 0,
+      sampleInput: '',
+      sampleOutput: '',
+      statement: '## 资料说明\n\n原始资料未保留本题题面，暂不支持评测。',
+      testCases: [],
+      judgeable: false
+    })
+  : parsedQuestions;
+const fallbackTitle = (topLevelHeadings[0]?.[1]?.trim() || '程序设计考试')
+  .replace(/题目(?:[（(]题解校正版[）)]|\s*[｜|]\s*正式优化版)$/, '')
+  .trim();
 const exam = {
   examVersion,
   title: readMeta('考试名称', fallbackTitle),
