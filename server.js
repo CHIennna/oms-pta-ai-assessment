@@ -10,7 +10,7 @@ const deepSeekEndpoint = process.env.DEEPSEEK_ENDPOINT || 'https://api.deepseek.
 const deepSeekApiKey = process.env.DEEPSEEK_API_KEY || '';
 const deepSeekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const publicFiles = new Map([
-  ['/', 'index.html'], ['/index.html', 'index.html'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
+  ['/', 'index.html'], ['/index.html', 'index.html'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
 ]);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
 const oneCompilerLanguages = {
@@ -55,7 +55,7 @@ async function oneCompilerRun(language, source, input) {
     const response = await fetch(oneCompilerEndpoint, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', 'X-API-Key': oneCompilerApiKey }, body: JSON.stringify({ language: language.language, files: [{ name: language.file, content: source }], stdin: input }) });
     if (!response.ok) throw Error(`OneCompiler 服务响应异常（${response.status}）。`);
     const result = await response.json();
-    if (result.status !== 'success') throw Error(result.error || 'OneCompiler 未能执行本次请求。');
+    if (result.status !== 'success') return { ...result, stderr: result.stderr || result.error || result.message || '' };
     return result;
   } catch (error) {
     if (error.name === 'AbortError') throw Error('云端评测服务响应超时。');
@@ -107,10 +107,46 @@ async function assessWithDeepSeek(payload) {
   } finally { clearTimeout(timeout); }
 }
 function describeFailure(result, index, passed, total) {
-  const detail = result.stderr || result.exception || '';
+  const detail = result.stderr || result.exception || result.error || result.message || '';
+  if (/time limit|timed out|timeout/i.test(detail)) return { verdict: 'TimeLimitExceeded', message: `测试点 ${index + 1} 运行超时。`, compilerOutput: detail, passedTests: passed, totalTests: total };
   if (result.exception) return { verdict: 'RuntimeError', message: `测试点 ${index + 1} 发生运行时错误。`, compilerOutput: detail, passedTests: passed, totalTests: total };
-  if (result.stderr) return { verdict: 'CompilationError', message: '编译失败，请查看编译器输出。', compilerOutput: detail, passedTests: passed, totalTests: total };
+  if (/segmentation|runtime error|signal|out of bounds|null pointer/i.test(detail)) return { verdict: 'RuntimeError', message: `测试点 ${index + 1} 发生运行时错误。`, compilerOutput: detail, passedTests: passed, totalTests: total };
+  if (result.stderr || result.error || result.status === 'error') return { verdict: 'CompilationError', message: '编译失败，请查看编译器输出。', compilerOutput: detail, passedTests: passed, totalTests: total };
   return null;
+}
+function runMetric(result) {
+  const value = result && (result.executionTime ?? result.cpuTime ?? result.elapsedTime ?? result.time);
+  return Number.isFinite(Number(value)) ? `${value} ms` : '--';
+}
+async function aiJudge(payload) {
+  const language = oneCompilerLanguages[payload.language]; const source = String(payload.code || '');
+  if (!language) return { verdict: 'NeedsReview', message: '该语言暂未接入云端评测。', testCases: [] };
+  if (!source.trim()) return { verdict: 'CompilationError', message: '请先编写代码。', testCases: [] };
+  if (source.length > 65536) return { verdict: 'CompilationError', message: '代码长度超过 64 KB 限制。', testCases: [] };
+  const review = await assessWithDeepSeek(payload);
+  const generated = review.testCases.filter(test => test && String(test.expected || '').trim()).slice(0, 3);
+  if (!generated.length) return { ...review, verdict: 'NeedsReview', message: 'DeepSeek 未能可靠生成带预期输出的测试点，本次提交未执行。', testCases: review.testCases.map(test => ({ ...test, verdict: 'NeedsReview', actual: '', metric: '--' })), passedTests: 0, totalTests: 0 };
+  const testCases = []; let passed = 0; let terminal = '';
+  for (let index = 0; index < generated.length; index++) {
+    const test = generated[index];
+    try {
+      const result = await oneCompilerRun(language, source, test.input);
+      const failure = describeFailure(result, index, passed, generated.length);
+      if (failure) {
+        testCases.push({ ...test, actual: result.stdout || '', verdict: failure.verdict, metric: runMetric(result), detail: failure.compilerOutput || '' });
+        terminal = failure.verdict; break;
+      }
+      const actual = result.stdout || ''; const correct = normalized(actual) === normalized(test.expected);
+      if (correct) passed++;
+      testCases.push({ ...test, actual, verdict: correct ? 'Accepted' : 'WrongAnswer', metric: runMetric(result) });
+    } catch (error) {
+      testCases.push({ ...test, actual: '', verdict: 'NeedsReview', metric: '--', detail: error.message });
+      terminal = 'NeedsReview'; break;
+    }
+  }
+  const verdict = terminal || (testCases.some(test => test.verdict === 'WrongAnswer') ? 'WrongAnswer' : 'Accepted');
+  const compilerOutput = testCases.map((test, index) => `测试点 ${index + 1}：${test.verdict}\n实际输出：\n${test.actual || '(空)'}${test.detail ? `\n\n详情：\n${test.detail}` : ''}`).join('\n\n');
+  return { ...review, verdict, message: verdict === 'Accepted' ? `云端实际执行通过 ${passed}/${generated.length} 个 AI 测试点。` : `云端实际执行通过 ${passed}/${generated.length} 个 AI 测试点。`, testCases, passedTests: passed, totalTests: generated.length, compilerOutput };
 }
 async function judge(payload) {
   const language = oneCompilerLanguages[payload.language]; const source = String(payload.code || ''); const tests = suppliedTests(payload.tests);
@@ -139,6 +175,10 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/api/ai-assess') {
     if (!permitsRequest(req)) return reply(res, 429, { message: '请求过于频繁，请稍后重试。' });
     try { return reply(res, 200, await assessWithDeepSeek(await collect(req))); } catch (error) { return reply(res, 502, { message: 'AI 辅助评测暂不可用，请稍后重试。', detail: error.message }); }
+  }
+  if (req.method === 'POST' && url.pathname === '/api/ai-judge') {
+    if (!permitsRequest(req)) return reply(res, 429, { message: '请求过于频繁，请稍后重试。' });
+    try { return reply(res, 200, await aiJudge(await collect(req))); } catch (error) { return reply(res, 502, { message: 'AI 云端评测暂不可用，请稍后重试。', detail: error.message }); }
   }
   if (req.method === 'GET' && publicFiles.has(url.pathname)) { const file = publicFiles.get(url.pathname); return reply(res, 200, fsSync.readFileSync(path.join(root, file)), types[path.extname(file)] || 'text/plain'); }
   reply(res, 404, 'Not found', 'text/plain; charset=utf-8');

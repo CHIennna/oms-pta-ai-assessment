@@ -33,7 +33,7 @@
   });
 
   judge = async function (mode) {
-    if (mode === 'submit') return aiAssess('submit');
+    if (mode === 'submit') return aiJudgeSubmit();
     const state = $('#run-state'), question = config.questions[current];
     const sample = { input: $('#sample-input').value, expected: $('#expected').textContent.replace(/\\n/g, '\n') };
     const tests = mode === 'sample' ? [sample] : (question.testCases || []);
@@ -74,18 +74,28 @@
     const accepted = result.verdict === 'Accepted';
     const maxScore = Number(String($('#score').textContent || '').match(/\d+/)?.[0]) || 20;
     const testCases = result.testCases || [];
-    const perCaseScore = testCases.length ? (maxScore / testCases.length) : maxScore;
-    const finalScore = accepted ? maxScore : 0;
+    const totalTests = Number(result.totalTests) || testCases.length;
+    const passedTests = Number(result.passedTests) || 0;
+    const perCaseScore = totalTests ? (maxScore / totalTests) : maxScore;
+    const finalScore = totalTests ? (maxScore * passedTests / totalTests) : 0;
     const verdict = status.label;
     $('#submission-problem').textContent = `${question.id} ${question.name}`;
     $('#submission-user').textContent = $('#candidate').textContent || '考生';
     $('#submission-time').textContent = displayTime(new Date());
     $('#submission-language').textContent = $('#language').value;
     $('#submission-reviewed-at').textContent = displayTime(new Date());
+    $('#submission-method').textContent = 'DeepSeek 测试点 + 云端执行';
+    $('#submission-metrics').textContent = `${passedTests} / ${totalTests || '--'} 个测试点通过`;
     $('#submission-verdict').textContent = verdict;
     $('#submission-verdict').className = status.tone;
     $('#submission-score').textContent = `${finalScore} / ${maxScore}`;
-    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ reason: result.summary }]).map((test, index) => `<tr><td>${index}</td><td>${escapeHtml(test.reason || 'AI 生成测试点')}</td><td>AI 静态推理 / --</td><td class="${status.tone}">${verdict}</td><td>${accepted ? `${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore} / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}` : `0 / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}`}</td></tr>`).join('');
+    const outputCell = value => `<code class="submission-output">${escapeHtml(value || '(空)')}</code>`;
+    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ reason: result.summary }]).map((test, index) => {
+      const caseStatus = aiVerdict(test.verdict || result.verdict);
+      const casePassed = test.verdict === 'Accepted';
+      const score = casePassed ? perCaseScore : 0;
+      return `<tr><td>${index}</td><td>${escapeHtml(test.reason || 'AI 生成测试点')}</td><td>${outputCell(test.input)}</td><td>${outputCell(test.expected)}</td><td>${outputCell(test.actual)}</td><td>${escapeHtml(test.metric || '--')}</td><td class="${caseStatus.tone}">${caseStatus.label}</td><td>${score % 1 ? score.toFixed(1) : score} / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}</td></tr>`;
+    }).join('');
     $('#submission-code').textContent = code.value;
     if (!dialog.open) dialog.showModal();
   }
@@ -109,5 +119,19 @@
         showSubmissionResult(result, question);
       }
     } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = 'AI 辅助评测失败'; }
+  }
+  async function aiJudgeSubmit() {
+    const state = $('#run-state'), question = config.questions[current];
+    state.textContent = 'DeepSeek 正在生成测试点，云端评测机正在执行…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
+    try {
+      const response = await fetch('/api/ai-judge', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:code.value, language:$('#language').value, problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
+      const result = await response.json();
+      if (!response.ok) throw Error(result.detail || result.message || 'AI 云端评测服务不可用。');
+      $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || renderAiReview(result)}`.trim(); setTab('compiler');
+      const status = aiVerdict(result.verdict); state.textContent = `云端评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
+      results[current] = result.verdict === 'Accepted' ? 'accepted' : 'wrong';
+      $('#submit-state').textContent = `刚刚提交 · ${status.label}`;
+      render(); showSubmissionResult(result, question);
+    } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = 'AI 云端评测失败'; }
   }
 })();

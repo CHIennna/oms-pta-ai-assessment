@@ -53,13 +53,14 @@
       <header class="submission-modal-head"><h2 id="submission-dialog-title">提交结果</h2><button type="button" id="close-submission-dialog" aria-label="关闭提交结果">×</button></header>
       <section class="submission-summary"><dl>
         <div><dt>题目</dt><dd id="submission-problem"></dd></div><div><dt>用户</dt><dd id="submission-user"></dd></div><div><dt>提交时间</dt><dd id="submission-time"></dd></div>
-        <div><dt>编译器</dt><dd id="submission-language"></dd></div><div><dt>评测方式</dt><dd>DeepSeek AI</dd></div><div><dt>评测时间</dt><dd id="submission-reviewed-at"></dd></div>
-        <div><dt>状态</dt><dd id="submission-verdict"></dd></div><div><dt>建议分数</dt><dd id="submission-score"></dd></div><div><dt>运行指标</dt><dd>AI 评测 / --</dd></div>
+        <div><dt>编译器</dt><dd id="submission-language"></dd></div><div><dt>评测方式</dt><dd id="submission-method">DeepSeek 测试点 + 云端执行</dd></div><div><dt>评测时间</dt><dd id="submission-reviewed-at"></dd></div>
+        <div><dt>状态</dt><dd id="submission-verdict"></dd></div><div><dt>建议分数</dt><dd id="submission-score"></dd></div><div><dt>运行指标</dt><dd id="submission-metrics">--</dd></div>
       </dl></section>
-      <section class="submission-section"><h3>评测详情</h3><div class="submission-table-wrap"><table class="submission-table"><thead><tr><th>测试点</th><th>提示</th><th>运行指标</th><th>结果</th><th>建议得分</th></tr></thead><tbody id="submission-test-rows"></tbody></table></div></section>
+      <section class="submission-section"><h3>评测详情</h3><div class="submission-table-wrap"><table class="submission-table"><thead><tr><th>测试点</th><th>提示</th><th>输入</th><th>预期输出</th><th>实际输出</th><th>运行指标</th><th>结果</th><th>得分</th></tr></thead><tbody id="submission-test-rows"></tbody></table></div></section>
       <section class="submission-section submission-code"><h3>提交代码</h3><pre id="submission-code"></pre></section>
     </section>
   </dialog>
+  <script src="exam-data.js"></script>
   <script src="pta-clone.js"></script>
   <script src="pta-clone-interactions.js"></script>
   <script type="module" src="codemirror-editor.js"></script>
