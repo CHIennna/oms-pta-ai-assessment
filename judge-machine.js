@@ -10,7 +10,7 @@
     document.querySelector('#judge-cases')?.remove();
     const section = document.createElement('section');
     section.id = 'judge-cases'; section.className = 'judge-cases';
-    section.innerHTML = `<h3>评测机测试点</h3><p>每个测试点通过 OneCompiler 云端隔离评测服务执行；提交时按点比对输出。空白测试点不会参与判题。</p>${config.questions.map((question, qIndex) => `<div class="judge-case"><strong>${question.id} ${question.name}</strong>${makeDefaultCases(question).map((test, tIndex) => `<div class="judge-case-grid"><label>测试点 ${tIndex + 1} 输入<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="input">${escape(text(test.input))}</textarea></label><label>预期输出<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="expected">${escape(text(test.expected))}</textarea></label></div>`).join('')}</div>`).join('')}<div id="judge-case-note" class="judge-status"></div>`;
+    section.innerHTML = `<h3>评测机固定测试点</h3><p>提交后，题目、考生代码以及这里配置的固定输入和预期输出将交给 DeepSeek，由其逐测试点判定。空白测试点不会参与判题。</p>${config.questions.map((question, qIndex) => `<div class="judge-case"><strong>${question.id} ${question.name}</strong>${makeDefaultCases(question).map((test, tIndex) => `<div class="judge-case-grid"><label>测试点 ${tIndex + 1} 输入<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="input">${escape(text(test.input))}</textarea></label><label>预期输出<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="expected">${escape(text(test.expected))}</textarea></label></div>`).join('')}</div>`).join('')}<div id="judge-case-note" class="judge-status"></div>`;
     settings.after(section);
   }
   renderSettings = function () { baseRenderSettings(); renderJudgeCases(); };
@@ -61,10 +61,8 @@
   }[verdict] || { label: '等待人工核验', tone: 'review' });
   function renderAiReview(result) {
     const verdict = aiVerdict(result.verdict).label;
-    const tests = (result.testCases || []).map((test, index) => `测试点 ${index + 1}${test.reason ? `（${test.reason}）` : ''}\n输入：\n${test.input || '(无)'}\n预期输出：\n${test.expected || '(AI 未可靠推导)'}`).join('\n\n');
-    const findings = (result.findings || []).map(item => `- ${item}`).join('\n') || '- 未发现明确问题';
-    const suggestions = (result.suggestions || []).map(item => `- ${item}`).join('\n') || '- 暂无额外建议';
-    return `DeepSeek 智能评测（模型推理，未实际执行代码）\n结论：${verdict} · 置信度：${result.confidence || '低'}\n\n${result.summary || ''}\n\n生成测试点：\n${tests || '(未生成)'}\n\n风险分析：\n${findings}\n\n修改建议：\n${suggestions}`;
+    const tests = (result.testCases || []).map((test, index) => `测试点 ${test.index ?? index}：${aiVerdict(test.verdict).label}${test.hint && test.hint !== '无提示' ? `（${test.hint}）` : ''}`).join('\n');
+    return `DeepSeek 固定测试点评测（模型推理，未实际执行代码）\n结论：${verdict} · 置信度：${result.confidence || '低'}\n\n${result.summary || ''}\n\n逐点评测结果：\n${tests || '(无测试点结果)'}`;
   }
   const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[char]);
   const displayTime = value => new Intl.DateTimeFormat('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false }).format(value).replaceAll('/', '/');
@@ -76,37 +74,47 @@
     const testCases = result.testCases || [];
     const totalTests = Number(result.totalTests) || testCases.length;
     const passedTests = Number(result.passedTests) || 0;
-    const perCaseScore = totalTests ? (maxScore / totalTests) : maxScore;
-    const finalScore = totalTests ? (maxScore * passedTests / totalTests) : 0;
+    const configuredScores = testCases.map(test => Number(test.score) || 0);
+    const configuredTotal = configuredScores.reduce((sum, score) => sum + score, 0);
+    const useConfiguredScores = testCases.length > 0 && configuredScores.every(score => score > 0) && Math.abs(configuredTotal - maxScore) < 0.01;
+    const scoreForCase = index => useConfiguredScores ? configuredScores[index] : (totalTests ? maxScore / totalTests : maxScore);
+    const finalScore = testCases.reduce((sum, test, index) => sum + (test.verdict === 'Accepted' ? scoreForCase(index) : 0), 0);
     const verdict = status.label;
-    $('#submission-problem').textContent = `${question.id} ${question.name}`;
+    const memoryValues = testCases.map(test => test.memoryKb).filter(value => value != null && Number.isFinite(Number(value))).map(Number);
+    const timeValues = testCases.map(test => test.timeMs).filter(value => value != null && Number.isFinite(Number(value))).map(Number);
+    $('#submission-problem').textContent = question.id;
     $('#submission-user').textContent = $('#candidate').textContent || '考生';
     $('#submission-time').textContent = displayTime(new Date());
     $('#submission-language').textContent = $('#language').value;
     $('#submission-reviewed-at').textContent = displayTime(new Date());
-    $('#submission-method').textContent = 'DeepSeek 测试点 + 云端执行';
-    $('#submission-metrics').textContent = `${passedTests} / ${totalTests || '--'} 个测试点通过`;
+    $('#submission-memory').textContent = `${memoryValues.length ? Math.max(...memoryValues) : '--'} / 65536 KB`;
+    $('#submission-duration').textContent = `${timeValues.length ? Math.max(...timeValues) : '--'} / 250 ms`;
     $('#submission-verdict').textContent = verdict;
     $('#submission-verdict').className = status.tone;
-    $('#submission-score').textContent = `${finalScore} / ${maxScore}`;
-    const outputCell = value => `<code class="submission-output">${escapeHtml(value || '(空)')}</code>`;
-    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ reason: result.summary }]).map((test, index) => {
+    $('#submission-score').textContent = `${Number.isInteger(finalScore) ? finalScore : finalScore.toFixed(1)} / ${maxScore}`;
+    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ hint:result.summary, verdict:result.verdict }]).map((test, index) => {
       const caseStatus = aiVerdict(test.verdict || result.verdict);
       const casePassed = test.verdict === 'Accepted';
-      const score = casePassed ? perCaseScore : 0;
-      return `<tr><td>${index}</td><td>${escapeHtml(test.reason || 'AI 生成测试点')}</td><td>${outputCell(test.input)}</td><td>${outputCell(test.expected)}</td><td>${outputCell(test.actual)}</td><td>${escapeHtml(test.metric || '--')}</td><td class="${caseStatus.tone}">${caseStatus.label}</td><td>${score % 1 ? score.toFixed(1) : score} / ${perCaseScore % 1 ? perCaseScore.toFixed(1) : perCaseScore}</td></tr>`;
+      const caseMaxScore = scoreForCase(index);
+      const score = casePassed ? caseMaxScore : 0;
+      const memory = test.memoryKb != null && Number.isFinite(Number(test.memoryKb)) ? Number(test.memoryKb) : '--';
+      const duration = test.timeMs != null && Number.isFinite(Number(test.timeMs)) ? Number(test.timeMs) : '--';
+      return `<tr><td>${test.index ?? index}</td><td>${escapeHtml(test.hint || '无提示')}</td><td>${memory}</td><td>${duration}</td><td class="${caseStatus.tone}">${caseStatus.label}</td><td>${score % 1 ? score.toFixed(1) : score} / ${caseMaxScore % 1 ? caseMaxScore.toFixed(1) : caseMaxScore}</td></tr>`;
     }).join('');
-    $('#submission-code').textContent = code.value;
+    const selectedLanguage = $('#language').value;
+    const codeLanguage = selectedLanguage.startsWith('C++') ? 'C++' : selectedLanguage.startsWith('C ') ? 'C' : (selectedLanguage.startsWith('Python') || selectedLanguage === 'PyPy') ? 'Python' : selectedLanguage;
+    $('#submission-code-language').textContent = `[ ${codeLanguage} ]`;
+    $('#submission-code').innerHTML = editorCode().split('\n').map((line, index) => `<span class="submission-code-line"><i>${index + 1}</i><code>${escapeHtml(line) || ' '}</code></span>`).join('');
     if (!dialog.open) dialog.showModal();
   }
   document.querySelector('#close-submission-dialog')?.addEventListener('click', () => document.querySelector('#submission-dialog')?.close());
   document.querySelector('#submission-dialog')?.addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
   async function aiAssess(mode) {
     const state = $('#run-state'), question = config.questions[current];
-    state.textContent = mode === 'submit' ? 'DeepSeek 正在评测并提交…' : 'DeepSeek 正在生成测试点与分析…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
+    state.textContent = 'DeepSeek 正在按固定测试点逐点判题…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
     try {
       const endpoint = document.querySelector('meta[name="oms-ai-assess-endpoint"]')?.content.trim() || '/api/ai-assess';
-      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:code.value, language:$('#language').value, problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
+      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, tests:question.testCases || [], problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
       const result = await response.json();
       if (!response.ok) throw Error(result.detail || result.message || 'AI 辅助评测服务不可用。');
       $('#compiler-output').textContent = renderAiReview(result); setTab('compiler');
@@ -122,16 +130,23 @@
   }
   async function aiJudgeSubmit() {
     const state = $('#run-state'), question = config.questions[current];
-    state.textContent = 'DeepSeek 正在生成测试点，云端评测机正在执行…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
+    const tests = question.testCases || [];
+    state.textContent = 'DeepSeek 正在按固定测试点逐点判题…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
     try {
-      const response = await fetch('/api/ai-judge', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:code.value, language:$('#language').value, problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
+      if (!tests.length) throw Error('该题尚未配置固定测试点。');
+      const response = await fetch('/api/ai-judge', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, tests, problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
       const result = await response.json();
       if (!response.ok) throw Error(result.detail || result.message || 'AI 云端评测服务不可用。');
       $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || renderAiReview(result)}`.trim(); setTab('compiler');
-      const status = aiVerdict(result.verdict); state.textContent = `云端评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
+      const status = aiVerdict(result.verdict); state.textContent = `评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
       results[current] = result.verdict === 'Accepted' ? 'accepted' : 'wrong';
       $('#submit-state').textContent = `刚刚提交 · ${status.label}`;
       render(); showSubmissionResult(result, question);
     } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = 'AI 云端评测失败'; }
   }
+  document.querySelector('#copy-submission-code')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(editorCode()); } catch {}
+  });
+  document.querySelector('#format-submission-code')?.addEventListener('click', () => document.querySelector('.submission-code')?.classList.toggle('wrapped'));
+  document.querySelector('#fullscreen-submission-code')?.addEventListener('click', () => document.querySelector('.submission-code')?.classList.toggle('fullscreen'));
 })();

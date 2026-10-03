@@ -40,7 +40,11 @@ function collect(req) {
 function normalized(text) { return String(text || '').replace(/\r\n/g, '\n').replace(/[ \t]+(?=\n)/g, '').trimEnd(); }
 function suppliedTests(value) {
   if (!Array.isArray(value) || !value.length || value.length > 20) return null;
-  const tests = value.map(test => ({ input: String(test && test.input || ''), expected: String(test && test.expected || '') }));
+  const tests = value.map(test => ({
+    input: String(test && test.input || ''),
+    expected: String(test && test.expected || ''),
+    score: Number.isFinite(Number(test && test.score)) && Number(test.score) > 0 ? Number(test.score) : 0
+  }));
   return tests.some(test => test.input.length > 32768 || test.expected.length > 32768) ? null : tests;
 }
 function permitsRequest(req) {
@@ -62,45 +66,68 @@ async function oneCompilerRun(language, source, input) {
     throw error;
   } finally { clearTimeout(timeout); }
 }
-function aiReviewResult(value) {
+const aiVerdicts = new Set(['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded', 'NeedsReview']);
+function fixedJudgeResult(value, tests) {
   const raw = value && typeof value === 'object' ? value : {};
-  const verdicts = new Set(['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded', 'NeedsReview']);
-  const text = value => String(value || '').trim().slice(0, 4000);
-  const testCases = Array.isArray(raw.testCases) ? raw.testCases.slice(0, 5).map(test => ({
-    input: text(test && test.input), expected: text(test && test.expected), reason: text(test && test.reason)
-  })) : [];
+  const text = value => String(value || '').trim().slice(0, 1000);
+  const rows = Array.isArray(raw.testCases) ? raw.testCases.slice(0, tests.length) : [];
+  const testCases = tests.map((test, index) => {
+    const row = rows.find(item => Number(item && item.index) === index) || rows[index] || {};
+    const verdict = aiVerdicts.has(row.verdict) ? row.verdict : 'NeedsReview';
+    return {
+      index,
+      verdict,
+      hint: verdict === 'Accepted' ? '无提示' : (text(row.hint || row.reason) || '需要人工核验'),
+      score: test.score,
+      memoryKb: null,
+      timeMs: null
+    };
+  });
+  const has = verdict => testCases.some(test => test.verdict === verdict);
+  const verdict = testCases.every(test => test.verdict === 'Accepted') ? 'Accepted'
+    : has('CompilationError') ? 'CompilationError'
+      : has('RuntimeError') ? 'RuntimeError'
+        : has('TimeLimitExceeded') ? 'TimeLimitExceeded'
+          : has('WrongAnswer') ? 'WrongAnswer' : 'NeedsReview';
+  const passedTests = testCases.filter(test => test.verdict === 'Accepted').length;
   return {
-    verdict: verdicts.has(raw.verdict) ? raw.verdict : 'NeedsReview',
-    confidence: text(raw.confidence) || '低',
-    summary: text(raw.summary) || 'AI 未能给出完整结论，请结合测试点人工核验。',
+    verdict,
+    confidence: text(raw.confidence) || '中',
+    summary: text(raw.summary) || 'DeepSeek 已按题库固定测试点逐点判定。',
     testCases,
-    findings: Array.isArray(raw.findings) ? raw.findings.slice(0, 6).map(text).filter(Boolean) : [],
-    suggestions: Array.isArray(raw.suggestions) ? raw.suggestions.slice(0, 6).map(text).filter(Boolean) : []
+    passedTests,
+    totalTests: tests.length,
+    message: `DeepSeek 已完成 ${tests.length} 个固定测试点的逐点判定，通过 ${passedTests}/${tests.length}。`,
+    compilerOutput: testCases.map(test => `测试点 ${test.index}：${test.verdict}${test.hint && test.hint !== '无提示' ? `（${test.hint}）` : ''}`).join('\n')
   };
 }
 async function assessWithDeepSeek(payload) {
   if (!deepSeekApiKey) throw Error('尚未配置 DEEPSEEK_API_KEY。');
   const code = String(payload.code || '');
   const language = String(payload.language || '');
+  const tests = suppliedTests(payload.tests);
   const problem = payload.problem && typeof payload.problem === 'object' ? payload.problem : {};
   const title = String(problem.title || '').slice(0, 500);
   const statement = String(problem.statement || '').slice(0, 16000);
-  if (!code.trim()) return { verdict: 'CompilationError', confidence: '高', summary: '请先编写代码，再进行 AI 辅助评测。', testCases: [], findings: [], suggestions: [] };
+  if (!oneCompilerLanguages[language]) throw Error('该语言暂不支持评测。');
+  if (!code.trim()) return { verdict: 'CompilationError', confidence: '高', summary: '请先编写代码。', testCases: [], passedTests: 0, totalTests: tests ? tests.length : 0 };
   if (!title || !statement) throw Error('题目信息不完整，暂不能进行 AI 辅助评测。');
+  if (!tests) throw Error('该题尚未配置固定测试点。');
   if (code.length > 65536) throw Error('代码长度超过 64 KB 限制。');
-  const system = '你是程序设计考试的 AI 辅助评测员。不能声称自己实际执行过代码；所有结论都是基于题目与代码的静态推理。生成覆盖边界情况的测试点并判断最可能的 PTA 式评测状态。只返回 JSON 对象，不要 Markdown。JSON 格式：{"verdict":"Accepted|WrongAnswer|CompilationError|RuntimeError|TimeLimitExceeded|NeedsReview","confidence":"高|中|低","summary":"简洁结论，明确说明这是静态推理","testCases":[{"input":"","expected":"","reason":""}],"findings":[""],"suggestions":[""]}。Accepted 仅用于逻辑和边界均未发现问题时；WrongAnswer 用于可推导的输出错误；CompilationError 用于明显语法或语言错误；RuntimeError 仅用于明显异常访问、空指针或越界等运行时崩溃风险；TimeLimitExceeded 仅用于复杂度明显超过题目限制；其余一律 NeedsReview。预期输出必须来自你可解释的推导；无法可靠推导时，测试点 expected 写空并在 reason 说明。';
-  const user = `题目：${title}\n\n题目描述：\n${statement}\n\n语言：${language}\n\n考生代码：\n${code}`;
-  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 25000);
+  const system = '你是程序设计考试判题员。测试点已经由出题方固定提供，严禁生成、替换、删减或修改测试点。请静态推演考生代码在每个固定输入上的行为，并逐点与给定预期输出比较。不能声称实际运行过代码，不能编造内存或时间。只返回 JSON 对象，不要 Markdown。格式：{"confidence":"高|中|低","summary":"简洁总评","testCases":[{"index":0,"verdict":"Accepted|WrongAnswer|CompilationError|RuntimeError|TimeLimitExceeded|NeedsReview","hint":"无提示或简短错误原因"}]}。必须为每一个输入测试点返回且只返回一条结果，index 使用给定的 0 基编号。Accepted 表示该点输出应与预期完全一致；WrongAnswer 表示输出不一致；CompilationError 表示代码无法编译或解释；RuntimeError 表示该点会崩溃或异常终止；TimeLimitExceeded 表示该点明确会超时；无法可靠判断时使用 NeedsReview。';
+  const fixedTests = tests.map((test, index) => ({ index, input: test.input, expected: test.expected }));
+  const user = `题目：${title}\n\n题目描述：\n${statement}\n\n语言：${language}\n\n考生代码：\n${code}\n\n出题方固定测试点（不得改动）：\n${JSON.stringify(fixedTests)}`;
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 45000);
   try {
     const response = await fetch(deepSeekEndpoint, {
       method: 'POST', signal: controller.signal,
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${deepSeekApiKey}` },
-      body: JSON.stringify({ model: deepSeekModel, temperature: 0.2, max_tokens: 1800, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] })
+      body: JSON.stringify({ model: deepSeekModel, temperature: 0, max_tokens: 3200, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] })
     });
     if (!response.ok) throw Error(`DeepSeek 服务响应异常（${response.status}）。`);
     const data = await response.json(); const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (!content) throw Error('DeepSeek 未返回评测内容。');
-    try { return aiReviewResult(JSON.parse(content)); } catch { throw Error('DeepSeek 返回格式异常，请稍后重试。'); }
+    try { return fixedJudgeResult(JSON.parse(content), tests); } catch { throw Error('DeepSeek 返回格式异常，请稍后重试。'); }
   } catch (error) {
     if (error.name === 'AbortError') throw Error('DeepSeek 分析响应超时，请稍后重试。');
     throw error;
@@ -119,34 +146,12 @@ function runMetric(result) {
   return Number.isFinite(Number(value)) ? `${value} ms` : '--';
 }
 async function aiJudge(payload) {
-  const language = oneCompilerLanguages[payload.language]; const source = String(payload.code || '');
-  if (!language) return { verdict: 'NeedsReview', message: '该语言暂未接入云端评测。', testCases: [] };
+  const language = oneCompilerLanguages[payload.language]; const source = String(payload.code || ''); const tests = suppliedTests(payload.tests);
+  if (!language) return { verdict: 'NeedsReview', message: '该语言暂不支持评测。', testCases: [] };
   if (!source.trim()) return { verdict: 'CompilationError', message: '请先编写代码。', testCases: [] };
   if (source.length > 65536) return { verdict: 'CompilationError', message: '代码长度超过 64 KB 限制。', testCases: [] };
-  const review = await assessWithDeepSeek(payload);
-  const generated = review.testCases.filter(test => test && String(test.expected || '').trim()).slice(0, 3);
-  if (!generated.length) return { ...review, verdict: 'NeedsReview', message: 'DeepSeek 未能可靠生成带预期输出的测试点，本次提交未执行。', testCases: review.testCases.map(test => ({ ...test, verdict: 'NeedsReview', actual: '', metric: '--' })), passedTests: 0, totalTests: 0 };
-  const testCases = []; let passed = 0; let terminal = '';
-  for (let index = 0; index < generated.length; index++) {
-    const test = generated[index];
-    try {
-      const result = await oneCompilerRun(language, source, test.input);
-      const failure = describeFailure(result, index, passed, generated.length);
-      if (failure) {
-        testCases.push({ ...test, actual: result.stdout || '', verdict: failure.verdict, metric: runMetric(result), detail: failure.compilerOutput || '' });
-        terminal = failure.verdict; break;
-      }
-      const actual = result.stdout || ''; const correct = normalized(actual) === normalized(test.expected);
-      if (correct) passed++;
-      testCases.push({ ...test, actual, verdict: correct ? 'Accepted' : 'WrongAnswer', metric: runMetric(result) });
-    } catch (error) {
-      testCases.push({ ...test, actual: '', verdict: 'NeedsReview', metric: '--', detail: error.message });
-      terminal = 'NeedsReview'; break;
-    }
-  }
-  const verdict = terminal || (testCases.some(test => test.verdict === 'WrongAnswer') ? 'WrongAnswer' : 'Accepted');
-  const compilerOutput = testCases.map((test, index) => `测试点 ${index + 1}：${test.verdict}\n实际输出：\n${test.actual || '(空)'}${test.detail ? `\n\n详情：\n${test.detail}` : ''}`).join('\n\n');
-  return { ...review, verdict, message: verdict === 'Accepted' ? `云端实际执行通过 ${passed}/${generated.length} 个 AI 测试点。` : `云端实际执行通过 ${passed}/${generated.length} 个 AI 测试点。`, testCases, passedTests: passed, totalTests: generated.length, compilerOutput };
+  if (!tests) return { verdict: 'NotConfigured', message: '该题尚未配置固定测试点。', testCases: [], passedTests: 0, totalTests: 0 };
+  return assessWithDeepSeek({ ...payload, tests });
 }
 async function judge(payload) {
   const language = oneCompilerLanguages[payload.language]; const source = String(payload.code || ''); const tests = suppliedTests(payload.tests);

@@ -12,13 +12,22 @@ const languageSelect = document.querySelector('#language');
 if (!input || !legacyGutter || !languageSelect) throw new Error('未找到代码编辑器容器。');
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+const indentation = '    ';
+const bracketPairs = {'(': ')', '[': ']', '{': '}', "'": "'", '"': '"'};
+const closingBrackets = new Set(Object.values(bracketPairs));
 const language = new Compartment();
 const languageFor = () => ({
   'C++ (g++)': cpp(),
+  'C++ (clang++)': cpp(),
   'C (gcc)': cpp(),
+  'C (clang)': cpp(),
   'Python 3': python(),
+  'Python 2': python(),
+  'PyPy': python(),
+  'Java': java(),
   'Java 17': java()
 }[languageSelect.value] || cpp());
+const isPythonLanguage = () => languageSelect.value.startsWith('Python') || languageSelect.value === 'PyPy';
 
 function whitespaceDots(view) {
   const marks = [];
@@ -123,8 +132,75 @@ function handleShortcut(event, editor) {
 function insertIndentation(event, editor) {
   if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) return false;
   const transaction = editor.state.changeByRange(range => ({
-    changes: {from: range.from, to: range.to, insert: '    '},
-    range: EditorSelection.cursor(range.from + 4)
+    changes: {from: range.from, to: range.to, insert: indentation},
+    range: EditorSelection.cursor(range.from + indentation.length)
+  }));
+  editor.dispatch(transaction);
+  event.preventDefault();
+  return true;
+}
+function insertSmartNewline(event, editor) {
+  if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return false;
+  const transaction = editor.state.changeByRange(range => {
+    const startLine = editor.state.doc.lineAt(range.from);
+    const endLine = editor.state.doc.lineAt(range.to);
+    const before = startLine.text.slice(0, range.from - startLine.from);
+    const after = endLine.text.slice(range.to - endLine.from);
+    const baseIndent = (before.match(/^\s*/) || [''])[0];
+    const opening = before.trimEnd().slice(-1);
+    const closing = after.trimStart().slice(0, 1);
+    const betweenPair = bracketPairs[opening] === closing;
+    const needsIndent = ['(', '[', '{'].includes(opening)
+      || (isPythonLanguage() && before.trimEnd().endsWith(':'));
+    const firstIndent = baseIndent + (needsIndent ? indentation : '');
+    const insert = betweenPair
+      ? `\n${firstIndent}\n${baseIndent}`
+      : `\n${firstIndent}`;
+    return {
+      changes: {from: range.from, to: range.to, insert},
+      range: EditorSelection.cursor(range.from + 1 + firstIndent.length)
+    };
+  });
+  editor.dispatch(transaction);
+  event.preventDefault();
+  return true;
+}
+function insertMatchingBracket(event, editor) {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return false;
+  const key = event.key;
+  if (!bracketPairs[key] && !closingBrackets.has(key)) return false;
+  const transaction = editor.state.changeByRange(range => {
+    const nextCharacter = editor.state.sliceDoc(range.from, range.from + 1);
+    if (range.empty && closingBrackets.has(key) && nextCharacter === key) {
+      return {range: EditorSelection.cursor(range.from + 1)};
+    }
+    const selected = editor.state.sliceDoc(range.from, range.to);
+    if (bracketPairs[key]) {
+      const insert = `${key}${selected}${bracketPairs[key]}`;
+      return {
+        changes: {from: range.from, to: range.to, insert},
+        range: selected
+          ? EditorSelection.range(range.from + 1, range.from + 1 + selected.length)
+          : EditorSelection.cursor(range.from + 1)
+      };
+    }
+    return {
+      changes: {from: range.from, to: range.to, insert: key},
+      range: EditorSelection.cursor(range.from + 1)
+    };
+  });
+  editor.dispatch(transaction);
+  event.preventDefault();
+  return true;
+}
+function deleteEmptyBracketPair(event, editor) {
+  if (event.key !== 'Backspace' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return false;
+  const ranges = editor.state.selection.ranges;
+  if (ranges.some(range => !range.empty || range.from === 0)) return false;
+  if (ranges.some(range => bracketPairs[editor.state.sliceDoc(range.from - 1, range.from)] !== editor.state.sliceDoc(range.from, range.from + 1))) return false;
+  const transaction = editor.state.changeByRange(range => ({
+    changes: {from: range.from - 1, to: range.from + 1},
+    range: EditorSelection.cursor(range.from - 1)
   }));
   editor.dispatch(transaction);
   event.preventDefault();
@@ -151,7 +227,11 @@ const view = new EditorView({
 });
 
 view.contentDOM.addEventListener('keydown', event => {
-  if (insertIndentation(event, view) || handleShortcut(event, view)) event.stopImmediatePropagation();
+  if (insertIndentation(event, view)
+    || insertSmartNewline(event, view)
+    || insertMatchingBracket(event, view)
+    || deleteEmptyBracketPair(event, view)
+    || handleShortcut(event, view)) event.stopImmediatePropagation();
 }, true);
 
 let mouseSelection = null;
