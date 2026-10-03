@@ -1,6 +1,6 @@
 window.OMS_EXAM_DATA = {
   "examVersion": "2026-10-04-first-weekly-practice-800",
-  "title": "2026-10-04 转专业第一次周练",
+  "title": "2026-10-04 第一次周练",
   "duration": 120,
   "totalScore": 800,
   "questions": [
