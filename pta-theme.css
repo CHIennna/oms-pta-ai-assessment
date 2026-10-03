@@ -1,7 +1,7 @@
 /* Low-contrast PAT dark theme: adjacent surfaces stay close and typography stays light. */
 :root{
-  --font-sans:ui-sans-serif,system-ui,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
-  --font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  --font-sans:"Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB","Noto Sans CJK SC",Arial,sans-serif;
+  --font-mono:Consolas,"Cascadia Mono",SFMono-Regular,Menlo,Monaco,"Liberation Mono","Courier New",monospace;
   --bg-site:hsl(0 0% 23%);
   --bg-base:hsl(0 0% 25%);
   --bg-light:hsl(0 0% 27%);
@@ -18,7 +18,7 @@
   --line:var(--border-all);--text:var(--text-normal);--muted:var(--text-light);
   --blue:var(--color-primary);--red:var(--color-danger)
 }
-html,body,button,input,select,textarea{font-family:var(--font-sans);font-weight:400}
+html,body,button,input,select,textarea{font-family:var(--font-sans);font-weight:400;font-synthesis:none}
 body{font-size:16px;line-height:24px;color:var(--text-normal);background:var(--bg-site);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .remain b,.category em,.question-grid button,.problem-copy code,.statement code,.problem-copy pre,.statement pre,.editor pre,.editor textarea,.test-content textarea,.test-content pre,.compiler-output,.question-setting span{font-family:var(--font-mono)}
 .cm-editor,.cm-content,.cm-gutters{font-family:var(--font-mono)!important;font-variant-ligatures:none}
