@@ -59,6 +59,7 @@ async function oneCompilerRun(language, source, input) {
     const response = await fetch(oneCompilerEndpoint, { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', 'X-API-Key': oneCompilerApiKey }, body: JSON.stringify({ language: language.language, files: [{ name: language.file, content: source }], stdin: input }) });
     if (!response.ok) throw Error(`OneCompiler 服务响应异常（${response.status}）。`);
     const result = await response.json();
+    if (Array.isArray(result) || Array.isArray(result && result.results)) return result;
     if (result.status !== 'success') return { ...result, stderr: result.stderr || result.error || result.message || '' };
     return result;
   } catch (error) {
@@ -159,15 +160,29 @@ async function judge(payload) {
   if (!source.trim()) return { verdict: 'CompilationError', message: '请先编写代码。', compilerOutput: '' };
   if (source.length > 65536) return { verdict: 'CompilationError', message: '代码长度超过 64 KB 限制。', compilerOutput: '' };
   if (!tests) return { verdict: 'NotConfigured', message: '该题尚未配置测试点。', compilerOutput: '' };
-  let passed = 0;
-  for (let index = 0; index < tests.length; index++) {
-    const test = tests[index]; const result = await oneCompilerRun(language, source, test.input);
-    const failure = describeFailure(result, index, passed, tests.length); if (failure) return failure;
+  const batch = await oneCompilerRun(language, source, tests.length === 1 ? tests[0].input : tests.map(test => test.input));
+  let runs = Array.isArray(batch) ? batch : Array.isArray(batch && batch.results) ? batch.results : [batch];
+  if (runs.length === 1 && tests.length > 1 && runs[0] && runs[0].status !== 'success') runs = tests.map(() => runs[0]);
+  if (runs.length !== tests.length) throw Error('云端评测返回的测试点数量不完整。');
+  const testCases = tests.map((test, index) => {
+    const result = runs[index] || {};
+    const failure = describeFailure(result, index, 0, tests.length);
+    const memory = Number(result.memoryUsed ?? result.memory);
+    const time = Number(result.executionTime ?? result.cpuTime ?? result.elapsedTime ?? result.time);
+    if (failure) return { index, verdict: failure.verdict, hint: failure.message, score: test.score, memoryKb: Number.isFinite(memory) ? memory : null, timeMs: Number.isFinite(time) ? time : null, detail: failure.compilerOutput || '' };
     const output = result.stdout || '';
-    if (normalized(output) !== normalized(test.expected)) return { verdict: 'WrongAnswer', message: `测试点 ${index + 1} 输出与预期不一致。`, compilerOutput: `你的输出：\n${output || '(空)'}\n\n预期输出：\n${test.expected}`, passedTests: passed, totalTests: tests.length };
-    passed++;
-  }
-  return { verdict: 'Accepted', message: payload.mode === 'sample' ? '样例输出与预期输出一致。' : '所有测试点均已通过。', compilerOutput: `云端评测完成\n通过测试点：${passed}/${tests.length}`, passedTests: passed, totalTests: tests.length };
+    const accepted = normalized(output) === normalized(test.expected);
+    return { index, verdict: accepted ? 'Accepted' : 'WrongAnswer', hint: accepted ? '无提示' : '输出与预期不一致', score: test.score, memoryKb: Number.isFinite(memory) ? memory : null, timeMs: Number.isFinite(time) ? time : null, detail: accepted ? '' : `你的输出：\n${output || '(空)'}\n\n预期输出：\n${test.expected}` };
+  });
+  const priority = ['CompilationError', 'RuntimeError', 'TimeLimitExceeded', 'WrongAnswer'];
+  const verdict = priority.find(value => testCases.some(test => test.verdict === value)) || 'Accepted';
+  const passedTests = testCases.filter(test => test.verdict === 'Accepted').length;
+  const firstFailure = testCases.find(test => test.verdict === verdict);
+  const message = verdict === 'Accepted' ? (payload.mode === 'sample' ? '样例输出与预期输出一致。' : '所有测试点均已通过。') : firstFailure.hint;
+  const compilerOutput = verdict === 'Accepted'
+    ? `云端批量评测完成\n通过测试点：${passedTests}/${tests.length}`
+    : `测试点 ${firstFailure.index + 1}：${firstFailure.hint}${firstFailure.detail ? `\n\n${firstFailure.detail}` : ''}`;
+  return { verdict, message, compilerOutput, testCases: testCases.map(({ detail, ...test }) => test), passedTests, totalTests: tests.length };
 }
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');

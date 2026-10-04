@@ -10,7 +10,7 @@
     document.querySelector('#judge-cases')?.remove();
     const section = document.createElement('section');
     section.id = 'judge-cases'; section.className = 'judge-cases';
-    section.innerHTML = `<h3>评测机固定测试点</h3><p>提交后，题目、考生代码以及这里配置的固定输入和预期输出将交给 DeepSeek，由其逐测试点判定。空白测试点不会参与判题。</p>${config.questions.map((question, qIndex) => `<div class="judge-case"><strong>${question.id} ${question.name}</strong>${makeDefaultCases(question).map((test, tIndex) => `<div class="judge-case-grid"><label>测试点 ${tIndex + 1} 输入<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="input">${escape(text(test.input))}</textarea></label><label>预期输出<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="expected">${escape(text(test.expected))}</textarea></label></div>`).join('')}</div>`).join('')}<div id="judge-case-note" class="judge-status"></div>`;
+    section.innerHTML = `<h3>评测机固定测试点</h3><p>提交后，考生代码将由云端评测机一次编译，并批量运行这里配置的固定输入和预期输出。空白测试点不会参与判题。</p>${config.questions.map((question, qIndex) => `<div class="judge-case"><strong>${question.id} ${question.name}</strong>${makeDefaultCases(question).map((test, tIndex) => `<div class="judge-case-grid"><label>测试点 ${tIndex + 1} 输入<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="input">${escape(text(test.input))}</textarea></label><label>预期输出<textarea data-q="${qIndex}" data-t="${tIndex}" data-part="expected">${escape(text(test.expected))}</textarea></label></div>`).join('')}</div>`).join('')}<div id="judge-case-note" class="judge-status"></div>`;
     settings.after(section);
   }
   renderSettings = function () { baseRenderSettings(); renderJudgeCases(); };
@@ -130,19 +130,22 @@
   }
   async function aiJudgeSubmit() {
     const state = $('#run-state'), question = config.questions[current];
-    const tests = question.testCases || [];
-    state.textContent = 'DeepSeek 正在按固定测试点逐点判题…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
+    const tests = question.testCases || [], source = editorCode();
+    state.textContent = '正在编译并批量运行测试点…';
     try {
       if (!tests.length) throw Error('该题尚未配置固定测试点。');
-      const response = await fetch('/api/ai-judge', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, tests, problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
+      const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
+      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language:$('#language').value, problemId:question.id, mode:'submit', tests }) });
       const result = await response.json();
-      if (!response.ok) throw Error(result.detail || result.message || 'AI 云端评测服务不可用。');
-      $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || renderAiReview(result)}`.trim(); setTab('compiler');
+      if (!response.ok) throw Error(result.detail || result.message || '云端评测服务不可用。');
+      $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || renderAiReview(result)}`.trim();
       const status = aiVerdict(result.verdict); state.textContent = `评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
       results[current] = result.verdict === 'Accepted' ? 'accepted' : 'wrong';
+      submissions.unshift({ problemId:question.id, language:$('#language').value, verdict:status.label, candidate:config.candidateName, time:'刚刚' });
+      saveSubmittedCode(question.id, source); if (activeQuestionId === question.id) loadedCode = source;
       $('#submit-state').textContent = `刚刚提交 · ${status.label}`;
       render(); showSubmissionResult(result, question);
-    } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = 'AI 云端评测失败'; }
+    } catch (error) { $('#compiler-output').textContent = error.message; state.textContent = '云端评测失败'; }
   }
   document.querySelector('#copy-submission-code')?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(editorCode()); } catch {}

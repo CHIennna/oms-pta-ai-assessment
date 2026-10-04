@@ -2,9 +2,9 @@ window.OMS_EXAM_DATA = {
   "examVersion": "2026-10-04-first-weekly-practice-800",
   "title": "2026-10-04 第一次周练",
   "duration": 120,
-  "startAt": "2026-10-04T19:00",
-  "endAt": "2026-10-04T21:00",
-  "scheduleVersion": "2026-10-04-evening",
+  "startAt": "2026-10-04T21:00",
+  "endAt": "2026-10-04T23:00",
+  "scheduleVersion": "2026-10-04-night-21-23",
   "totalScore": 800,
   "questions": [
     {
