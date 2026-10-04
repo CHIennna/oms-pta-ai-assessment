@@ -498,7 +498,7 @@ window.OMS_EXAM_DATA = {
 window.OMS_EXAM_ARCHIVE = [
   {
     "examVersion": "2025-transfer-major-exam",
-    "title": "2025 大二计算机转专业机试",
+    "title": "2025 计算机转专业机试",
     "duration": 120,
     "totalScore": 800,
     "questions": [
