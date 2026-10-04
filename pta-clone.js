@@ -78,7 +78,13 @@ const fallbackExperiencePosts=[
     {key:'verify',title:'用同类变化验证',body:'在原测试点之外，再改变数据规模、边界位置或输入形式进行验证，确认方法可以迁移到相似题目。',items:['当天定位错误原因。','间隔后完成一次独立重写。','再做一道同类变化题。']}
   ]}
 ];
-const experiencePosts=Array.isArray(window.OMS_EXPERIENCE_POSTS)&&window.OMS_EXPERIENCE_POSTS.length?window.OMS_EXPERIENCE_POSTS:fallbackExperiencePosts;
+function experienceYear(post){
+  const matched=String(post.year||post.label||post.title||'').match(/(?:19|20)\d{2}/);
+  return matched?Number(matched[0]):0;
+}
+const experiencePosts=(Array.isArray(window.OMS_EXPERIENCE_POSTS)&&window.OMS_EXPERIENCE_POSTS.length?window.OMS_EXPERIENCE_POSTS:fallbackExperiencePosts)
+  .slice()
+  .sort((left,right)=>experienceYear(right)-experienceYear(left)||Array.from(String(left.title||'')).length-Array.from(String(right.title||'')).length||String(left.title||'').localeCompare(String(right.title||''),'zh-CN'));
 function renderExperienceReader(){
   const list=experiencePosts.map((post,index)=>`<button type="button" class="${index===0?'active':''}" data-experience-post="${index}" aria-selected="${index===0}"><small>${escape(post.label)}</small><b>${escape(post.title)}</b></button>`).join('');
   const articles=experiencePosts.map((post,index)=>`<article class="experience-article ${index===0?'active':''}" data-experience-article="${index}" ${index===0?'':'hidden'}><header><small>${escape(post.label)}</small><h2>${escape(post.title)}</h2><p>${escape(post.summary)}</p></header>${post.sections.map(section=>`<section id="experience-${index}-${section.key}"><h3>${escape(section.title)}</h3>${section.markdown?`<div class="experience-markdown">${markdownToHtml(section.markdown)}</div>`:`<p>${escape(section.body)}</p>${section.items?`<ul>${section.items.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>`:''}`}</section>`).join('')}</article>`).join('');
