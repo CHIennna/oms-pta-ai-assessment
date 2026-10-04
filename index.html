@@ -19,8 +19,8 @@
 <body>
   <div id="pta-app" class="pta-app">
     <header class="topbar">
-      <div class="brand"><button class="round" title="返回" aria-label="返回"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></svg></button><strong id="exam-name">程序设计基础上机考试</strong><span class="oms-chip">OMS 监控中</span></div>
-      <div class="machine-info"><span><i></i>上机号 <b id="seat">PC-08</b></span><span>姓名 <b id="candidate">admin</b></span><span>学号 <b id="student-id">102505201</b></span><span class="remain">剩余 <b id="countdown">01:30:00</b></span></div>
+      <div class="brand"><button class="round" title="返回" aria-label="返回"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></svg></button><strong id="exam-name">程序设计基础上机考试</strong><span class="oms-chip">OMS 监控中</span><span class="remain" hidden><span id="countdown-label">距开始</span> <b id="countdown">00:00:00</b></span></div>
+      <div class="machine-info"><span><i></i>上机号 <b id="seat">PC-08</b></span><span>姓名 <b id="candidate">admin</b></span><span>学号 <b id="student-id">102505201</b></span></div>
       <div class="account"><button class="round" title="公告" aria-label="公告"><svg class="icon" viewBox="0 0 24 24"><path d="M5 5h14v14H5zM8 9h8M8 13h5"/></svg></button><button class="round" title="设置" aria-label="设置"><svg class="icon" viewBox="0 0 24 24"><path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Z"/><path d="m19.4 15 .1 1.8-2 1.2-1.4-1a7.7 7.7 0 0 1-1.6.9l-.4 1.7h-4l-.4-1.7a7.7 7.7 0 0 1-1.6-.9l-1.4 1-2-1.2.1-1.8a7.7 7.7 0 0 1 0-1.9l-1.6-.9v-2.4l1.6-.9a7.7 7.7 0 0 1 0-1.9L4.7 6l2-1.2 1.4 1a7.7 7.7 0 0 1 1.6-.9l.4-1.7h4l.4 1.7a7.7 7.7 0 0 1 1.6.9l1.4-1 2 1.2-.1 1.8a7.7 7.7 0 0 1 0 1.9l1.6.9v2.4l-1.6.9a7.7 7.7 0 0 1 0 1.9Z"/></svg></button><button id="open-admin" class="admin-button">考试管理</button><span class="avatar">CY</span><b>ciena</b></div>
     </header>
     <nav class="rail" aria-label="考试导航">
@@ -29,6 +29,7 @@
       <button class="rail-button" data-route="submissions"><span><svg class="icon" viewBox="0 0 24 24"><path d="M8 6h11M8 12h11M8 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg></span><small>提交<br>列表</small></button>
       <button class="rail-button" data-route="realtime"><span><svg class="icon" viewBox="0 0 24 24"><path d="M4 19h16M7 16v-5M12 16V7M17 16v-9"/></svg></span><small>成绩<br>表</small></button>
       <button class="rail-button exam-center-nav" data-route="center"><span><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h16v13H4zM8 4h8l2 3M8 11h8M8 15h5"/></svg></span><small>考试<br>中心</small></button>
+      <button class="rail-button study-advice-nav" data-route="advice"><span><svg class="icon" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.1 14 18h-4c0-1.9-.5-2.7-1.5-3.5Z"/></svg></span><small>备考<br>建议</small></button>
     </nav>
     <aside id="overview" class="overview">
       <div class="overview-head"><b>题目总览</b><span>作答 / 题数</span></div>
