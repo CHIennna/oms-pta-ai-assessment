@@ -9,6 +9,26 @@
   const app = document.querySelector('#pta-app');
   const overviewToggle = document.querySelector('#overview-toggle');
   const overview = document.querySelector('#overview');
+  const statementFullscreen = document.querySelector('#statement-fullscreen');
+  if (statement && statementFullscreen) {
+    const setStatementFullscreen = active => {
+      statement.classList.toggle('statement-reading-fullscreen', active);
+      document.body.classList.toggle('statement-reading-mode', active);
+      statementFullscreen.textContent = active ? '退出全屏' : '全屏浏览';
+      statementFullscreen.title = active ? '退出全屏浏览' : '全屏浏览题目';
+      statementFullscreen.setAttribute('aria-pressed', String(active));
+    };
+    statementFullscreen.addEventListener('click', () => {
+      const active = !statement.classList.contains('statement-reading-fullscreen');
+      setStatementFullscreen(active);
+      requestAnimationFrame(() => statementFullscreen.focus());
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !statement.classList.contains('statement-reading-fullscreen')) return;
+      setStatementFullscreen(false);
+      statementFullscreen.focus();
+    });
+  }
   if (!tester || !coding || !toggle) return;
   const compact = window.matchMedia('(max-width: 760px)');
   const syncOverview = () => {
