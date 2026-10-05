@@ -957,7 +957,7 @@ window.OMS_EXAM_ARCHIVE = [
 window.OMS_EXAM_ARCHIVE.push({
   "examVersion": "2024-transfer-major-exam",
   "title": "2024 计算机转专业机试",
-  "duration": 0,
+  "duration": 120,
   "totalScore": 1000,
   "questions": [
     {
@@ -1355,7 +1355,7 @@ window.OMS_EXPERIENCE_POSTS=[
 window.OMS_EXAM_ARCHIVE.push({
   "examVersion": "2023-transfer-major-exam",
   "title": "2023 计算机转专业机试",
-  "duration": 0,
+  "duration": 120,
   "totalScore": 800,
   "questions": [
     {
@@ -1811,7 +1811,7 @@ window.OMS_EXAM_ARCHIVE.push({
 window.OMS_EXAM_ARCHIVE.push({
   "examVersion": "2022-transfer-major-exam",
   "title": "2022 计算机转专业机试",
-  "duration": 0,
+  "duration": 120,
   "totalScore": 800,
   "questions": [
     {

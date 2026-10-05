@@ -95,13 +95,16 @@ const experiencePosts=(Array.isArray(window.OMS_EXPERIENCE_POSTS)&&window.OMS_EX
   .slice()
   .sort((left,right)=>experienceYear(right)-experienceYear(left)||Array.from(String(left.title||'')).length-Array.from(String(right.title||'')).length||String(left.title||'').localeCompare(String(right.title||''),'zh-CN'));
 const EXPERIENCE_FONT_STORAGE='oms-pta-experience-font-size';
+const EXPERIENCE_LIBRARY_STORAGE='oms-pta-experience-library-collapsed';
 let experienceFontSize='medium';
+let experienceLibraryCollapsed=false;
 try{const storedFontSize=localStorage.getItem(EXPERIENCE_FONT_STORAGE);if(['small','medium','large'].includes(storedFontSize))experienceFontSize=storedFontSize;}catch{}
+try{experienceLibraryCollapsed=localStorage.getItem(EXPERIENCE_LIBRARY_STORAGE)==='true';}catch{}
 function renderExperienceReader(){
   const list=experiencePosts.map((post,index)=>`<button type="button" class="${index===0?'active':''}" data-experience-post="${index}" aria-selected="${index===0}"><small>${escape(post.label)}</small><b>${escape(post.title)}</b></button>`).join('');
   const articles=experiencePosts.map((post,index)=>`<article class="experience-article ${index===0?'active':''}" data-experience-article="${index}" ${index===0?'':'hidden'}><header><small>${escape(post.label)}</small><h2>${escape(post.title)}</h2></header>${post.sections.map(section=>`<section id="experience-${index}-${section.key}"><h3>${escape(section.title)}</h3>${section.markdown?`<div class="experience-markdown">${markdownToHtml(section.markdown)}</div>`:`<p>${escape(section.body)}</p>${section.items?`<ul>${section.items.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>`:''}`}</section>`).join('')}</article>`).join('');
   const outlines=experiencePosts.map((post,index)=>`<nav class="${index===0?'active':''}" data-experience-outline="${index}" ${index===0?'':'hidden'}>${post.sections.map(section=>`<a href="#experience-${index}-${section.key}">${escape(section.title)}</a>`).join('')}</nav>`).join('');
-  return `<div class="experience-reader" data-experience-font-size="${experienceFontSize}"><aside class="experience-library"><h3>经验文章</h3>${list}</aside><main class="experience-main">${articles}</main><aside class="experience-outline"><h3>目录</h3>${outlines}</aside></div>`;
+  return `<div class="experience-reader ${experienceLibraryCollapsed?'library-collapsed':''}" data-experience-font-size="${experienceFontSize}"><aside class="experience-library"><div class="experience-library-head"><h3>经验文章</h3><button type="button" class="experience-library-toggle" data-experience-library-toggle aria-expanded="${!experienceLibraryCollapsed}" aria-label="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}" title="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}">${experienceLibraryCollapsed?'›':'‹'}</button></div>${list}</aside><main class="experience-main">${articles}</main><aside class="experience-outline"><h3>目录</h3>${outlines}</aside></div>`;
 }
 function renderStudyAdvice(){
   const wrongQuestions=config.questions.map((question,index)=>({question,index})).filter(item=>results[item.index]==='wrong');
@@ -172,6 +175,16 @@ function route(name){
       try{localStorage.setItem(EXPERIENCE_FONT_STORAGE,size);}catch{}
     };
     secondary.querySelectorAll('[data-experience-font]').forEach(button=>button.onclick=()=>setExperienceFontSize(button.dataset.experienceFont));
+    const libraryToggle=secondary.querySelector('[data-experience-library-toggle]');
+    if(libraryToggle)libraryToggle.onclick=()=>{
+      experienceLibraryCollapsed=!experienceLibraryCollapsed;
+      secondary.querySelector('.experience-reader')?.classList.toggle('library-collapsed',experienceLibraryCollapsed);
+      libraryToggle.textContent=experienceLibraryCollapsed?'›':'‹';
+      libraryToggle.setAttribute('aria-expanded',String(!experienceLibraryCollapsed));
+      const label=experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表';
+      libraryToggle.setAttribute('aria-label',label);libraryToggle.title=label;
+      try{localStorage.setItem(EXPERIENCE_LIBRARY_STORAGE,String(experienceLibraryCollapsed));}catch{}
+    };
     const showExperiencePost=post=>{
       secondary.querySelectorAll('[data-experience-post]').forEach(button=>{const active=button.dataset.experiencePost===post;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});
       secondary.querySelectorAll('[data-experience-article]').forEach(article=>{const active=article.dataset.experienceArticle===post;article.hidden=!active;article.classList.toggle('active',active);});

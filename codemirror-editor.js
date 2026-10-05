@@ -19951,6 +19951,29 @@
           if (update.docChanged || update.viewportChanged) this.decorations = includeHeaders(update.view);
         }
       }, { decorations: (value) => value.decorations });
+      function preciseSelectionMarks(view2) {
+        const marks2 = [];
+        for (const range of view2.state.selection.ranges) {
+          if (range.empty) continue;
+          let line = view2.state.doc.lineAt(range.from);
+          while (true) {
+            const from = Math.max(range.from, line.from);
+            const to = Math.min(range.to, line.to);
+            if (from < to) marks2.push(Decoration.mark({ class: "cm-precise-selection" }).range(from, to));
+            if (line.to >= range.to || line.number === view2.state.doc.lines) break;
+            line = view2.state.doc.line(line.number + 1);
+          }
+        }
+        return Decoration.set(marks2, true);
+      }
+      var preciseSelectionPlugin = ViewPlugin.fromClass(class {
+        constructor(view2) {
+          this.decorations = preciseSelectionMarks(view2);
+        }
+        update(update) {
+          if (update.docChanged || update.selectionSet || update.viewportChanged) this.decorations = preciseSelectionMarks(update.view);
+        }
+      }, { decorations: (value) => value.decorations });
       var ptaTheme = EditorView.theme({
         "&": { height: "100%", color: "var(--code-text, #d9d9d9)", backgroundColor: "var(--code-bg, #404040)" },
         ".cm-scroller": { fontFamily: mono, lineHeight: "1.55" },
@@ -19963,7 +19986,8 @@
         ".cm-lineNumbers .cm-gutterElement": { padding: "0 1rem", boxSizing: "content-box" },
         ".cm-activeLine": { backgroundColor: "var(--code-active-line, #444)" },
         ".cm-activeLineGutter": { backgroundColor: "var(--code-active-line, #444)" },
-        ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "var(--code-selection, rgba(49,135,235,.45)) !important" },
+        ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "transparent !important" },
+        ".cm-precise-selection": { backgroundColor: "var(--code-selection, rgba(49,135,235,.55)) !important" },
         ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--code-caret, #f2f2f2)" }
       }, { dark: true });
       var ptaHighlight = HighlightStyle.define([
@@ -20095,6 +20119,7 @@ ${firstIndent}`;
             highlightActiveLineGutter(),
             highlightSpecialChars(),
             drawSelection(),
+            preciseSelectionPlugin,
             rectangularSelection(),
             highlightActiveLine(),
             indentationDotPlugin,
@@ -20120,7 +20145,7 @@ ${firstIndent}`;
         if (insertIndentation(event, view) || insertSmartNewline(event, view) || insertMatchingBracket(event, view) || deleteEmptyBracketPair(event, view) || handleShortcut(event, view)) event.stopImmediatePropagation();
       }, true);
       var mouseSelection = null;
-      var selectionPosition = (event) => view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
+      var selectionPosition = (event) => view.posAtCoords({ x: event.clientX, y: event.clientY }, true) ?? view.posAtCoords({ x: event.clientX, y: event.clientY }, false);
       view.contentDOM.addEventListener("pointerdown", (event) => {
         if (event.button !== 0 || event.shiftKey || event.detail !== 1) return;
         const start = selectionPosition(event);

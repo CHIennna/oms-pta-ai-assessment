@@ -85,6 +85,28 @@ const includeHeaderPlugin = ViewPlugin.fromClass(class {
   update(update) { if (update.docChanged || update.viewportChanged) this.decorations = includeHeaders(update.view); }
 }, {decorations: value => value.decorations});
 
+function preciseSelectionMarks(view) {
+  const marks = [];
+  for (const range of view.state.selection.ranges) {
+    if (range.empty) continue;
+    let line = view.state.doc.lineAt(range.from);
+    while (true) {
+      const from = Math.max(range.from, line.from);
+      const to = Math.min(range.to, line.to);
+      if (from < to) marks.push(Decoration.mark({class: 'cm-precise-selection'}).range(from, to));
+      if (line.to >= range.to || line.number === view.state.doc.lines) break;
+      line = view.state.doc.line(line.number + 1);
+    }
+  }
+  return Decoration.set(marks, true);
+}
+const preciseSelectionPlugin = ViewPlugin.fromClass(class {
+  constructor(view) { this.decorations = preciseSelectionMarks(view); }
+  update(update) {
+    if (update.docChanged || update.selectionSet || update.viewportChanged) this.decorations = preciseSelectionMarks(update.view);
+  }
+}, {decorations: value => value.decorations});
+
 const ptaTheme = EditorView.theme({
   '&': {height: '100%', color: 'var(--code-text, #d9d9d9)', backgroundColor: 'var(--code-bg, #404040)'},
   '.cm-scroller': {fontFamily: mono, lineHeight: '1.55'},
@@ -97,7 +119,8 @@ const ptaTheme = EditorView.theme({
   '.cm-lineNumbers .cm-gutterElement': {padding: '0 1rem', boxSizing: 'content-box'},
   '.cm-activeLine': {backgroundColor: 'var(--code-active-line, #444)'},
   '.cm-activeLineGutter': {backgroundColor: 'var(--code-active-line, #444)'},
-  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {backgroundColor: 'var(--code-selection, rgba(49,135,235,.45)) !important'},
+  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {backgroundColor: 'transparent !important'},
+  '.cm-precise-selection': {backgroundColor: 'var(--code-selection, rgba(49,135,235,.55)) !important'},
   '.cm-cursor, .cm-dropCursor': {borderLeftColor: 'var(--code-caret, #f2f2f2)'}
 }, {dark: true});
 
@@ -211,7 +234,7 @@ const view = new EditorView({
   state: EditorState.create({
     doc: input.value,
     extensions: [
-      lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), drawSelection(), rectangularSelection(), highlightActiveLine(), indentationDotPlugin, localLoopVariablePlugin, includeHeaderPlugin, commonShortcuts,
+      lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), drawSelection(), preciseSelectionPlugin, rectangularSelection(), highlightActiveLine(), indentationDotPlugin, localLoopVariablePlugin, includeHeaderPlugin, commonShortcuts,
       ptaTheme, syntaxHighlighting(ptaHighlight), language.of(languageFor()),
       EditorView.updateListener.of(update => {
         if (!update.docChanged || replacing) return;
@@ -235,7 +258,8 @@ view.contentDOM.addEventListener('keydown', event => {
 }, true);
 
 let mouseSelection = null;
-const selectionPosition = event => view.posAtCoords({x: event.clientX, y: event.clientY}, false);
+const selectionPosition = event => view.posAtCoords({x: event.clientX, y: event.clientY}, true)
+  ?? view.posAtCoords({x: event.clientX, y: event.clientY}, false);
 view.contentDOM.addEventListener('pointerdown', event => {
   if (event.button !== 0 || event.shiftKey || event.detail !== 1) return;
   const start = selectionPosition(event);
