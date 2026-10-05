@@ -57,6 +57,8 @@
     CompilationError: { label: '编译错误', tone: 'error' },
     RuntimeError: { label: '段错误', tone: 'error' },
     TimeLimitExceeded: { label: '运行超时', tone: 'timeout' },
+    NotConfigured: { label: '未配置测试点', tone: 'error' },
+    RateLimited: { label: '提交过于频繁', tone: 'review' },
     JudgeUnavailable: { label: '评测机不可用', tone: 'review' },
     NeedsReview: { label: '等待人工核验', tone: 'review' }
   }[verdict] || { label: '等待人工核验', tone: 'review' });
@@ -88,7 +90,7 @@
     $('#submission-verdict').textContent = verdict;
     $('#submission-verdict').className = status.tone;
     $('#submission-score').textContent = `${Number.isInteger(finalScore) ? finalScore : finalScore.toFixed(1)} / ${maxScore}`;
-    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ hint:result.summary, verdict:result.verdict }]).map((test, index) => {
+    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ hint:result.message || result.compilerOutput || '评测未完成', verdict:result.verdict }]).map((test, index) => {
       const caseStatus = aiVerdict(test.verdict || result.verdict);
       const casePassed = test.verdict === 'Accepted';
       const caseMaxScore = scoreForCase(index);
@@ -112,7 +114,7 @@
     try {
       if (!tests.length) throw Error('该题尚未配置固定测试点。');
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
-      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language:$('#language').value, problemId:question.id, mode:'submit', tests, problem:{ id:question.id, title:$('#problem-title').textContent, statement:$('#problem-text').innerText } }) });
+      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language:$('#language').value, problemId:question.id, examVersion:config.examVersion, mode:'submit', tests, problem:{ id:question.id, title:question.name, statement:$('#problem-text').innerText } }) });
       const result = await response.json();
       if (!response.ok) throw Error(result.detail || result.message || '自建评测机暂不可用。');
       $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || '评测完成。'}`.trim();

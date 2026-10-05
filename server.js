@@ -9,7 +9,7 @@ const root = __dirname;
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
 const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
-const testBank = loadTestBank();
+const { testBank, testBankByExam, testAliases, testTitles } = loadTestBank();
 const publicFiles = new Map([
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
 ]);
@@ -41,21 +41,41 @@ function loadTestBank() {
   const context = { window: {} };
   const source = fsSync.readFileSync(path.join(root, 'exam-data.js'), 'utf8');
   vm.runInNewContext(source, context, { filename: 'exam-data.js', timeout: 2000 });
-  const exams = [context.window.OMS_EXAM_DATA, ...(context.window.OMS_EXAM_ARCHIVES || [])].filter(Boolean);
+  const archives = context.window.OMS_EXAM_ARCHIVE || context.window.OMS_EXAM_ARCHIVES || [];
+  const exams = [context.window.OMS_EXAM_DATA, ...(Array.isArray(archives) ? archives : [])].filter(Boolean);
   const bank = new Map();
-  for (const exam of exams) {
-    for (const question of exam.questions || []) {
+  const byExam = new Map();
+  const aliases = new Map();
+  const titles = new Map();
+  for (const [examIndex, exam] of exams.entries()) {
+    const examVersion = String(exam.examVersion || exam.title || examIndex);
+    for (const [questionIndex, question] of (exam.questions || []).entries()) {
       if (!Array.isArray(question.testCases) || !question.testCases.length) continue;
       const id = String(question.id || '');
-      if (id && !bank.has(id)) bank.set(id, question.testCases);
+      if (!id) continue;
+      if (!bank.has(id)) bank.set(id, question.testCases);
+      byExam.set(`${examVersion}:${id}`, question.testCases);
+      if (question.name && !titles.has(String(question.name).trim())) titles.set(String(question.name).trim(), question.testCases);
+      if (examIndex === 0) {
+        aliases.set(String(questionIndex + 1), id);
+      }
     }
   }
-  return bank;
+  return { testBank: bank, testBankByExam: byExam, testAliases: aliases, testTitles: titles };
 }
 
 function trustedPayload(payload) {
   if (!payload || payload.mode !== 'submit') return payload;
-  return { ...payload, tests: testBank.get(String(payload.problemId || '')) || [] };
+  const requestedId = String(payload.problemId || '');
+  const examVersion = String(payload.examVersion || '');
+  const title = String(payload.problem && payload.problem.title || '').trim();
+  const aliasId = testAliases.get(requestedId);
+  const tests = testBankByExam.get(`${examVersion}:${requestedId}`)
+    || testTitles.get(title)
+    || testBank.get(requestedId)
+    || testBank.get(aliasId)
+    || [];
+  return { ...payload, tests };
 }
 
 function reply(res, status, body, type = 'application/json; charset=utf-8') {
@@ -78,7 +98,7 @@ function permitsRequest(req) {
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBank.size, portableRuntime: portableRuntime.detected });
+  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, portableRuntime: portableRuntime.detected });
   if (req.method === 'POST' && url.pathname === '/api/judge') {
     if (!permitsRequest(req)) return reply(res, 429, { verdict: 'RateLimited', message: '请求过于频繁，请稍后重试。', compilerOutput: '' });
     try { return reply(res, 200, await localJudge.judge(trustedPayload(await collect(req)))); } catch (error) { return reply(res, 500, { verdict: 'JudgeUnavailable', message: '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
@@ -90,4 +110,4 @@ if (require.main === module) {
   server.listen(port, '0.0.0.0', () => console.log(`FZUPTA local judge: http://0.0.0.0:${port}`));
 }
 
-module.exports = { server, localJudge, testBank };
+module.exports = { server, localJudge, testBank, testBankByExam };
