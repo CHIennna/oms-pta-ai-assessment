@@ -2,14 +2,15 @@ const http = require('http');
 const fsSync = require('fs');
 const os = require('os');
 const path = require('path');
-const vm = require('vm');
 const { LocalJudge } = require('./local-judge');
+const { loadAndValidateExamData } = require('./validate-exam-data');
 
 const root = __dirname;
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
 const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
-const { testBank, testBankByExam, testAliases, testTitles } = loadTestBank();
+const { exams, report: examValidation } = loadAndValidateExamData(path.join(root, 'exam-data.js'));
+const { testBank, testBankByExam, testAliases, testTitles } = loadTestBank(exams);
 const publicFiles = new Map([
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
 ]);
@@ -37,12 +38,7 @@ function configurePortableRuntime() {
   return { detected: bins.length > 0, bins };
 }
 
-function loadTestBank() {
-  const context = { window: {} };
-  const source = fsSync.readFileSync(path.join(root, 'exam-data.js'), 'utf8');
-  vm.runInNewContext(source, context, { filename: 'exam-data.js', timeout: 2000 });
-  const archives = context.window.OMS_EXAM_ARCHIVE || context.window.OMS_EXAM_ARCHIVES || [];
-  const exams = [context.window.OMS_EXAM_DATA, ...(Array.isArray(archives) ? archives : [])].filter(Boolean);
+function loadTestBank(exams) {
   const bank = new Map();
   const byExam = new Map();
   const aliases = new Map();
@@ -50,7 +46,7 @@ function loadTestBank() {
   for (const [examIndex, exam] of exams.entries()) {
     const examVersion = String(exam.examVersion || exam.title || examIndex);
     for (const [questionIndex, question] of (exam.questions || []).entries()) {
-      if (!Array.isArray(question.testCases) || !question.testCases.length) continue;
+      if (question.judgeable === false) continue;
       const id = String(question.id || '');
       if (!id) continue;
       if (!bank.has(id)) bank.set(id, question.testCases);
@@ -98,7 +94,7 @@ function permitsRequest(req) {
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, portableRuntime: portableRuntime.detected });
+  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, portableRuntime: portableRuntime.detected });
   if (req.method === 'POST' && url.pathname === '/api/judge') {
     if (!permitsRequest(req)) return reply(res, 429, { verdict: 'RateLimited', message: '请求过于频繁，请稍后重试。', compilerOutput: '' });
     try { return reply(res, 200, await localJudge.judge(trustedPayload(await collect(req)))); } catch (error) { return reply(res, 500, { verdict: 'JudgeUnavailable', message: '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }

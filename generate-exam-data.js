@@ -32,11 +32,22 @@ const parsedQuestions = headings.map((heading, index) => {
       expected: fencedAfter(block, '预期输出'),
       score: Number(marker[2] || marker[3]) || 0
     };
-  }).filter(test => test.input || test.expected);
+  });
   const publicStatement = body.split(/^##\s+测试点\s*$/m)[0].replace(scoreLine, '').trim();
   const sampleInput = fencedAfter(publicStatement, '## (?:样例输入|输入样例)');
   const sampleOutput = fencedAfter(publicStatement, '## (?:样例输出|输出样例)');
-  const testCases = declaredTestCases.length ? declaredTestCases : sampleInput || sampleOutput ? [{ input: sampleInput, expected: sampleOutput, score }] : [];
+  if (!markers.length) {
+    throw new Error(`第 ${heading.id} 题“${heading.name}”缺少正式测试点；样例不能代替正式评测数据。`);
+  }
+  const invalidTestIndex = declaredTestCases.findIndex(test => !test.input || !test.expected || test.score <= 0);
+  if (invalidTestIndex >= 0) {
+    throw new Error(`第 ${heading.id} 题“${heading.name}”的测试点 ${invalidTestIndex + 1} 必须包含标准输入、预期输出和正分值。`);
+  }
+  const testScore = declaredTestCases.reduce((sum, test) => sum + test.score, 0);
+  if (testScore !== score) {
+    throw new Error(`第 ${heading.id} 题“${heading.name}”的测试点总分 ${testScore} 与题目分值 ${score} 不一致。`);
+  }
+  const testCases = declaredTestCases;
   return {
     id: outputMode === 'archive' ? `${String(examVersion).match(/^\d{4}/)?.[0] || examVersion}-${heading.id}` : heading.id,
     name: heading.name,
@@ -46,23 +57,14 @@ const parsedQuestions = headings.map((heading, index) => {
     sampleOutput: sampleOutput || testCases[0]?.expected || '',
     statement: publicStatement,
     testCases,
-    judgeable: testCases.length > 0
+    judgeable: true
   };
 });
-const archiveIdPrefix = String(examVersion).match(/^\d{4}/)?.[0] || examVersion;
-const questions = outputMode === 'archive' && declaredQuestionCount > parsedQuestions.length
-  ? Array.from({ length: declaredQuestionCount }, (_, index) => parsedQuestions.find(question => question.id === `${archiveIdPrefix}-${index + 1}`) || {
-      id: `${archiveIdPrefix}-${index + 1}`,
-      name: `第 ${index + 1} 题（资料缺失）`,
-      score: defaultQuestionScore,
-      tests: 0,
-      sampleInput: '',
-      sampleOutput: '',
-      statement: '## 资料说明\n\n原始资料未保留本题题面，暂不支持评测。',
-      testCases: [],
-      judgeable: false
-    })
-  : parsedQuestions;
+if (!parsedQuestions.length) throw new Error('没有识别到任何题目。');
+if (declaredQuestionCount !== parsedQuestions.length) {
+  throw new Error(`题目数量不一致：文档声明 ${declaredQuestionCount} 题，只识别到 ${parsedQuestions.length} 题。`);
+}
+const questions = parsedQuestions;
 const fallbackTitle = (topLevelHeadings[0]?.[1]?.trim() || '程序设计考试')
   .replace(/题目(?:[（(]题解校正版[）)]|\s*[｜|]\s*正式优化版)$/, '')
   .trim();

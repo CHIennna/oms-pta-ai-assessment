@@ -1,0 +1,108 @@
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const LEGACY_UNJUDGEABLE = new Set([
+  '2024-transfer-major-exam:2024-4',
+  '2023-transfer-major-exam:2023-2',
+  '2022-transfer-major-exam:2022-8'
+]);
+
+function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')) {
+  const context = { window: {} };
+  const source = fs.readFileSync(filePath, 'utf8');
+  vm.runInNewContext(source, context, { filename: path.basename(filePath), timeout: 2000 });
+
+  const current = context.window.OMS_EXAM_DATA;
+  const archives = context.window.OMS_EXAM_ARCHIVE || context.window.OMS_EXAM_ARCHIVES || [];
+  if (!current || !Array.isArray(archives)) {
+    throw new Error('题库格式无效：必须包含 OMS_EXAM_DATA，且 OMS_EXAM_ARCHIVE 必须是数组。');
+  }
+
+  const exams = [current, ...archives];
+  const errors = [];
+  const warnings = [];
+  const examVersions = new Set();
+  let judgeableProblems = 0;
+  let unjudgeableProblems = 0;
+  let testCases = 0;
+
+  for (const [examIndex, exam] of exams.entries()) {
+    const examLabel = String(exam.title || `试卷 ${examIndex + 1}`);
+    const examVersion = String(exam.examVersion || '').trim();
+    if (!examVersion) errors.push(`${examLabel} 缺少 examVersion`);
+    else if (examVersions.has(examVersion)) errors.push(`${examLabel} 的 examVersion 重复：${examVersion}`);
+    else examVersions.add(examVersion);
+
+    if (!Array.isArray(exam.questions) || !exam.questions.length) {
+      errors.push(`${examLabel} 没有题目`);
+      continue;
+    }
+
+    const questionIds = new Set();
+    for (const [questionIndex, question] of exam.questions.entries()) {
+      const questionLabel = `${examLabel} / 第 ${questionIndex + 1} 题`;
+      const id = String(question.id || '').trim();
+      if (!id) errors.push(`${questionLabel} 缺少 id`);
+      else if (questionIds.has(id)) errors.push(`${questionLabel} 的 id 重复：${id}`);
+      else questionIds.add(id);
+      if (!String(question.name || '').trim()) errors.push(`${questionLabel} 缺少标题`);
+
+      if (question.judgeable === false) {
+        const legacyKey = `${examVersion}:${id}`;
+        if (!LEGACY_UNJUDGEABLE.has(legacyKey)) {
+          errors.push(`${questionLabel} 不允许新增为不可评测题，必须补齐正式测试点`);
+          continue;
+        }
+        unjudgeableProblems += 1;
+        warnings.push(`${questionLabel} 是保留的历史资料缺失题`);
+        continue;
+      }
+
+      if (!Array.isArray(question.testCases) || !question.testCases.length) {
+        errors.push(`${questionLabel} 没有正式测试点`);
+        continue;
+      }
+
+      judgeableProblems += 1;
+      let testScore = 0;
+      for (const [testIndex, test] of question.testCases.entries()) {
+        const testLabel = `${questionLabel} / 测试点 ${testIndex + 1}`;
+        if (!test || typeof test !== 'object') {
+          errors.push(`${testLabel} 格式无效`);
+          continue;
+        }
+        if (typeof test.input !== 'string') errors.push(`${testLabel} 缺少标准输入`);
+        if (typeof test.expected !== 'string') errors.push(`${testLabel} 缺少预期输出`);
+        const score = Number(test.score);
+        if (!Number.isFinite(score) || score <= 0) errors.push(`${testLabel} 分值必须大于 0`);
+        else testScore += score;
+        testCases += 1;
+      }
+      if (Number.isFinite(Number(question.score)) && testScore !== Number(question.score)) {
+        errors.push(`${questionLabel} 测试点总分 ${testScore} 与题目分值 ${question.score} 不一致`);
+      }
+    }
+  }
+
+  const report = { exams: exams.length, judgeableProblems, unjudgeableProblems, testCases, warnings };
+  if (errors.length) {
+    const error = new Error(`题库正式评测校验失败：\n- ${errors.join('\n- ')}`);
+    error.report = report;
+    throw error;
+  }
+  return { exams, report };
+}
+
+if (require.main === module) {
+  try {
+    const { report } = loadAndValidateExamData(process.argv[2] ? path.resolve(process.argv[2]) : undefined);
+    console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
+    for (const warning of report.warnings) console.warn(`提醒：${warning}`);
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+}
+
+module.exports = { loadAndValidateExamData };
