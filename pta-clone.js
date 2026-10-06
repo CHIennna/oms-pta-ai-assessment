@@ -39,12 +39,91 @@ function renderExamInfo(){
 }
 function portalExamStatus(exam){const now=Date.now(),start=Date.parse(exam.startAt),end=Date.parse(exam.endAt);if(exam.category==='past'||(Number.isFinite(end)&&now>=end))return '已结束';if(Number.isFinite(start)&&now<start)return '未开始';return '进行中';}
 function portalDuration(value){const minutes=Number(value)||0;if(!minutes)return '未记录';if(minutes%60===0)return `${minutes/60} 小时`;return `${minutes} 分钟`;}
+const PORTAL_ICONS={home:'<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 9.8V20h13V9.8M9.5 20v-6h5v6"/>',problems:'<rect x="5" y="3.5" width="14" height="17" rx="1.8"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5"/>',training:'<path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h5"/>',contest:'<path d="M8 4h8v3.5a4 4 0 0 1-8 0zM12 11.5V16M8.5 20h7M9 16h6"/><path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11"/>',assignment:'<path d="M8 5h11v16H5V8z"/><path d="M8 5v3H5M9 12h6M9 16h6"/>',judge:'<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="m3.5 6.5 1.3 1.3 2.3-2.6M3.5 12l1.3 1.3 2.3-2.6M3.5 17.5l1.3 1.3 2.3-2.6"/>',theme:'<path d="M20 15.2A8.4 8.4 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7.2h.01"/>',panel:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M8.5 3.5v17M11.5 8h5M11.5 12h5M11.5 16h3"/>',calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',users:'<path d="M8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6 6 0 0 1 12 0M16 12a3 3 0 1 0 0-6M16 14a5.5 5.5 0 0 1 5.5 5.5"/>',award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/>',arrow:'<path d="m9 5 7 7-7 7"/>',chevron:'<path d="m7 14 5-5 5 5"/>'};
+function portalIcon(name){return `<svg class="portal-icon" viewBox="0 0 24 24" aria-hidden="true">${PORTAL_ICONS[name]||''}</svg>`;}
 function renderPortalHome(){
   const archive=window.OMS_EXAM_ARCHIVE||[],exams=[primaryConfig,...archive].filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index).sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
-  const contests=exams.slice(0,5).map(exam=>{const status=portalExamStatus(exam);return `<button type="button" class="portal-contest" data-portal-exam="${escape(exam.examVersion)}"><span class="portal-status ${status==='进行中'?'running':status==='未开始'?'pending':'ended'}">${status}</span><span class="portal-contest-copy"><b>${escape(exam.title)}</b><small><span>♙ OI</span><span>▣ ${formatExamTime(exam.startAt||exam.date)}</span><span>◷ ${portalDuration(exam.duration)}</span><span>♧ ${Number(exam.registered)||1}</span></small></span><span class="portal-arrow">›</span></button>`;}).join('');
-  const latest=(primaryConfig.questions||[]).slice(0,8).map((question,index)=>`<button type="button" data-portal-question="${index}"><i>—</i><span>${escape(question.id||String(index+1).padStart(4,'0'))}</span><b>${escape(question.name)}</b></button>`).join('');
+  const contests=exams.slice(0,5).map(exam=>{const status=portalExamStatus(exam);return `<button type="button" class="portal-contest" data-portal-exam="${escape(exam.examVersion)}"><span class="portal-status ${status==='进行中'?'running':status==='未开始'?'pending':'ended'}">${status}</span><span class="portal-contest-copy"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}OI</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${Number(exam.registered)||1}</span></small></span><span class="portal-arrow">${portalIcon('arrow')}</span></button>`;}).join('');
+  const latest=(primaryConfig.questions||[]).slice(0,8).map((question,index)=>`<button type="button" data-portal-question="${index}"><i>${String(index+1).padStart(2,'0')}</i><span>${escape(question.id||String(index+1).padStart(4,'0'))}</span><b>${escape(question.name)}</b><em>${portalIcon('arrow')}</em></button>`).join('');
   const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
-  return `<div class="portal-shell"><aside class="portal-sidebar"><div class="portal-brand"><span class="portal-seal">福</span><b>福州大学</b><i>⌃</i></div><nav class="portal-nav" aria-label="主页面导航"><button type="button" class="active" data-portal-route="home"><span>⌂</span><b>首页</b></button><button type="button" data-portal-route="exam"><span>▣</span><b>题目</b></button><button type="button" data-portal-route="advice"><span>▤</span><b>训练</b></button><button type="button" data-portal-route="center"><span>♕</span><b>比赛</b></button><button type="button" data-portal-route="info"><span>▧</span><b>作业</b></button><button type="button" data-portal-route="submissions"><span>☷</span><b>评测</b></button></nav><div class="portal-sidebar-bottom"><button type="button" data-portal-theme><span>◐</span><b>主题切换</b></button><div><span class="portal-service-dot"></span><b>服务状态</b></div><button type="button" data-portal-route="info"><span>ⓘ</span><b>关于</b></button><div class="portal-user"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>⌃</i></div></div></aside><main class="portal-main"><header class="portal-topbar"><span>▣</span><b>福州大学</b></header><div class="portal-content"><div class="portal-primary"><section class="portal-welcome"><h1>欢迎来到 FZU Online Judge!</h1><p>请点击左侧的导航栏寻找你需要的功能。</p></section><section class="portal-section"><header><h2>近期比赛</h2><button type="button" data-portal-route="center">查看全部&nbsp; ›</button></header><div class="portal-contest-list">${contests||'<p class="portal-empty">暂无比赛</p>'}</div></section><section class="portal-section portal-practice"><header><h2>近期训练</h2><button type="button" data-portal-route="exam">进入题目&nbsp; ›</button></header><button type="button" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="portal-status running">练习</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small></button></section></div><aside class="portal-right"><section class="portal-side-card"><h2>最新题目</h2><div class="portal-problem-list">${latest||'<p class="portal-empty">暂无题目</p>'}</div></section><section class="portal-side-card"><h2>推荐</h2><p class="portal-empty">目前没有推荐内容。</p></section></aside></div></main></div>`;
+  const navItems=[['home','首页','home'],['problems','题目','exam'],['training','训练','advice'],['contest','比赛','center'],['assignment','作业','info'],['judge','评测','submissions']].map(([icon,label,route],index)=>`<button type="button" class="${index===0?'active':''}" data-portal-route="${route}"><span class="portal-nav-icon">${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
+  return `<div class="portal-shell"><aside class="portal-sidebar"><div class="portal-brand"><span class="portal-seal">福</span><span class="portal-brand-copy"><b>福州大学</b><small>FUZHOU UNIVERSITY</small></span><i>${portalIcon('chevron')}</i></div><nav class="portal-nav" aria-label="主页面导航">${navItems}</nav><div class="portal-sidebar-bottom"><button type="button" data-portal-theme><span class="portal-nav-icon">${portalIcon('theme')}</span><b>主题切换</b></button><div class="portal-service"><span class="portal-service-dot"></span><p><b>服务状态</b><small>运行正常</small></p></div><button type="button" data-portal-route="info"><span class="portal-nav-icon">${portalIcon('info')}</span><b>关于</b></button><div class="portal-user"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></div></div></aside><main class="portal-main"><header class="portal-topbar"><span>${portalIcon('panel')}</span><div><b>福州大学</b><small>FZU Online Judge</small></div></header><div class="portal-content"><div class="portal-primary"><section class="portal-welcome"><small>ONLINE JUDGE</small><h1>欢迎来到 FZU Online Judge</h1><p>从左侧导航进入题目、训练与比赛，开始你的程序设计练习。</p></section><section class="portal-section"><header><div><small>CONTESTS</small><h2>近期比赛</h2></div><button type="button" data-portal-route="center">查看全部 ${portalIcon('arrow')}</button></header><div class="portal-contest-list">${contests||'<p class="portal-empty">暂无比赛</p>'}</div></section><section class="portal-section portal-practice"><header><div><small>PRACTICE</small><h2>近期训练</h2></div><button type="button" data-portal-route="exam">进入题目 ${portalIcon('arrow')}</button></header><button type="button" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="portal-status running">练习</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><em>${portalIcon('arrow')}</em></button></section></div><aside class="portal-right"><section class="portal-side-card"><header><small>PROBLEMS</small><h2>最新题目</h2></header><div class="portal-problem-list">${latest||'<p class="portal-empty">暂无题目</p>'}</div></section><section class="portal-side-card"><header><small>RECOMMENDED</small><h2>推荐</h2></header><p class="portal-empty">目前没有推荐内容。</p></section></aside></div></main></div>`;
+}
+function renderFzuOjHome(){
+  const archive=window.OMS_EXAM_ARCHIVE||[];
+  const exams=[primaryConfig,...archive]
+    .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
+    .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
+  const navItems=[['home','首页','home'],['problems','题目','exam'],['training','训练','advice'],['contest','比赛','center'],['assignment','作业','info'],['judge','评测','submissions']]
+    .map(([icon,label,route],index)=>`<button type="button" class="fzuoj-nav-item ${index===0?'active':''}" data-portal-route="${route}"><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
+  const contests=exams.slice(0,5).map(exam=>{
+    const status=portalExamStatus(exam);
+    const tone=status==='进行中'?'running':status==='未开始'?'pending':'ended';
+    return `<button type="button" class="fzuoj-list-row" data-portal-exam="${escape(exam.examVersion)}"><span class="fzuoj-status ${tone}">${status}</span><span class="fzuoj-list-main"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}OI</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${Number(exam.registered)||1}</span></small></span><i>${portalIcon('arrow')}</i></button>`;
+  }).join('');
+  const latest=(primaryConfig.questions||[]).slice(0,10).map((question,index)=>`<button type="button" class="fzuoj-problem-row" data-portal-question="${index}"><i>—</i><span>${escape(question.id||String(index+1).padStart(4,'0'))}</span><b>${escape(question.name)}</b></button>`).join('');
+  const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
+  return `<div class="fzuoj-shell">
+    <aside class="fzuoj-sidebar">
+      <header class="fzuoj-domain"><span class="fzuoj-seal">福</span><b>福州大学</b><button type="button" aria-label="折叠侧栏">${portalIcon('chevron')}</button></header>
+      <nav class="fzuoj-nav" aria-label="主页面导航">${navItems}</nav>
+      <footer class="fzuoj-sidebar-footer">
+        <button type="button" class="fzuoj-nav-item" data-portal-theme><span>${portalIcon('theme')}</span><b>主题切换</b></button>
+        <div class="fzuoj-service"><span></span><b>服务状态</b></div>
+        <button type="button" class="fzuoj-nav-item" data-portal-route="info"><span>${portalIcon('info')}</span><b>关于</b></button>
+        <div class="fzuoj-account"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></div>
+      </footer>
+    </aside>
+    <div class="fzuoj-page">
+      <header class="fzuoj-topbar"><button type="button" aria-label="切换侧栏">${portalIcon('panel')}</button><b>福州大学</b></header>
+      <main class="fzuoj-content">
+        <div class="fzuoj-primary">
+          <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU Online Judge!</h1><p>请点击左侧的导航栏寻找你需要的功能。</p></section>
+          <section class="fzuoj-card"><header><h2>近期比赛</h2><button type="button" data-portal-route="center">查看全部 ${portalIcon('arrow')}</button></header><div class="fzuoj-list">${contests||'<p class="fzuoj-empty">暂无比赛</p>'}</div></section>
+          <section class="fzuoj-card"><header><h2>近期训练</h2><button type="button" data-portal-route="exam">查看全部 ${portalIcon('arrow')}</button></header><button type="button" class="fzuoj-training" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="fzuoj-status running">进行中</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><i>${portalIcon('arrow')}</i></button></section>
+        </div>
+        <aside class="fzuoj-aside">
+          <section class="fzuoj-card"><header><h2>最新题目</h2></header><div class="fzuoj-problems">${latest||'<p class="fzuoj-empty">暂无题目</p>'}</div></section>
+          <section class="fzuoj-card"><header><h2>推荐</h2></header><p class="fzuoj-empty">目前没有推荐内容。</p></section>
+        </aside>
+      </main>
+    </div>
+  </div>`;
+}
+function renderPtaHome(){
+  const archive=window.OMS_EXAM_ARCHIVE||[];
+  const exams=[primaryConfig,...archive]
+    .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
+    .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
+  const totalQuestions=exams.reduce((sum,exam)=>sum+(exam.questions?.length||0),0);
+  const accepted=Object.values(results).filter(result=>result==='accepted').length;
+  const navItems=[['home','首页','home'],['problems','题目集','center'],['judge','答案板','submissions'],['training','课程班级','advice']]
+    .map(([icon,label,route],index)=>`<button type="button" class="pta-home-nav-item ${index===0?'active':''}" data-portal-route="${route}"><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
+  const cards=exams.map((exam,index)=>{
+    const status=portalExamStatus(exam);
+    const year=String(exam.title||exam.date||'').match(/20\d{2}/)?.[0]||'FZU';
+    const questionCount=exam.questions?.length||0;
+    const totalScore=(exam.questions||[]).reduce((sum,question)=>sum+(Number(question.score)||0),0);
+    return `<article class="pta-home-resource-card"><div class="pta-home-cover"><span>PROGRAMMING</span><b>${year}</b><strong>${portalIcon('problems')} PTA</strong><small>程序设计考试与练习</small></div><div class="pta-home-card-body"><h3>${escape(exam.title)}</h3><div class="pta-home-tags"><span>编程题 × ${questionCount}</span><span>总分 × ${totalScore}</span><span>${portalDuration(exam.duration)}</span></div><button type="button" class="${index===0?'primary':''}" data-portal-exam="${escape(exam.examVersion)}">${status==='进行中'?'继续作答':'进入试卷'}</button></div></article>`;
+  }).join('');
+  const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
+  return `<div class="pta-home-shell">
+    <header class="pta-home-topbar">
+      <div class="pta-home-brand"><span>${portalIcon('problems')}</span><b>PTA</b><i></i><p>程序设计类实验辅助教学平台<small>PROGRAMMING TEACHING ASSISTANT</small></p></div>
+      <nav class="pta-home-topnav"><button type="button" class="active" data-portal-route="center">考试练习</button><button type="button" data-portal-route="advice">教育超市</button></nav>
+      <div class="pta-home-account"><button type="button" aria-label="通知"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button><span>${initial}</span><b>${escape(config.candidateName)}</b></div>
+    </header>
+    <div class="pta-home-layout">
+      <aside class="pta-home-sidebar"><nav>${navItems}</nav></aside>
+      <main class="pta-home-main"><section class="pta-home-resources"><header><h1>考试与练习</h1><span>PROGRAMMING PRACTICE</span></header><div class="pta-home-card-grid">${cards||'<p class="pta-home-empty">暂无可用试卷</p>'}</div></section></main>
+      <aside class="pta-home-right">
+        <section class="pta-home-stats"><header>程序设计训练</header><dl><div><dt>试卷</dt><dd>${exams.length}</dd></div><div><dt>题目</dt><dd>${totalQuestions}</dd></div><div><dt>提交</dt><dd>${submissions.length}</dd></div><div><dt>通过</dt><dd>${accepted}</dd></div></dl></section>
+        <section class="pta-home-shortcuts"><button type="button" data-portal-route="center"><span>${portalIcon('contest')}</span><b>考试中心</b></button><button type="button" data-portal-route="advice"><span>${portalIcon('training')}</span><b>备考建议</b></button><button type="button" data-portal-route="submissions"><span>${portalIcon('judge')}</span><b>提交列表</b></button><button type="button" data-portal-route="realtime"><span>${portalIcon('award')}</span><b>成绩排名</b></button></section>
+        <section class="pta-home-promo"><span>${portalIcon('problems')}</span><b>PTA</b><strong>让程序设计学习更高效</strong><small>练习 · 考试 · 评测 · 复盘</small><button type="button" data-portal-route="exam">开始练习</button></section>
+        <footer class="pta-home-footer"><b>${portalIcon('problems')} PTA</b><p><button type="button" data-portal-route="home">首页</button><button type="button" data-portal-route="info">关于我们</button><button type="button" data-portal-route="advice">备考建议</button></p><small>FZU Programming Teaching Assistant</small></footer>
+      </aside>
+    </div>
+  </div>`;
 }
 function renderScoreboard(){const solved=config.questions.filter((question,index)=>results[index]==='accepted').length,totalScore=config.questions.reduce((sum,question,index)=>sum+scoreForQuestion(question,index),0);const cells=config.questions.map((question,index)=>{const attempts=submissions.filter(item=>item.problemId===question.id).length,accepted=results[index]==='accepted';return `<td class="score-problem ${accepted?'accepted':''}"><b>${accepted?'✓':attempts?`−${attempts}`:'—'}</b><span>${accepted?`${scoreForQuestion(question,index)} 分`:attempts?`${attempts} 次尝试`:'未提交'}</span></td>`;}).join('');const heads=config.questions.map((question,index)=>`<th><b>${index+1}</b><span>${escape(question.name)}</span></th>`).join('');return `<section class="scoreboard-page"><header><h1>成绩表</h1></header><div class="scoreboard-scroll"><table class="scoreboard-table"><thead><tr><th>#</th><th>用户</th><th><b>Solved</b><span>总得分</span></th>${heads}</tr></thead><tbody><tr><td>1</td><td class="score-user"><span>${escape(String(config.candidateName||'U').slice(0,1).toUpperCase())}</span><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></td><td class="score-total"><b>${solved}</b><span>${totalScore} 分</span></td>${cells}</tr></tbody></table></div></section>`;}
 function examDate(exam){return exam.date||String(exam.title||'').match(/\d{4}-\d{2}-\d{2}/)?.[0]||'日期未记录';}
@@ -138,7 +217,7 @@ function route(name){
   if(name==='exam'){if(previousRoute!=='exam')restoreSavedCode();secondary.hidden=true;workspace.hidden=false;overview.hidden=false;return;}
   workspace.hidden=true;overview.hidden=true;secondary.hidden=false;secondary.dataset.page=name;
   if(isHome){
-    secondary.innerHTML=renderPortalHome();
+    secondary.innerHTML=renderFzuOjHome();
     secondary.querySelectorAll('[data-portal-route]').forEach(button=>button.onclick=()=>route(button.dataset.portalRoute));
     secondary.querySelectorAll('[data-portal-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.portalExam,0))route('info');});
     secondary.querySelectorAll('[data-portal-question]').forEach(button=>button.onclick=()=>{if(activateExam(primaryExamVersion,Number(button.dataset.portalQuestion)))route('exam');});
