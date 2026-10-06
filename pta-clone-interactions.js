@@ -74,6 +74,7 @@
   };
   const closeAccountMenu = () => { account.classList.remove('menu-open'); account.querySelector('.avatar').setAttribute('aria-expanded', 'false'); };
   const preferences = document.createElement('button'); preferences.type = 'button'; preferences.className = 'account-menu-item'; preferences.textContent = '个人中心'; preferences.addEventListener('click', () => { closeAccountMenu(); fillProfileForm(); profileDialog.showModal(); });
+  document.addEventListener('oms:open-profile', () => { closeAccountMenu(); fillProfileForm(); profileDialog.showModal(); });
   const theme = document.createElement('button'); theme.type = 'button'; theme.className = 'account-menu-item';
   const setTheme = light => { app.classList.toggle('light-mode', light); profileDialog.classList.toggle('light-mode', light); theme.textContent = light ? '切换深色模式' : '切换浅色模式'; localStorage.setItem('oms-pta-theme', light ? 'light' : 'dark'); };
   setTheme(localStorage.getItem('oms-pta-theme') === 'light'); theme.addEventListener('click', () => setTheme(!app.classList.contains('light-mode')));

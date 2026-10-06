@@ -56,29 +56,34 @@ function renderFzuOjHome(){
     .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
   const navItems=[['home','首页','home'],['problems','题目','exam'],['training','训练','advice'],['contest','比赛','center'],['assignment','作业','info'],['judge','评测','submissions']]
     .map(([icon,label,route],index)=>`<button type="button" class="fzuoj-nav-item ${index===0?'active':''}" data-portal-route="${route}"><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
+  const contestTime=exam=>{
+    if(exam.examVersion===primaryConfig.examVersion)return formatExamTime(exam.startAt||exam.date);
+    const year=String(exam.title||exam.startAt||exam.date||'').match(/20\d{2}/)?.[0];
+    return year?`${year}-12-01 19:00`:formatExamTime(exam.startAt||exam.date);
+  };
   const contests=exams.slice(0,5).map(exam=>{
     const status=portalExamStatus(exam);
     const tone=status==='进行中'?'running':status==='未开始'?'pending':'ended';
-    return `<button type="button" class="fzuoj-list-row" data-portal-exam="${escape(exam.examVersion)}"><span class="fzuoj-status ${tone}">${status}</span><span class="fzuoj-list-main"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}OI</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${Number(exam.registered)||1}</span></small></span><i>${portalIcon('arrow')}</i></button>`;
+    return `<button type="button" class="fzuoj-list-row" data-portal-exam="${escape(exam.examVersion)}"><span class="fzuoj-status ${tone}">${status}</span><span class="fzuoj-list-main"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}OI</span><span>${portalIcon('calendar')}${contestTime(exam)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${Number(exam.registered)||1}</span></small></span><i>${portalIcon('arrow')}</i></button>`;
   }).join('');
   const latest=(primaryConfig.questions||[]).slice(0,10).map((question,index)=>`<button type="button" class="fzuoj-problem-row" data-portal-question="${index}"><i>—</i><span>${escape(question.id||String(index+1).padStart(4,'0'))}</span><b>${escape(question.name)}</b></button>`).join('');
   const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
   return `<div class="fzuoj-shell">
     <aside class="fzuoj-sidebar">
-      <header class="fzuoj-domain"><span class="fzuoj-seal">福</span><b>福州大学</b><button type="button" aria-label="折叠侧栏">${portalIcon('chevron')}</button></header>
+      <header class="fzuoj-domain"><span class="fzuoj-seal"><img src="fzu-logo.png" alt="福州大学校徽"></span><b>福州大学</b><button type="button" data-fzuoj-sidebar-toggle aria-label="折叠侧栏">${portalIcon('chevron')}</button></header>
       <nav class="fzuoj-nav" aria-label="主页面导航">${navItems}</nav>
       <footer class="fzuoj-sidebar-footer">
         <button type="button" class="fzuoj-nav-item" data-portal-theme><span>${portalIcon('theme')}</span><b>主题切换</b></button>
         <div class="fzuoj-service"><span></span><b>服务状态</b></div>
         <button type="button" class="fzuoj-nav-item" data-portal-route="info"><span>${portalIcon('info')}</span><b>关于</b></button>
-        <div class="fzuoj-account"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></div>
+        <button type="button" class="fzuoj-account" data-profile-open aria-label="打开个人中心"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></button>
       </footer>
     </aside>
     <div class="fzuoj-page">
-      <header class="fzuoj-topbar"><button type="button" aria-label="切换侧栏">${portalIcon('panel')}</button><b>福州大学</b></header>
+      <header class="fzuoj-topbar"><button type="button" data-fzuoj-sidebar-toggle aria-label="收起侧栏">${portalIcon('panel')}</button><b>福州大学</b></header>
       <main class="fzuoj-content">
         <div class="fzuoj-primary">
-          <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU Online Judge!</h1><p>请点击左侧的导航栏寻找你需要的功能。</p></section>
+          <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU PTA Online Judge！</h1><p>请点击左侧的导航栏寻找你需要的功能。</p></section>
           <section class="fzuoj-card"><header><h2>近期比赛</h2><button type="button" data-portal-route="center">查看全部 ${portalIcon('arrow')}</button></header><div class="fzuoj-list">${contests||'<p class="fzuoj-empty">暂无比赛</p>'}</div></section>
           <section class="fzuoj-card"><header><h2>近期训练</h2><button type="button" data-portal-route="exam">查看全部 ${portalIcon('arrow')}</button></header><button type="button" class="fzuoj-training" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="fzuoj-status running">进行中</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><i>${portalIcon('arrow')}</i></button></section>
         </div>
@@ -222,6 +227,17 @@ function route(name){
     secondary.querySelectorAll('[data-portal-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.portalExam,0))route('info');});
     secondary.querySelectorAll('[data-portal-question]').forEach(button=>button.onclick=()=>{if(activateExam(primaryExamVersion,Number(button.dataset.portalQuestion)))route('exam');});
     const themeButton=secondary.querySelector('[data-portal-theme]');if(themeButton)themeButton.onclick=()=>{const light=app.classList.toggle('light-mode');try{localStorage.setItem('oms-pta-theme',light?'light':'dark');}catch{}};
+    const homeShell=secondary.querySelector('.fzuoj-shell');
+    const sidebarToggles=secondary.querySelectorAll('[data-fzuoj-sidebar-toggle]');
+    const setSidebarCollapsed=collapsed=>{
+      homeShell?.classList.toggle('sidebar-collapsed',collapsed);
+      sidebarToggles.forEach(button=>{button.setAttribute('aria-expanded',String(!collapsed));button.setAttribute('aria-label',collapsed?'展开侧栏':'收起侧栏');button.title=collapsed?'展开侧栏':'收起侧栏';});
+      try{localStorage.setItem('oms-fzuoj-sidebar-collapsed',collapsed?'1':'0');}catch{}
+    };
+    let sidebarCollapsed=false;try{sidebarCollapsed=localStorage.getItem('oms-fzuoj-sidebar-collapsed')==='1';}catch{}
+    setSidebarCollapsed(sidebarCollapsed);
+    sidebarToggles.forEach(button=>button.onclick=()=>setSidebarCollapsed(!homeShell.classList.contains('sidebar-collapsed')));
+    const profileButton=secondary.querySelector('[data-profile-open]');if(profileButton)profileButton.onclick=()=>document.dispatchEvent(new CustomEvent('oms:open-profile'));
     return;
   }
   if(name==='submissions')secondary.innerHTML=`<h1>提交列表</h1><div class="card"><div class="row head"><span>题目</span><span>语言</span><span>状态</span><span>提交时间</span></div>${renderSubmissions()}</div>`;
