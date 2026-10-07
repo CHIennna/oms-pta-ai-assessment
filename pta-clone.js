@@ -70,7 +70,7 @@ function renderFzuOjHome(){
   const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
   return `<div class="fzuoj-shell">
     <aside class="fzuoj-sidebar">
-      <header class="fzuoj-domain"><span class="fzuoj-seal"><img src="fzu-logo.png" alt="福州大学校徽"></span><b>福州大学</b><button type="button" data-fzuoj-sidebar-toggle aria-label="折叠侧栏">${portalIcon('chevron')}</button></header>
+      <header class="fzuoj-domain"><span class="fzuoj-seal"><img src="/fzu-logo.png?v=20261007" alt="福州大学校徽" onerror="this.onerror=null;this.src='https://www.fzu.edu.cn/__local/B/00/85/7E40A9947CCADB9BCCF7F6A8AA0_9BDD11BE_23796.png';"></span><b>福州大学</b><button type="button" data-fzuoj-sidebar-toggle aria-label="折叠侧栏">${portalIcon('chevron')}</button></header>
       <nav class="fzuoj-nav" aria-label="主页面导航">${navItems}</nav>
       <footer class="fzuoj-sidebar-footer">
         <button type="button" class="fzuoj-nav-item" data-portal-theme><span>${portalIcon('theme')}</span><b>主题切换</b></button>
