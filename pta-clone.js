@@ -68,6 +68,8 @@ function renderFzuOjHome(){
   }).join('');
   const latest=(primaryConfig.questions||[]).slice(0,10).map((question,index)=>`<button type="button" class="fzuoj-problem-row" data-portal-question="${index}"><i>—</i><span>${escape(question.id||String(index+1).padStart(4,'0'))}</span><b>${escape(question.name)}</b></button>`).join('');
   const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
+  const trainingStatus=portalExamStatus(primaryConfig);
+  const trainingTone=trainingStatus==='进行中'?'running':trainingStatus==='未开始'?'pending':'ended';
   return `<div class="fzuoj-shell">
     <aside class="fzuoj-sidebar">
       <header class="fzuoj-domain"><span class="fzuoj-seal"><img src="/fzu-logo.png?v=20261007" alt="福州大学校徽" onerror="this.onerror=null;this.src='https://www.fzu.edu.cn/__local/B/00/85/7E40A9947CCADB9BCCF7F6A8AA0_9BDD11BE_23796.png';"></span><b>福州大学</b><button type="button" data-fzuoj-sidebar-toggle aria-label="折叠侧栏">${portalIcon('chevron')}</button></header>
@@ -85,7 +87,7 @@ function renderFzuOjHome(){
         <div class="fzuoj-primary">
           <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU PTA Online Judge！</h1><p>请点击左侧的导航栏寻找你需要的功能。</p></section>
           <section class="fzuoj-card"><header><h2>近期比赛</h2><button type="button" data-portal-route="center">查看全部 ${portalIcon('arrow')}</button></header><div class="fzuoj-list">${contests||'<p class="fzuoj-empty">暂无比赛</p>'}</div></section>
-          <section class="fzuoj-card"><header><h2>近期训练</h2><button type="button" data-portal-route="exam">查看全部 ${portalIcon('arrow')}</button></header><button type="button" class="fzuoj-training" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="fzuoj-status running">进行中</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><i>${portalIcon('arrow')}</i></button></section>
+          <section class="fzuoj-card"><header><h2>近期训练</h2><button type="button" data-portal-route="exam">查看全部 ${portalIcon('arrow')}</button></header><button type="button" class="fzuoj-training" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="fzuoj-status ${trainingTone}">${trainingStatus}</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><i>${portalIcon('arrow')}</i></button></section>
         </div>
         <aside class="fzuoj-aside">
           <section class="fzuoj-card"><header><h2>最新题目</h2></header><div class="fzuoj-problems">${latest||'<p class="fzuoj-empty">暂无题目</p>'}</div></section>

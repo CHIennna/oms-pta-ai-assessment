@@ -10,6 +10,7 @@
   const overviewToggle = document.querySelector('#overview-toggle');
   const overview = document.querySelector('#overview');
   const statementFullscreen = document.querySelector('#statement-fullscreen');
+  const layoutToggle = document.querySelector('#layout-toggle');
   if (statement && statementFullscreen) {
     const setStatementFullscreen = active => {
       statement.classList.toggle('statement-reading-fullscreen', active);
@@ -27,6 +28,16 @@
       if (event.key !== 'Escape' || !statement.classList.contains('statement-reading-fullscreen')) return;
       setStatementFullscreen(false);
       statementFullscreen.focus();
+    });
+  }
+  if (middle && layoutToggle && middle.querySelector('.coding')) {
+    const workspace = middle.closest('.workspace');
+    layoutToggle.addEventListener('click', () => {
+      const codeFirst = !middle.classList.contains('code-first');
+      middle.classList.toggle('code-first', codeFirst);
+      workspace?.classList.toggle('code-first', codeFirst);
+      layoutToggle.setAttribute('aria-pressed', String(codeFirst));
+      layoutToggle.title = codeFirst ? '切换为题目区优先排列' : '切换为代码区优先排列';
     });
   }
   if (!tester || !coding || !toggle) return;
