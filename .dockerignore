@@ -20,7 +20,7 @@ logs
 *.sqlite3
 !fzu-logo.png
 !fzu-wordmark-official.jpg
-!fzu-brand-lockup-white.jpg
+!fzu-brand-lockup-red.jpg
 network-config-backup
 fzupta-runtime
 downloads
