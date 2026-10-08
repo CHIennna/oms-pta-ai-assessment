@@ -2,3 +2,6 @@
 .pta-app.overview-collapsed .overview{overflow:hidden;border-right:0}
 .pta-app.overview-collapsed .workspace{grid-column:3}
 @media(max-width:1050px){.pta-app.overview-collapsed{grid-template-columns:56px 0 minmax(0,1fr)}}
+
+#login-screen .portal-login-brand{background:#000!important;background-image:none!important}
+#login-screen .portal-login-brand::before,#login-screen .portal-login-brand::after{content:none!important;display:none!important;background:none!important}
