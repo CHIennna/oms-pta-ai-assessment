@@ -26,6 +26,26 @@ function activateExam(examVersion,questionIndex=0){
   persistActiveDraft();config={...exam,...identity};current=target;loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;for(const key of Object.keys(results))delete results[key];render();restoreSavedCode();updateCountdown();return true;
 }
 function render(){const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#exam-name').textContent=config.title;$('#seat').textContent=config.seat;$('#candidate').textContent=config.candidateName;$('#student-id').textContent=config.studentId;$('#bar-title').textContent=`${current+1} ${q.name}`;$('#problem-title').textContent=`${current+1} ${q.name}`;$('#score').textContent=`分数 ${q.score}`;$('#problem-text').innerHTML=formatStatement(q.statement,q);$('#sample-input').value=sample.input||'';$('#expected').textContent=sample.expected||'';const complete=Object.keys(results).length;$('#answer-count').textContent=`${complete} / ${config.questions.length}`;$('#question-grid').innerHTML=config.questions.map((item,index)=>`<button class="${results[index]||''} ${index===current?'current':''}" data-i="${index}" title="${index+1} ${item.name}">${statusGlyph(results[index],index+1)}</button>`).join('');document.querySelectorAll('#question-grid button').forEach(button=>button.onclick=()=>changeQuestion(Number(button.dataset.i)));updateCountdown();}
+  function renderPortalSubmissions(filters={},page=0){
+   const pageSize=20,query=value=>String(value||'').trim().toLowerCase();
+   const filtered=submissions.filter(item=>{
+     const question=config.questions.find(candidate=>candidate.id===item.problemId),index=question?config.questions.indexOf(question):-1;
+     const problem=`${item.problemId} ${index>=0?index+1:''} ${question?.name||''}`.toLowerCase();
+     const submitter=`${item.candidateId||config.studentId||''} ${item.candidate||config.candidateName||''}`.toLowerCase();
+     const contest=`${item.contestId||config.examVersion||''} ${item.contestTitle||config.title||''}`.toLowerCase();
+     return (!query(filters.user)||submitter.includes(query(filters.user)))&&(!query(filters.problem)||problem.includes(query(filters.problem)))&&(!query(filters.contest)||contest.includes(query(filters.contest)))&&(!filters.status||item.verdict===filters.status)&&(!filters.language||item.language===filters.language);
+   });
+   const pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1),items=filtered.slice(safePage*pageSize,(safePage+1)*pageSize);
+   const rows=items.map(item=>{
+     const index=config.questions.findIndex(question=>question.id===item.problemId),question=index>=0?config.questions[index]:null;
+     const accepted=item.verdict==='答案正确'||item.verdict==='Accepted';
+     const submitted=item.createdAt?formatExamTime(item.createdAt):item.time||'—';
+     return `<tr><td><span class="evaluation-verdict ${accepted?'accepted':'failed'}">${accepted?'✓':'×'} ${escape(item.verdict||'未知')}</span></td><td><b>${escape(item.problemId)}</b><span>${escape(question?.name||'题目记录')}</span></td><td>${escape(item.candidateId||config.studentId||'—')}<small>${escape(item.candidate||config.candidateName||'—')}</small></td><td>—</td><td>—</td><td>${escape(item.language||'—')}</td><td>${escape(submitted)}</td></tr>`;
+   }).join('');
+   const languages=['C (gcc)','C (clang)','C++ (g++)','C++ (clang++)','Java','Python 3','Python 2','PyPy'];
+   const option=(value,label,selected)=>`<option value="${escape(value)}" ${selected?'selected':''}>${escape(label)}</option>`;
+   return `<section class="evaluation-page"><header class="evaluation-heading"><div><h1>评测记录</h1></div><span>当前 ${filtered.length} 条</span></header><form class="evaluation-filters" data-evaluation-form><header><span class="evaluation-search-icon">⌕</span><b>查询评测记录</b></header><div class="evaluation-filter-grid"><label>用户名或 UID<input name="user" value="${escape(filters.user||'')}" placeholder="输入用户名或 UID"></label><label>题目<input name="problem" value="${escape(filters.problem||'')}" placeholder="题号或题目名称"></label><label>比赛 ID<input name="contest" value="${escape(filters.contest||'')}" placeholder="输入比赛 ID"></label><label>状态<select name="status">${option('','全部',!filters.status)}${option('答案正确','Accepted',filters.status==='答案正确')}${option('答案错误','Wrong Answer',filters.status==='答案错误')}${option('运行失败','Runtime Error',filters.status==='运行失败')}</select></label><label>代码语言<select name="language">${option('','全部',!filters.language)}${languages.map(language=>option(language,language,filters.language===language)).join('')}</select></label><div class="evaluation-filter-actions"><button type="button" data-evaluation-reset>重置</button><button type="submit">搜索</button></div></div></form><div class="evaluation-table-wrap"><table class="evaluation-table"><thead><tr><th>状态</th><th>题目</th><th>提交者</th><th>时间</th><th>内存</th><th>语言</th><th>Submit Time</th></tr></thead><tbody>${rows||`<tr><td colspan="7" class="evaluation-empty">${filtered.length?'没有符合条件的评测记录':'暂无提交记录'}</td></tr>`}</tbody></table></div><nav class="evaluation-pagination" aria-label="评测记录分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-evaluation-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-evaluation-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
+ }
 function renderSubmissions(){return submissions.length?submissions.map(item=>{const index=config.questions.findIndex(question=>question.id===item.problemId);const number=index>=0?index+1:item.problemId;return `<div class="row"><span>${escape(number)}</span><span>${escape(item.language)}</span><span>${escape(item.verdict)}</span><span>${escape(item.time)}</span></div>`;}).join(''):'<div class="row"><span>暂无提交记录</span><span>—</span><span>—</span><span>—</span></div>';}
 function formatExamTime(value){const date=new Date(value);if(!Number.isFinite(date.getTime()))return '未设置';return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;}
 function formatDuration(value){return Number(value)>0?`${Number(value)} 分钟`:'未记录';}
@@ -39,23 +59,24 @@ function renderExamInfo(){
 }
 function portalExamStatus(exam){const now=Date.now(),start=Date.parse(exam.startAt),end=Date.parse(exam.endAt);if(exam.category==='past'||(Number.isFinite(end)&&now>=end))return '已结束';if(Number.isFinite(start)&&now<start)return '未开始';return '进行中';}
 function portalDuration(value){const minutes=Number(value)||0;if(!minutes)return '未记录';if(minutes%60===0)return `${minutes/60} 小时`;return `${minutes} 分钟`;}
-const PORTAL_ICONS={home:'<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 9.8V20h13V9.8M9.5 20v-6h5v6"/>',problems:'<rect x="5" y="3.5" width="14" height="17" rx="1.8"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5"/>',training:'<path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h5"/>',contest:'<path d="M8 4h8v3.5a4 4 0 0 1-8 0zM12 11.5V16M8.5 20h7M9 16h6"/><path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11"/>',assignment:'<path d="M8 5h11v16H5V8z"/><path d="M8 5v3H5M9 12h6M9 16h6"/>',judge:'<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="m3.5 6.5 1.3 1.3 2.3-2.6M3.5 12l1.3 1.3 2.3-2.6M3.5 17.5l1.3 1.3 2.3-2.6"/>',theme:'<path d="M20 15.2A8.4 8.4 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7.2h.01"/>',panel:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M8.5 3.5v17M11.5 8h5M11.5 12h5M11.5 16h3"/>',calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',users:'<path d="M8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6 6 0 0 1 12 0M16 12a3 3 0 1 0 0-6M16 14a5.5 5.5 0 0 1 5.5 5.5"/>',award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/>',arrow:'<path d="m9 5 7 7-7 7"/>',chevron:'<path d="m7 14 5-5 5 5"/>'};
+const PORTAL_ICONS={home:'<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 9.8V20h13V9.8M9.5 20v-6h5v6"/>',problems:'<rect x="5" y="3.5" width="14" height="17" rx="1.8"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5"/>',training:'<path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h5"/>',contest:'<path d="M8 4h8v3.5a4 4 0 0 1-8 0zM12 11.5V16M8.5 20h7M9 16h6"/><path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11"/>',assignment:'<path d="M8 5h11v16H5V8z"/><path d="M8 5v3H5M9 12h6M9 16h6"/>',judge:'<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="m3.5 6.5 1.3 1.3 2.3-2.6M3.5 12l1.3 1.3 2.3-2.6M3.5 17.5l1.3 1.3 2.3-2.6"/>',advice:'<path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.1 14 18h-4c0-1.9-.5-2.7-1.5-3.5Z"/>',theme:'<path d="M20 15.2A8.4 8.4 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7.2h.01"/>',panel:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M8.5 3.5v17M11.5 8h5M11.5 12h5M11.5 16h3"/>',calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',users:'<path d="M8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6 6 0 0 1 12 0M16 12a3 3 0 1 0 0-6M16 14a5.5 5.5 0 0 1 5.5 5.5"/>',award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/>',arrow:'<path d="m9 5 7 7-7 7"/>',chevron:'<path d="m7 14 5-5 5 5"/>'};
 function portalIcon(name){return `<svg class="portal-icon" viewBox="0 0 24 24" aria-hidden="true">${PORTAL_ICONS[name]||''}</svg>`;}
 function renderPortalHome(){
   const archive=window.OMS_EXAM_ARCHIVE||[],exams=[primaryConfig,...archive].filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index).sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
   const contests=exams.slice(0,5).map(exam=>{const status=portalExamStatus(exam);return `<button type="button" class="portal-contest" data-portal-exam="${escape(exam.examVersion)}"><span class="portal-status ${status==='进行中'?'running':status==='未开始'?'pending':'ended'}">${status}</span><span class="portal-contest-copy"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}OI</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${Number(exam.registered)||1}</span></small></span><span class="portal-arrow">${portalIcon('arrow')}</span></button>`;}).join('');
   const latest=(primaryConfig.questions||[]).slice(0,8).map((question,index)=>`<button type="button" data-portal-question="${index}"><i>${String(index+1).padStart(2,'0')}</i><span>${escape(question.id||String(index+1).padStart(4,'0'))}</span><b>${escape(question.name)}</b><em>${portalIcon('arrow')}</em></button>`).join('');
   const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
-  const navItems=[['home','首页','home'],['problems','题目','exam'],['training','训练','advice'],['contest','比赛','center'],['assignment','作业','info'],['judge','评测','submissions']].map(([icon,label,route],index)=>`<button type="button" class="${index===0?'active':''}" data-portal-route="${route}"><span class="portal-nav-icon">${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
-  return `<div class="portal-shell"><aside class="portal-sidebar"><div class="portal-brand"><span class="portal-seal">福</span><span class="portal-brand-copy"><b>福州大学</b><small>FUZHOU UNIVERSITY</small></span><i>${portalIcon('chevron')}</i></div><nav class="portal-nav" aria-label="主页面导航">${navItems}</nav><div class="portal-sidebar-bottom"><button type="button" data-portal-theme><span class="portal-nav-icon">${portalIcon('theme')}</span><b>主题切换</b></button><div class="portal-service"><span class="portal-service-dot"></span><p><b>服务状态</b><small>运行正常</small></p></div><button type="button" data-portal-route="info"><span class="portal-nav-icon">${portalIcon('info')}</span><b>关于</b></button><div class="portal-user"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></div></div></aside><main class="portal-main"><header class="portal-topbar"><span>${portalIcon('panel')}</span><div><b>福州大学</b><small>FZU Online Judge</small></div></header><div class="portal-content"><div class="portal-primary"><section class="portal-welcome"><small>ONLINE JUDGE</small><h1>欢迎来到 FZU Online Judge</h1><p>从左侧导航进入题目、训练与比赛，开始你的程序设计练习。</p></section><section class="portal-section"><header><div><small>CONTESTS</small><h2>近期比赛</h2></div><button type="button" data-portal-route="center">查看全部 ${portalIcon('arrow')}</button></header><div class="portal-contest-list">${contests||'<p class="portal-empty">暂无比赛</p>'}</div></section><section class="portal-section portal-practice"><header><div><small>PRACTICE</small><h2>近期训练</h2></div><button type="button" data-portal-route="exam">进入题目 ${portalIcon('arrow')}</button></header><button type="button" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="portal-status running">练习</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><em>${portalIcon('arrow')}</em></button></section></div><aside class="portal-right"><section class="portal-side-card"><header><small>PROBLEMS</small><h2>最新题目</h2></header><div class="portal-problem-list">${latest||'<p class="portal-empty">暂无题目</p>'}</div></section><section class="portal-side-card"><header><small>RECOMMENDED</small><h2>推荐</h2></header><p class="portal-empty">目前没有推荐内容。</p></section></aside></div></main></div>`;
+  const navItems=[['home','首页','home'],['problems','题目','problemset'],['contest','比赛','home-contests'],['judge','评测','home-submissions']].map(([icon,label,route],index)=>`<button type="button" class="${index===0?'active':''}" data-portal-route="${route}"><span class="portal-nav-icon">${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
+  return `<div class="portal-shell"><aside class="portal-sidebar"><div class="portal-brand"><span class="portal-seal">福</span><span class="portal-brand-copy"><b>福州大学</b><small>FUZHOU UNIVERSITY</small></span><i>${portalIcon('chevron')}</i></div><nav class="portal-nav" aria-label="主页面导航">${navItems}</nav><div class="portal-sidebar-bottom"><button type="button" data-portal-theme><span class="portal-nav-icon">${portalIcon('theme')}</span><b>主题切换</b></button><div class="portal-service"><span class="portal-service-dot"></span><p><b>服务状态</b><small>运行正常</small></p></div><button type="button" data-portal-route="info"><span class="portal-nav-icon">${portalIcon('info')}</span><b>关于</b></button><div class="portal-user"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></div></div></aside><main class="portal-main"><header class="portal-topbar"><span>${portalIcon('panel')}</span><div><b>福州大学</b><small>FZU Online Judge</small></div></header><div class="portal-content"><div class="portal-primary"><section class="portal-welcome"><small>ONLINE JUDGE</small><h1>欢迎来到 FZU Online Judge</h1><p>从左侧导航进入题目、训练与比赛，开始你的程序设计练习。</p></section><section class="portal-section"><header><div><small>CONTESTS</small><h2>近期比赛</h2></div><button type="button" data-portal-route="home-contests">查看全部 ${portalIcon('arrow')}</button></header><div class="portal-contest-list">${contests||'<p class="portal-empty">暂无比赛</p>'}</div></section><section class="portal-section portal-practice"><header><div><small>PRACTICE</small><h2>近期训练</h2></div><button type="button" data-portal-route="exam">进入题目 ${portalIcon('arrow')}</button></header><button type="button" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="portal-status running">练习</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><em>${portalIcon('arrow')}</em></button></section></div><aside class="portal-right"><section class="portal-side-card"><header><small>PROBLEMS</small><h2>最新题目</h2></header><div class="portal-problem-list">${latest||'<p class="portal-empty">暂无题目</p>'}</div></section><section class="portal-side-card"><header><small>RECOMMENDED</small><h2>推荐</h2></header><p class="portal-empty">目前没有推荐内容。</p></section></aside></div></main></div>`;
 }
-function renderFzuOjHome(){
+function renderFzuOjHome(activePage='home'){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exams=[primaryConfig,...archive]
     .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
     .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
-  const navItems=[['home','首页','home'],['problems','题目','exam'],['training','训练','advice'],['contest','比赛','center'],['assignment','作业','info'],['judge','评测','submissions']]
-    .map(([icon,label,route],index)=>`<button type="button" class="fzuoj-nav-item ${index===0?'active':''}" data-portal-route="${route}"><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
+  const activeNavRoute=activePage==='problemset'?'problems':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':activePage==='advice'?'advice':'home';
+  const navItems=[['home','首页','home'],['problems','题目','problemset'],['contest','考试','home-contests'],['judge','评测','home-submissions'],['advice','备考','advice']]
+    .map(([icon,label,route])=>`<button type="button" class="fzuoj-nav-item ${route===activeNavRoute?'active':''}" data-portal-route="${route}"><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
   const contestTime=exam=>{
     if(exam.examVersion===primaryConfig.examVersion)return formatExamTime(exam.startAt||exam.date);
     const year=String(exam.title||exam.startAt||exam.date||'').match(/20\d{2}/)?.[0];
@@ -77,7 +98,7 @@ function renderFzuOjHome(){
       <footer class="fzuoj-sidebar-footer">
         <button type="button" class="fzuoj-nav-item" data-portal-theme><span>${portalIcon('theme')}</span><b>主题切换</b></button>
         <div class="fzuoj-service"><span></span><b>服务状态</b></div>
-        <button type="button" class="fzuoj-nav-item" data-portal-route="info"><span>${portalIcon('info')}</span><b>关于</b></button>
+        <button type="button" class="fzuoj-nav-item ${activePage==='about'?'active':''}" data-portal-route="about"><span>${portalIcon('info')}</span><b>关于</b></button>
         <button type="button" class="fzuoj-account" data-profile-open aria-label="打开个人中心"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></button>
       </footer>
     </aside>
@@ -86,8 +107,8 @@ function renderFzuOjHome(){
       <main class="fzuoj-content">
         <div class="fzuoj-primary">
           <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU PTA Online Judge！</h1><p>请点击左侧的导航栏寻找你需要的功能。</p></section>
-          <section class="fzuoj-card"><header><h2>近期比赛</h2><button type="button" data-portal-route="center">查看全部 ${portalIcon('arrow')}</button></header><div class="fzuoj-list">${contests||'<p class="fzuoj-empty">暂无比赛</p>'}</div></section>
-          <section class="fzuoj-card"><header><h2>近期训练</h2><button type="button" data-portal-route="exam">查看全部 ${portalIcon('arrow')}</button></header><button type="button" class="fzuoj-training" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="fzuoj-status ${trainingTone}">${trainingStatus}</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><i>${portalIcon('arrow')}</i></button></section>
+          <section class="fzuoj-card"><header><h2>近期比赛</h2><button type="button" data-portal-route="home-contests">查看全部 ${portalIcon('arrow')}</button></header><div class="fzuoj-list">${contests||'<p class="fzuoj-empty">暂无比赛</p>'}</div></section>
+          <section class="fzuoj-card"><header><h2>近期训练</h2><button type="button" data-portal-route="home-contests">查看全部 ${portalIcon('arrow')}</button></header><button type="button" class="fzuoj-training" data-portal-exam="${escape(primaryConfig.examVersion)}"><span class="fzuoj-status ${trainingTone}">${trainingStatus}</span><b>${escape(primaryConfig.title)}</b><small>${primaryConfig.questions.length} 道题</small><i>${portalIcon('arrow')}</i></button></section>
         </div>
         <aside class="fzuoj-aside">
           <section class="fzuoj-card"><header><h2>最新题目</h2></header><div class="fzuoj-problems">${latest||'<p class="fzuoj-empty">暂无题目</p>'}</div></section>
@@ -144,6 +165,27 @@ function renderExamCards(exams){
     return `<details class="exam-archive-card" ${index===0||exam.current?'open':''}><summary><div class="archive-card-title"><span class="archive-status ${exam.current?'current':''}">${escape(exam.current?'正在作答':exam.status||'可作答')}</span><div><h2>${escape(exam.title)}</h2></div></div><div class="archive-metrics"><span><small>题目</small><b>${exam.questions.length} 题</b></span><span><small>时长</small><b>${formatDuration(exam.duration)}</b></span><span><small>总分</small><b>${total} 分</b></span></div><i>⌄</i></summary><div class="archive-question-list"><header><span>题目清单</span><span>满分</span></header>${questions}</div></details>`;
   }).join('');
 }
+function renderPortalContests(filters={status:'all',rule:'',keyword:''},page=0){
+  const archive=window.OMS_EXAM_ARCHIVE||[];
+  const exams=[primaryConfig,...archive]
+    .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
+    .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
+  const ruleOf=exam=>exam.rule||exam.type||'OI';
+  const filtered=exams.filter(exam=>{
+    const status=portalExamStatus(exam);
+    return (filters.status==='all'||status===filters.status)&&(!filters.rule||ruleOf(exam)===filters.rule)&&(!filters.keyword||String(exam.title||'').toLowerCase().includes(filters.keyword.toLowerCase()));
+  });
+  const pageSize=10,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1);
+  const rows=filtered.slice(safePage*pageSize,(safePage+1)*pageSize).map(exam=>{
+    const status=portalExamStatus(exam),tone=status==='进行中'?'running':status==='未开始'?'pending':'ended';
+    const registered=Number(exam.registered)>0?`${Number(exam.registered)} 人`:'—';
+    return `<button type="button" class="contest-directory-row" data-contest-open="${escape(exam.examVersion)}"><span class="fzuoj-status ${tone}">${status}</span><span class="contest-directory-copy"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}${escape(ruleOf(exam))}</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${registered}</span></small></span><i>${portalIcon('arrow')}</i></button>`;
+  }).join('');
+  const statuses=['all','进行中','未开始','已结束'];
+  const statusLabels={all:'全部',进行中:'进行中',未开始:'未开始',已结束:'已结束'};
+  const activeRules=[...new Set(exams.map(ruleOf))];
+  return `<section class="contest-directory"><header class="contest-directory-head"><div><h1>比赛</h1><p>浏览比赛安排，查看赛事信息并进入可用试卷。</p></div><span>${filtered.length} 场比赛</span></header><form class="contest-directory-filters" data-contest-filter-form><div class="contest-status-tabs" role="group" aria-label="比赛状态">${statuses.map(status=>`<button type="button" data-contest-status="${status}" class="${filters.status===status?'active':''}">${statusLabels[status]}</button>`).join('')}</div><div class="contest-directory-search"><select name="rule" aria-label="比赛规则"><option value="">全部规则</option>${activeRules.map(rule=>`<option value="${escape(rule)}" ${filters.rule===rule?'selected':''}>${escape(rule)}</option>`).join('')}</select><input name="keyword" value="${escape(filters.keyword)}" placeholder="搜索比赛名称" aria-label="搜索比赛名称"><button type="submit">搜索</button><button type="button" data-contest-reset>重置</button></div></form><section class="contest-directory-list" aria-label="比赛列表">${rows||`<div class="contest-directory-empty"><b>${exams.length?'没有符合条件的比赛':'暂无比赛'}</b><span>可以调整筛选条件后再试。</span></div>`}</section><nav class="contest-directory-pagination" aria-label="比赛列表分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-contest-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-contest-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
+}
 function renderExamCenter(){
   const currentExam={...primaryConfig,date:examDate(primaryConfig),status:'模拟卷',current:config.examVersion===primaryExamVersion,selectable:true,category:'mock'};
   const archive=(window.OMS_EXAM_ARCHIVE||[]).filter(exam=>exam.examVersion!==config.examVersion);
@@ -151,6 +193,39 @@ function renderExamCenter(){
   const mockExams=[currentExam,...archive.filter(exam=>exam.category==='mock').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}))];
   const activeCategory=config.examVersion===primaryExamVersion?'mock':'past';
   return `<div class="exam-center-head"><h1>考试中心</h1></div><div class="exam-center-tabs" role="tablist"><button type="button" class="${activeCategory==='past'?'active':''}" data-exam-center-tab="past" role="tab" aria-selected="${activeCategory==='past'}">历年卷</button><button type="button" class="${activeCategory==='mock'?'active':''}" data-exam-center-tab="mock" role="tab" aria-selected="${activeCategory==='mock'}">模拟卷</button></div><section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年卷</h2><span>历年考试试卷</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟卷</h2><span>周练与模拟考试</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
+}
+function renderProblemDirectory(filters={status:'all',keyword:''},page=0){
+  const archive=window.OMS_EXAM_ARCHIVE||[];
+  const exams=[primaryConfig,...archive]
+    .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
+    .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
+  const seen=new Set(),problems=[];
+  exams.forEach(exam=>(exam.questions||[]).forEach((question,index)=>{
+    const key=String(question.id||`${exam.examVersion}-${index}`);
+    if(seen.has(key))return;
+    seen.add(key);problems.push({exam,question,index,key});
+  }));
+  const statusFor=({exam,question})=>{
+    if(question.judgeable===false)return '暂不可评测';
+    const latest=submissions.find(item=>item.problemId===question.id);
+    const currentIndex=config.questions.findIndex(item=>item.id===question.id);
+    if((currentIndex>=0&&results[currentIndex]==='accepted')||latest?.verdict==='答案正确'||latest?.verdict==='Accepted')return '已通过';
+    return latest?'未通过':'未提交';
+  };
+  const filtered=problems.filter(item=>{
+    const status=statusFor(item),text=`${item.question.id||''} ${item.question.name||''} ${(item.question.tags||[]).toString()}`.toLowerCase();
+    return (filters.status==='all'||status===filters.status)&&(!filters.keyword||text.includes(filters.keyword.toLowerCase()));
+  });
+  const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1);
+  const rows=filtered.slice(safePage*pageSize,(safePage+1)*pageSize).map(item=>{
+    const status=statusFor(item),tone=status==='已通过'?'accepted':status==='未通过'?'wrong':status==='暂不可评测'?'unavailable':'pending';
+    const rawTags=item.question.tags||[],tags=(Array.isArray(rawTags)?rawTags:[rawTags]).filter(Boolean).map(escape).join(' · ')||'—';
+    const ratio=item.question.passRate??item.question.acceptanceRate;
+    const passRate=ratio===undefined||ratio===null?'—':`${escape(ratio)}${Number.isFinite(Number(ratio))?'%':''}`;
+    return `<button type="button" class="problem-directory-row" data-problem-exam="${escape(item.exam.examVersion)}" data-problem-index="${item.index}"><span class="problem-directory-status ${tone}" title="${status}">${status==='已通过'?'✓':status==='未通过'?'×':status==='暂不可评测'?'!':'—'}</span><span class="problem-directory-id">${escape(item.question.id||item.index+1)}</span><b>${escape(item.question.name||'未命名题目')}</b><span class="problem-directory-tags">${tags}</span><em>${passRate}</em></button>`;
+  }).join('');
+  const statuses=['all','未提交','已通过','未通过','暂不可评测'],labels={all:'全部',未提交:'未提交',已通过:'已通过',未通过:'未通过',暂不可评测:'暂不可评测'};
+  return `<section class="problem-directory"><header class="problem-directory-head"><div><h1>题目</h1><p>浏览题库中的题目，查看提交状态并进入作答。</p></div><span>${filtered.length} 道题</span></header><form class="problem-directory-filters" data-problem-filter-form><div class="problem-status-tabs" role="group" aria-label="题目状态">${statuses.map(status=>`<button type="button" data-problem-status="${status}" class="${filters.status===status?'active':''}">${labels[status]}</button>`).join('')}</div><div class="problem-directory-search"><input name="keyword" value="${escape(filters.keyword)}" placeholder="搜索题号或题目名称" aria-label="搜索题号或题目名称"><button type="submit">搜索</button><button type="button" data-problem-reset>重置</button></div></form><div class="problem-directory-table-wrap"><div class="problem-directory-table"><div class="problem-directory-columns"><span>状态</span><span>题号</span><span>题目名称</span><span>标签</span><span>通过率</span></div>${rows||`<div class="problem-directory-empty">${problems.length?'没有符合条件的题目':'暂无题目'}</div>`}</div></div><nav class="problem-directory-pagination" aria-label="题目列表分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-problem-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-problem-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
 }
 function renderAdviceQuestionRows(questions,emptyText){
   if(!questions.length)return `<div class="study-advice-empty"><b>${escape(emptyText)}</b><span>完成题目评测后，这里会自动更新。</span></div>`;
@@ -190,7 +265,7 @@ function renderExperienceReader(){
   const list=experiencePosts.map((post,index)=>`<button type="button" class="${index===0?'active':''}" data-experience-post="${index}" aria-selected="${index===0}"><small>${escape(post.label)}</small><b>${escape(post.title)}</b></button>`).join('');
   const articles=experiencePosts.map((post,index)=>`<article class="experience-article ${index===0?'active':''}" data-experience-article="${index}" ${index===0?'':'hidden'}><header><small>${escape(post.label)}</small><h2>${escape(post.title)}</h2></header>${post.sections.map(section=>`<section id="experience-${index}-${section.key}"><h3>${escape(section.title)}</h3>${section.markdown?`<div class="experience-markdown">${markdownToHtml(section.markdown)}</div>`:`<p>${escape(section.body)}</p>${section.items?`<ul>${section.items.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>`:''}`}</section>`).join('')}</article>`).join('');
   const outlines=experiencePosts.map((post,index)=>`<nav class="${index===0?'active':''}" data-experience-outline="${index}" ${index===0?'':'hidden'}>${post.sections.map(section=>`<a href="#experience-${index}-${section.key}">${escape(section.title)}</a>`).join('')}</nav>`).join('');
-  return `<div class="experience-reader ${experienceLibraryCollapsed?'library-collapsed':''}" data-experience-font-size="${experienceFontSize}"><aside class="experience-library"><div class="experience-library-head"><h3>经验文章</h3><button type="button" class="experience-library-toggle" data-experience-library-toggle aria-expanded="${!experienceLibraryCollapsed}" aria-label="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}" title="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}">${experienceLibraryCollapsed?'›':'‹'}</button></div>${list}</aside><main class="experience-main">${articles}</main><aside class="experience-outline"><h3>目录</h3>${outlines}</aside></div>`;
+  return `<div class="experience-reader ${experienceLibraryCollapsed?'library-collapsed':''}" data-experience-font-size="${experienceFontSize}"><aside class="experience-library"><div class="experience-library-head"><h3>经验文章</h3><button type="button" class="experience-library-toggle" data-experience-library-toggle aria-expanded="${!experienceLibraryCollapsed}" aria-label="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}" title="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}">${experienceLibraryCollapsed?'›':'‹'}</button></div><div class="experience-library-list">${list}</div></aside><main class="experience-main">${articles}</main><aside class="experience-outline"><h3>目录</h3>${outlines}</aside></div>`;
 }
 function renderStudyAdvice(){
   const wrongQuestions=config.questions.map((question,index)=>({question,index})).filter(item=>results[item.index]==='wrong');
@@ -214,17 +289,24 @@ function boundaryBounce(event){
   const animation=scroller.animate([{transform:'translateY(0)'},{transform:`translateY(${distance}px)`,offset:.34},{transform:'translateY(0)'}],{duration:280,easing:'cubic-bezier(.2,.78,.2,1)'});
   boundaryBounceAnimations.set(scroller,animation);
 }
+let initialRoutePending=true;
 function route(name){
+  if(initialRoutePending){initialRoutePending=false;name='home';}
+  if(name==='center')name='home-contests';
   const previousRoute=activeRoute;activeRoute=name;
   if(previousRoute==='exam'&&name!=='exam')persistActiveDraft();
-  const app=$('#pta-app'),isHome=name==='home';app.classList.toggle('portal-mode',isHome);
-  document.querySelectorAll('.rail-button').forEach(button=>button.classList.toggle('active',button.dataset.route===name));
-  $('.remain').hidden=name==='center'||name==='advice'||isHome;
+  const app=$('#pta-app'),isPortalPage=['home','problemset','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
+  const activeNavRoute=name==='problemset'?'exam':name==='home-submissions'?'submissions':name==='home-contests'?'center':name;
+  document.querySelectorAll('.rail-button').forEach(button=>button.classList.toggle('active',button.dataset.route===activeNavRoute));
+  $('.remain').hidden=name==='home-contests'||name==='problemset'||name==='home-submissions'||name==='advice'||isPortalPage;
   const secondary=$('#secondary'),workspace=$('#workspace'),overview=$('#overview');
   if(name==='exam'){if(previousRoute!=='exam')restoreSavedCode();secondary.hidden=true;workspace.hidden=false;overview.hidden=false;return;}
-  workspace.hidden=true;overview.hidden=true;secondary.hidden=false;secondary.dataset.page=name;
-  if(isHome){
-    secondary.innerHTML=renderFzuOjHome();
+  workspace.hidden=true;overview.hidden=true;secondary.hidden=false;secondary.dataset.page=isPortalPage?'portal':name;
+  let portalContent=null,paintPortalPage=null;
+  if(isPortalPage){
+    secondary.innerHTML=renderFzuOjHome(name);
+    portalContent=secondary.querySelector('.fzuoj-content');
+    paintPortalPage=html=>{portalContent.innerHTML=`<div class="fzuoj-primary fzuoj-page-content">${html}</div>`;};
     secondary.querySelectorAll('[data-portal-route]').forEach(button=>button.onclick=()=>route(button.dataset.portalRoute));
     secondary.querySelectorAll('[data-portal-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.portalExam,0))route('info');});
     secondary.querySelectorAll('[data-portal-question]').forEach(button=>button.onclick=()=>{if(activateExam(primaryExamVersion,Number(button.dataset.portalQuestion)))route('exam');});
@@ -240,25 +322,54 @@ function route(name){
     setSidebarCollapsed(sidebarCollapsed);
     sidebarToggles.forEach(button=>button.onclick=()=>setSidebarCollapsed(!homeShell.classList.contains('sidebar-collapsed')));
     const profileButton=secondary.querySelector('[data-profile-open]');if(profileButton)profileButton.onclick=()=>document.dispatchEvent(new CustomEvent('oms:open-profile'));
-    return;
+    if(name==='home')return;
+    if(name==='about')paintPortalPage('<section class="fzuoj-card fzuoj-bulletin"><h1>关于 FZU PTA Online Judge</h1><p>福州大学程序设计练习与考试平台。</p></section>');
   }
   if(name==='submissions')secondary.innerHTML=`<h1>提交列表</h1><div class="card"><div class="row head"><span>题目</span><span>语言</span><span>状态</span><span>提交时间</span></div>${renderSubmissions()}</div>`;
+  if(name==='home-submissions'){
+    let filters={},page=0;
+    const paint=()=>{
+      paintPortalPage(renderPortalSubmissions(filters,page));
+      const form=portalContent.querySelector('[data-evaluation-form]');
+      form.onsubmit=event=>{event.preventDefault();filters=Object.fromEntries(new FormData(form));page=0;paint();};
+      portalContent.querySelector('[data-evaluation-reset]').onclick=()=>{filters={};page=0;paint();};
+      portalContent.querySelectorAll('[data-evaluation-page]').forEach(button=>button.onclick=()=>{page=Number(button.dataset.evaluationPage);paint();});
+    };
+    paint();
+  }
+  if(name==='problemset'){
+    let filters={status:'all',keyword:''},page=0;
+    const paint=()=>{
+      paintPortalPage(renderProblemDirectory(filters,page));
+      const form=portalContent.querySelector('[data-problem-filter-form]');
+      form.onsubmit=event=>{event.preventDefault();filters={...filters,...Object.fromEntries(new FormData(form))};page=0;paint();};
+      portalContent.querySelector('[data-problem-reset]').onclick=()=>{filters={status:'all',keyword:''};page=0;paint();};
+      portalContent.querySelectorAll('[data-problem-status]').forEach(button=>button.onclick=()=>{filters.status=button.dataset.problemStatus;page=0;paint();});
+      portalContent.querySelectorAll('[data-problem-page]').forEach(button=>button.onclick=()=>{page=Number(button.dataset.problemPage);paint();});
+      portalContent.querySelectorAll('[data-problem-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.problemExam,Number(button.dataset.problemIndex)))route('exam');});
+    };
+    paint();
+  }
   if(name==='info'){
     secondary.innerHTML=renderExamInfo();
     secondary.querySelectorAll('[data-question-open]').forEach(button=>button.onclick=()=>{const target=Number(button.dataset.questionOpen);if(activateExam(button.dataset.examVersion||config.examVersion,target))route('exam');});
   }
   if(name==='realtime')secondary.innerHTML=renderScoreboard();
-  if(name==='center'){
-    secondary.innerHTML=renderExamCenter();
-    const showCategory=category=>{
-      secondary.querySelectorAll('[data-exam-center-tab]').forEach(button=>{const active=button.dataset.examCenterTab===category;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});
-      secondary.querySelectorAll('[data-exam-center-panel]').forEach(panel=>{const active=panel.dataset.examCenterPanel===category;panel.hidden=!active;panel.classList.toggle('active',active);});
+  if(name==='home-contests'){
+    let filters={status:'all',rule:'',keyword:''},page=0;
+    const paint=()=>{
+      paintPortalPage(renderPortalContests(filters,page));
+      const form=portalContent.querySelector('[data-contest-filter-form]');
+      form.onsubmit=event=>{event.preventDefault();const values=Object.fromEntries(new FormData(form));filters={...filters,...values};page=0;paint();};
+      portalContent.querySelector('[data-contest-reset]').onclick=()=>{filters={status:'all',rule:'',keyword:''};page=0;paint();};
+      portalContent.querySelectorAll('[data-contest-status]').forEach(button=>button.onclick=()=>{filters.status=button.dataset.contestStatus;page=0;paint();});
+      portalContent.querySelectorAll('[data-contest-page]').forEach(button=>button.onclick=()=>{page=Number(button.dataset.contestPage);paint();});
+      portalContent.querySelectorAll('[data-contest-open]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.contestOpen,0))route('info');});
     };
-    secondary.querySelectorAll('[data-exam-center-tab]').forEach(button=>button.onclick=()=>showCategory(button.dataset.examCenterTab));
-    secondary.querySelectorAll('[data-question-open]').forEach(button=>button.onclick=()=>{const target=Number(button.dataset.questionOpen);if(activateExam(button.dataset.examVersion||config.examVersion,target))route('exam');});
+    paint();
   }
   if(name==='advice'){
-    secondary.innerHTML=renderStudyAdvice();
+    paintPortalPage(renderStudyAdvice());
     const showAdvicePanel=category=>{
       secondary.querySelectorAll('[data-study-tab]').forEach(button=>{const active=button.dataset.studyTab===category;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});
       secondary.querySelectorAll('[data-study-panel]').forEach(panel=>{const active=panel.dataset.studyPanel===category;panel.hidden=!active;panel.classList.toggle('active',active);});
