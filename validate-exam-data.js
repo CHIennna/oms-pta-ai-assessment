@@ -3,9 +3,9 @@ const path = require('path');
 const vm = require('vm');
 
 const LEGACY_UNJUDGEABLE = new Set([
-  '2024-transfer-major-exam:2024-4',
-  '2023-transfer-major-exam:2023-2',
-  '2022-transfer-major-exam:2022-8'
+  '2024-transfer-major-exam:20',
+  '2023-transfer-major-exam:10',
+  '2022-transfer-major-exam:8'
 ]);
 
 function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')) {
@@ -23,6 +23,15 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
   const errors = [];
   const warnings = [];
   const examVersions = new Set();
+  const globalIds = new Set();
+  const pastExams = exams.filter(exam => exam.category === 'past')
+    .sort((a, b) => Number(a.date) - Number(b.date));
+  const pastStarts = new Map();
+  let nextPastId = 1;
+  for (const exam of pastExams) {
+    pastStarts.set(exam.examVersion, nextPastId);
+    nextPastId += Array.isArray(exam.questions) ? exam.questions.length : 0;
+  }
   let judgeableProblems = 0;
   let unjudgeableProblems = 0;
   let testCases = 0;
@@ -46,6 +55,16 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
       if (!id) errors.push(`${questionLabel} 缺少 id`);
       else if (questionIds.has(id)) errors.push(`${questionLabel} 的 id 重复：${id}`);
       else questionIds.add(id);
+      if (globalIds.has(id)) errors.push(`${questionLabel} 的全局题号重复：${id}`);
+      else globalIds.add(id);
+      if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id))) errors.push(`${questionLabel} 的题号必须是整数`);
+      if (exam.category === 'past') {
+        if (Number(id) !== pastStarts.get(examVersion) + questionIndex || Number(id) >= 1001) {
+          errors.push(`${questionLabel} 的真题题号不符合按年份连续编号规则`);
+        }
+      } else if (Number(id) < 1001 || (questionIndex > 0 && Number(id) !== Number(exam.questions[questionIndex - 1].id) + 1)) {
+        errors.push(`${questionLabel} 的模拟题题号必须从 1001 起连续编号`);
+      }
       if (!String(question.name || '').trim()) errors.push(`${questionLabel} 缺少标题`);
 
       if (question.judgeable === false) {
@@ -91,7 +110,7 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
     error.report = report;
     throw error;
   }
-  return { exams, report };
+  return { exams, report, numberExam: context.window.OMS_NUMBER_EXAM };
 }
 
 if (require.main === module) {

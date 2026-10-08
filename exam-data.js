@@ -2264,3 +2264,54 @@ window.OMS_EXAM_ARCHIVE.push({
   "date": "2022",
   "status": "历年卷"
 });
+
+// A single numbering policy shared by the browser, importer and judge server.
+// Legacy identifiers are scoped to their exam, never used as global aliases.
+window.OMS_NUMBER_EXAM = function numberExam(exam, registry, options = {}) {
+  if (!exam || !Array.isArray(exam.questions) || !exam.questions.length) {
+    throw new Error('试卷必须包含题目。');
+  }
+  const yearOf = item => Number(String(item.date || item.examVersion || '').match(/^\d{4}/)?.[0]);
+  const past = exam.category === 'past';
+  const year = yearOf(exam);
+  const others = registry.filter(item => item.examVersion !== exam.examVersion);
+  let start;
+  if (past) {
+    if (!Number.isInteger(year) || year < 2022) throw new Error('真题年份必须从 2022 年开始。');
+    if (others.some(item => item.category === 'past' && yearOf(item) === year)) {
+      throw new Error('同一年真题已存在，请更新原试卷，避免题号重复。');
+    }
+    start = 1 + others.filter(item => item.category === 'past' && yearOf(item) < year)
+      .reduce((sum, item) => sum + item.questions.length, 0);
+    if (start + exam.questions.length > 1001) throw new Error('真题题号不能占用模拟题的 1001 起编号。');
+  } else {
+    const existing = !options.newBatch && registry.find(item => item.examVersion === exam.examVersion);
+    const existingStart = Number(existing?.questions?.[0]?.id);
+    const mockIds = registry.filter(item => item.category !== 'past')
+      .flatMap(item => item.questions.map(question => Number(question.id)))
+      .filter(id => Number.isSafeInteger(id) && id >= 1001);
+    start = existingStart >= 1001 ? existingStart : Math.max(1000, ...mockIds) + 1;
+  }
+  const occupied = new Set(others.filter(item => item.numberingVersion === 1)
+    .flatMap(item => item.questions.map(question => String(question.id))));
+  const questions = exam.questions.map((question, index) => {
+    const id = String(start + index);
+    if (occupied.has(id)) throw new Error(`题号 ${id} 已被其他试卷使用。`);
+    const aliases = [...(question.legacyIds || []), String(question.id)];
+    if (exam.numberingVersion !== 1) aliases.push(String(index + 1));
+    if (past) aliases.push(`${year}-${index + 1}`);
+    return { ...question, id, legacyIds: [...new Set(aliases)].filter(alias => alias !== id) };
+  });
+  return { ...exam, numberingVersion: 1, questions };
+};
+
+const numberedExams = [];
+for (const exam of [...window.OMS_EXAM_ARCHIVE].filter(item => item.category === 'past')
+  .sort((a, b) => Number(a.date) - Number(b.date))) {
+  Object.assign(exam, window.OMS_NUMBER_EXAM(exam, numberedExams));
+  numberedExams.push(exam);
+}
+for (const exam of [window.OMS_EXAM_DATA, ...window.OMS_EXAM_ARCHIVE].filter(item => item.category !== 'past')) {
+  Object.assign(exam, window.OMS_NUMBER_EXAM(exam, [...numberedExams, exam]));
+  numberedExams.push(exam);
+}

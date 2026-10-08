@@ -33,10 +33,8 @@
   const profileNote = document.querySelector('#profile-note');
   const profilePasswordState = document.querySelector('#profile-password-state');
   const accountName = account.querySelector(':scope > b');
-  const PROFILE_STORAGE = 'oms-pta-user-profile-v1';
-  const defaults = { userId: config.studentId || '', username: accountName?.textContent?.trim() || 'user', nickname: config.candidateName || '', avatar: '', email: '', phone: '', passwordHash: '', passwordSalt: '' };
-  let profile = { ...defaults };
-  try { profile = { ...defaults, ...(JSON.parse(localStorage.getItem(PROFILE_STORAGE) || '{}') || {}) }; } catch {}
+  const defaults = { userId: '', username: '', nickname: '', avatar: '', email: '', phone: '' };
+  let profile = { ...defaults, ...(window.omsAuth.user || {}) };
   let pendingAvatar = profile.avatar;
   const initials = () => String(profile.nickname || profile.username || 'U').trim().slice(0, 2).toUpperCase();
   const paintAvatar = (element, image, fallbackText) => {
@@ -46,43 +44,57 @@
   };
   const applyProfile = () => {
     const displayName = profile.nickname || profile.username;
-    config.candidateName = displayName;
-    config.studentId = profile.userId;
-    primaryConfig.candidateName = displayName;
-    primaryConfig.studentId = profile.userId;
-    localStorage.setItem(STORAGE, JSON.stringify(primaryConfig));
-    if (accountName) accountName.textContent = profile.username;
+    if (accountName) accountName.textContent = displayName || '未登录';
     paintAvatar(account.querySelector('.avatar'), profile.avatar, initials());
-    render();
+    const portalButton = document.querySelector('[data-profile-open]');
+    if (portalButton && window.omsAuth.user) {
+      portalButton.querySelector('p b').textContent = profile.username;
+      portalButton.querySelector('p small').textContent = profile.nickname || '本站账号';
+      paintAvatar(portalButton.querySelector(':scope > span'), profile.avatar, initials());
+    }
   };
-  const bytesToBase64 = bytes => btoa(String.fromCharCode(...bytes));
-  const hashPassword = async password => {
-    if (!crypto?.subtle) throw new Error('当前浏览器不支持安全保存密码。');
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' }, key, 256);
-    return { passwordHash: bytesToBase64(new Uint8Array(bits)), passwordSalt: bytesToBase64(salt) };
-  };
+  document.addEventListener('oms:auth-change', event => {
+    profile = { ...defaults, ...(event.detail || {}) }; pendingAvatar = profile.avatar;
+    if (profileDialog.open && !event.detail) profileDialog.close();
+    applyProfile();
+  });
+  // Identity belongs to the server, not editable browser configuration.
+  profileForm.elements.userId.readOnly = true;
+  profileForm.elements.username.readOnly = true;
+  profileForm.elements.password.minLength = 10;
+  profileForm.elements.passwordConfirm.minLength = 10;
+  const currentPasswordLabel = document.createElement('label');
+  currentPasswordLabel.className = 'profile-password';
+  currentPasswordLabel.innerHTML = '当前本站密码<input name="currentPassword" type="password" maxlength="128" autocomplete="current-password" placeholder="修改密码时填写">';
+  profileForm.elements.password.closest('label').before(currentPasswordLabel);
   const fillProfileForm = () => {
     for (const key of ['userId', 'username', 'nickname', 'email', 'phone']) profileForm.elements[key].value = profile[key] || '';
     profileForm.elements.password.value = '';
     profileForm.elements.passwordConfirm.value = '';
+    profileForm.elements.currentPassword.value = '';
     pendingAvatar = profile.avatar || '';
     paintAvatar(profilePreview, pendingAvatar, initials());
-    profilePasswordState.textContent = profile.passwordHash ? '已设置；留空则保持不变' : '尚未设置';
-    profileNote.textContent = '';
+    profilePasswordState.textContent = '本站密码，至少 10 个字符；留空不修改';
+    profileNote.textContent = '本站独立账号，尚未绑定学校身份。账号编号与用户名不可修改。';
   };
   const closeAccountMenu = () => { account.classList.remove('menu-open'); account.querySelector('.avatar').setAttribute('aria-expanded', 'false'); };
-  const preferences = document.createElement('button'); preferences.type = 'button'; preferences.className = 'account-menu-item'; preferences.textContent = '个人中心'; preferences.addEventListener('click', () => { closeAccountMenu(); fillProfileForm(); profileDialog.showModal(); });
-  document.addEventListener('oms:open-profile', () => { closeAccountMenu(); fillProfileForm(); profileDialog.showModal(); });
+  const openProfile = async () => {
+    closeAccountMenu();
+    if (!await window.omsAuth.require('profile')) return;
+    profile = { ...defaults, ...window.omsAuth.user };
+    fillProfileForm(); if (!profileDialog.open) profileDialog.showModal();
+  };
+  const preferences = document.createElement('button'); preferences.type = 'button'; preferences.className = 'account-menu-item'; preferences.textContent = '个人中心'; preferences.addEventListener('click', openProfile);
+  document.addEventListener('oms:open-profile', openProfile);
   const theme = document.createElement('button'); theme.type = 'button'; theme.className = 'account-menu-item';
   const setTheme = light => { app.classList.toggle('light-mode', light); profileDialog.classList.toggle('light-mode', light); theme.textContent = light ? '切换深色模式' : '切换浅色模式'; localStorage.setItem('oms-pta-theme', light ? 'light' : 'dark'); };
   setTheme(localStorage.getItem('oms-pta-theme') === 'light'); theme.addEventListener('click', () => setTheme(!app.classList.contains('light-mode')));
-  menu.append(admin, preferences, theme);
+  const logout = document.createElement('button'); logout.type = 'button'; logout.className = 'account-menu-item'; logout.textContent = '退出登录'; logout.addEventListener('click', () => { closeAccountMenu(); window.omsAuth.logout(); });
+  menu.append(admin, preferences, theme, logout);
   account.prepend(menu);
   const avatar = account.querySelector('.avatar');
   avatar.setAttribute('role', 'button'); avatar.tabIndex = 0; avatar.setAttribute('aria-expanded', 'false');
-  const toggleAccountMenu = () => { const open = account.classList.toggle('menu-open'); avatar.setAttribute('aria-expanded', String(open)); };
+  const toggleAccountMenu = () => { if (!window.omsAuth.user) { window.omsAuth.require('profile').then(ok => { if (ok) openProfile(); }); return; } const open = account.classList.toggle('menu-open'); avatar.setAttribute('aria-expanded', String(open)); };
   avatar.addEventListener('click', toggleAccountMenu);
   avatar.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleAccountMenu(); } });
   document.addEventListener('click', event => { if (!account.contains(event.target)) { account.classList.remove('menu-open'); avatar.setAttribute('aria-expanded', 'false'); } });
@@ -103,20 +115,21 @@
     event.preventDefault();
     const data = new FormData(profileForm);
     const password = String(data.get('password') || '');
-    const identity = { userId: String(data.get('userId') || '').trim(), username: String(data.get('username') || '').trim(), nickname: String(data.get('nickname') || '').trim() };
-    if (!identity.userId || !identity.username || !identity.nickname) { profileNote.textContent = '用户编号、用户名和昵称不能为空。'; return; }
+    const nickname = String(data.get('nickname') || '').trim();
+    if (!nickname) { profileNote.textContent = '昵称不能为空。'; return; }
     if (password !== String(data.get('passwordConfirm') || '')) { profileNote.textContent = '两次输入的密码不一致。'; return; }
-    if (password && password.length < 8) { profileNote.textContent = '新密码至少需要 8 个字符。'; return; }
+    if (password && password.length < 10) { profileNote.textContent = '新密码至少需要 10 个字符。'; return; }
+    if (password && !data.get('currentPassword')) { profileNote.textContent = '修改密码需要输入当前本站密码。'; return; }
     const save = profileForm.querySelector('.save');
     save.disabled = true;
     profileNote.textContent = '正在保存…';
     try {
-      const passwordRecord = password ? await hashPassword(password) : { passwordHash: profile.passwordHash, passwordSalt: profile.passwordSalt };
-      profile = { ...identity, avatar: pendingAvatar, email: String(data.get('email')).trim(), phone: String(data.get('phone')).trim(), ...passwordRecord };
-      localStorage.setItem(PROFILE_STORAGE, JSON.stringify(profile));
-      applyProfile();
+      const session = await window.omsAuth.request('/api/auth/profile', { nickname, avatar: pendingAvatar, email: String(data.get('email') || '').trim(), phone: String(data.get('phone') || '').trim(), password, passwordConfirm: String(data.get('passwordConfirm') || ''), currentPassword: String(data.get('currentPassword') || '') });
+      window.omsAuth.update(session);
+      for (const key of ['password', 'passwordConfirm', 'currentPassword']) profileForm.elements[key].value = '';
       profileDialog.close();
-    } catch (error) { profileNote.textContent = error.message || '个人资料保存失败。'; }
+      if (document.querySelector('#pta-app').classList.contains('portal-mode')) route(activeRoute, true);
+    } catch (error) { profileNote.textContent = error.message || '个人资料保存失败。'; if (error.status === 401) { profileDialog.close(); window.omsAuth.require('profile'); } }
     finally { save.disabled = false; }
   });
   applyProfile();

@@ -1,10 +1,12 @@
 const fs = require('fs');
+const { loadAndValidateExamData } = require('./validate-exam-data');
 
 const sourcePath = process.argv[2];
 const targetPath = process.argv[3];
 const examVersion = process.argv[4] || '2026-10-04-first-weekly-practice-800';
 const outputMode = process.argv[5] || 'current';
-const source = fs.readFileSync(sourcePath, 'utf8').replace(/\r\n?/g, '\n');
+if (!['current', 'archive', 'mock-archive'].includes(outputMode)) throw new Error('输出模式必须是 current、archive 或 mock-archive。');
+const source = fs.readFileSync(sourcePath === '-' ? 0 : sourcePath, 'utf8').replace(/\r\n?/g, '\n');
 const readMeta = (label, fallback = '') => (source.match(new RegExp(`\\*\\*${label}[：:]\\s*([^*]+)\\*\\*`)) || [])[1]?.trim() || fallback;
 const scoreLine = /^\s*\*{0,2}\s*分数\s*[：:]?\s*(\d+)\s*分?\s*\*{0,2}\s*$/m;
 const fencedAfter = (block, label) => {
@@ -68,17 +70,21 @@ const questions = parsedQuestions;
 const fallbackTitle = (topLevelHeadings[0]?.[1]?.trim() || '程序设计考试')
   .replace(/题目(?:[（(]题解校正版[）)]|\s*[｜|]\s*正式优化版)$/, '')
   .trim();
-const exam = {
+let exam = {
   examVersion,
   title: readMeta('考试名称', fallbackTitle),
   duration: Number(readMeta('考试时长', outputMode === 'archive' ? '0' : '120').match(/\d+/)?.[0]) || 0,
   totalScore,
   questions
 };
-if (outputMode === 'archive') Object.assign(exam, { category: 'past', date: String(exam.title).match(/\d{4}/)?.[0] || '', status: '历年卷' });
-const output = outputMode === 'archive'
+if (outputMode === 'archive') Object.assign(exam, { category: 'past', date: String(exam.title).match(/\d{4}/)?.[0] || String(examVersion).match(/^\d{4}/)?.[0] || '', status: '历年卷' });
+const { exams: registry, numberExam } = loadAndValidateExamData();
+exam = numberExam(exam, registry);
+const dataOutput = outputMode !== 'current'
   ? `window.OMS_EXAM_ARCHIVE = window.OMS_EXAM_ARCHIVE || [];\nwindow.OMS_EXAM_ARCHIVE.push(${JSON.stringify(exam, null, 2)});\n`
   : `window.OMS_EXAM_DATA = ${JSON.stringify(exam, null, 2)};\n`;
+// Keep subsequent imports on the same policy even when this output replaces the data file.
+const output = `${dataOutput}\nwindow.OMS_NUMBER_EXAM = ${numberExam.toString()};\n`;
 if (targetPath === '-') process.stdout.write(output);
 else {
   fs.writeFileSync(targetPath, output, 'utf8');

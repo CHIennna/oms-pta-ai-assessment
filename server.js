@@ -4,18 +4,20 @@ const os = require('os');
 const path = require('path');
 const { LocalJudge } = require('./local-judge');
 const { loadAndValidateExamData } = require('./validate-exam-data');
+const { createAuth } = require('./auth');
 
 const root = __dirname;
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
 const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
 const { exams, report: examValidation } = loadAndValidateExamData(path.join(root, 'exam-data.js'));
-const { testBank, testBankByExam, testAliases, testTitles } = loadTestBank(exams);
+const { testBank, testBankByExam, testAliases } = loadTestBank(exams);
 const publicFiles = new Map([
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
 ]);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png' };
 const rateBuckets = new Map();
+const auth = createAuth();
 
 function configurePortableRuntime() {
   const runtimeCandidates = [
@@ -42,36 +44,33 @@ function loadTestBank(exams) {
   const bank = new Map();
   const byExam = new Map();
   const aliases = new Map();
-  const titles = new Map();
   for (const [examIndex, exam] of exams.entries()) {
     const examVersion = String(exam.examVersion || exam.title || examIndex);
-    for (const [questionIndex, question] of (exam.questions || []).entries()) {
+    for (const question of (exam.questions || [])) {
       if (question.judgeable === false) continue;
       const id = String(question.id || '');
       if (!id) continue;
       if (!bank.has(id)) bank.set(id, question.testCases);
       byExam.set(`${examVersion}:${id}`, question.testCases);
-      if (question.name && !titles.has(String(question.name).trim())) titles.set(String(question.name).trim(), question.testCases);
-      if (examIndex === 0) {
-        aliases.set(String(questionIndex + 1), id);
-      }
+      for (const alias of question.legacyIds || []) aliases.set(`${examVersion}:${alias}`, id);
     }
   }
-  return { testBank: bank, testBankByExam: byExam, testAliases: aliases, testTitles: titles };
+  return { testBank: bank, testBankByExam: byExam, testAliases: aliases };
 }
 
 function trustedPayload(payload) {
   if (!payload || payload.mode !== 'submit') return payload;
   const requestedId = String(payload.problemId || '');
   const examVersion = String(payload.examVersion || '');
-  const title = String(payload.problem && payload.problem.title || '').trim();
-  const aliasId = testAliases.get(requestedId);
-  const tests = testBankByExam.get(`${examVersion}:${requestedId}`)
-    || testTitles.get(title)
-    || testBank.get(requestedId)
-    || testBank.get(aliasId)
-    || [];
-  return { ...payload, tests };
+  const aliasId = examVersion && testAliases.get(`${examVersion}:${requestedId}`);
+  const canonicalId = examVersion && testBankByExam.has(`${examVersion}:${requestedId}`) ? requestedId : aliasId || requestedId;
+  const tests = examVersion ? testBankByExam.get(`${examVersion}:${canonicalId}`) : testBank.get(canonicalId);
+  if (!tests) {
+    const error = new Error('题号与试卷不匹配，或该题暂不可评测。请刷新题库后重试。');
+    error.statusCode = 400;
+    throw error;
+  }
+  return { ...payload, problemId: canonicalId, tests };
 }
 
 function reply(res, status, body, type = 'application/json; charset=utf-8') {
@@ -94,10 +93,12 @@ function permitsRequest(req) {
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (await auth.handle(req, res, url)) return;
   if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, portableRuntime: portableRuntime.detected });
   if (req.method === 'POST' && url.pathname === '/api/judge') {
+    if (!auth.authorize(req, res)) return;
     if (!permitsRequest(req)) return reply(res, 429, { verdict: 'RateLimited', message: '请求过于频繁，请稍后重试。', compilerOutput: '' });
-    try { return reply(res, 200, await localJudge.judge(trustedPayload(await collect(req)))); } catch (error) { return reply(res, 500, { verdict: 'JudgeUnavailable', message: '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
+    try { return reply(res, 200, await localJudge.judge(trustedPayload(await collect(req)))); } catch (error) { return reply(res, error.statusCode || 500, { verdict: error.statusCode === 400 ? 'InvalidProblem' : 'JudgeUnavailable', message: error.statusCode === 400 ? error.message : '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
   }
   if (req.method === 'GET' && publicFiles.has(url.pathname)) { const file = publicFiles.get(url.pathname); return reply(res, 200, fsSync.readFileSync(path.join(root, file)), types[path.extname(file)] || 'text/plain'); }
   reply(res, 404, 'Not found', 'text/plain; charset=utf-8');
@@ -106,4 +107,4 @@ if (require.main === module) {
   server.listen(port, '0.0.0.0', () => console.log(`FZUPTA local judge: http://0.0.0.0:${port}`));
 }
 
-module.exports = { server, localJudge, testBank, testBankByExam };
+module.exports = { server, localJudge, testBank, testBankByExam, trustedPayload };
