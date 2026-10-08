@@ -574,7 +574,7 @@ body.statement-reading-mode{overflow:hidden}
   .fzuoj-shell.sidebar-collapsed .fzuoj-sidebar-footer > .fzuoj-nav-item > b,
   .fzuoj-shell.sidebar-collapsed .fzuoj-service > b {
     display: block;
-    font-size: 9px;
+    font-size: 12px;
     white-space: nowrap;
   }
 
@@ -606,6 +606,24 @@ body.statement-reading-mode{overflow:hidden}
     width: 34px;
     height: 34px;
   }
+}
+
+/* Make the home sidebar easier to read without changing the page typography. */
+.fzuoj-domain>b{font-size:17px}
+.fzuoj-nav-item>b,.fzuoj-service>b{font-size:15px}
+.fzuoj-nav-item>span{width:24px;height:24px}
+.fzuoj-sidebar .fzuoj-nav-item>span .portal-icon{width:21px;height:21px}
+.fzuoj-service>span{width:10px;height:10px}
+.fzuoj-account>p b{font-size:14px}
+.fzuoj-account>p small{font-size:12px}
+.fzuoj-account>i .portal-icon{width:15px;height:15px}
+@media(max-width:820px){
+  .fzuoj-nav-item>b,.fzuoj-service>b,.fzuoj-sidebar-footer>.fzuoj-nav-item>b{font-size:14px}
+  .fzuoj-nav-item>span{width:24px;height:24px}
+  .fzuoj-nav-item>span .portal-icon{width:20px;height:20px}
+  .fzuoj-shell.sidebar-collapsed .fzuoj-nav-item>b,
+  .fzuoj-shell.sidebar-collapsed .fzuoj-sidebar-footer>.fzuoj-nav-item>b,
+  .fzuoj-shell.sidebar-collapsed .fzuoj-service>b{font-size:13px}
 }
 
 /* Keep hard-coded PTA dark accents in sync with the light theme. */
@@ -803,3 +821,16 @@ body.statement-reading-mode{overflow:hidden}
   .problem-directory-columns { grid-template-columns: 40px 72px minmax(180px,1fr) 90px; }
   .problem-directory-row .problem-directory-tags,.problem-directory-columns span:nth-child(4) { display: none; }
 }
+
+/* FZU portal login screen: a local demo entry, not an authentication service. */
+.login-screen{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:auto;padding:30px;background:radial-gradient(ellipse at 17% 12%,rgba(42,140,244,.18),transparent 38%),linear-gradient(135deg,#252a32,#30343a 52%,#25292f);color:#e7e7e7}
+.portal-login{display:grid;width:min(960px,100%);min-height:min(590px,calc(100vh - 60px));grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);overflow:hidden;border:1px solid #555c66;border-radius:18px;background:#383c42;box-shadow:0 28px 90px rgba(0,0,0,.38)}
+.portal-login-brand{position:relative;display:flex;min-width:0;flex-direction:column;justify-content:space-between;overflow:hidden;padding:40px;background:linear-gradient(145deg,rgba(41,140,244,.16),transparent 52%),#30353c}
+.portal-login-brand:after{position:absolute;right:-105px;bottom:70px;width:300px;height:300px;border:1px solid rgba(105,179,255,.16);border-radius:50%;content:"";box-shadow:0 0 0 36px rgba(105,179,255,.035),0 0 0 76px rgba(105,179,255,.025);pointer-events:none}
+.portal-login-mark{position:relative;z-index:1;display:flex;align-items:center;gap:13px}.portal-login-mark img{width:54px;height:54px;object-fit:contain}.portal-login-mark div{display:flex;flex-direction:column;gap:2px}.portal-login-mark b{font-size:19px;font-weight:600}.portal-login-mark span,.portal-login-kicker{color:#75b8ff;font:600 11px/1.5 var(--font-mono);letter-spacing:.12em}
+.portal-login-intro{position:relative;z-index:1;max-width:390px;margin:42px 0}.portal-login-intro h1{margin:13px 0 16px;color:#f4f6f8;font-size:34px;line-height:1.45;letter-spacing:.01em}.portal-login-intro p{max-width:340px;margin:0;color:#b7bec8;font-size:15px;line-height:1.9}
+.portal-login-foot{position:relative;z-index:1;display:flex;justify-content:space-between;gap:12px;color:#929ba7;font-size:12px}
+.portal-login-panel{display:flex;min-width:0;flex-direction:column;justify-content:center;padding:48px clamp(28px,5vw,56px);background:#3d4147}.portal-login-heading h2{margin:8px 0 4px;color:#f3f4f6;font-size:28px}.portal-login-heading p{margin:0;color:#aeb5bf;font-size:14px}
+.portal-login-form{display:grid;gap:9px;margin-top:27px}.portal-login-form label{margin-top:6px;color:#d5d9df;font-size:13px;font-weight:500}.portal-login-form input{width:100%;height:46px;padding:0 13px;border:1px solid #5b626c;border-radius:7px;outline:none;background:#33373d;color:#f3f4f6;font:inherit;transition:border-color .16s,box-shadow .16s}.portal-login-form input::placeholder{color:#828a95}.portal-login-form input:focus{border-color:#4b9cff;box-shadow:0 0 0 3px rgba(42,140,244,.18)}
+.portal-login-note{min-height:34px;margin:2px 0 1px;color:#a6aebb;font-size:12px;line-height:1.6}.portal-login-submit,.portal-demo-login{display:flex;min-height:44px;align-items:center;justify-content:center;gap:10px;border:0;border-radius:7px;font:600 14px/1 var(--font-sans);cursor:pointer;transition:background .16s,border-color .16s,transform .16s}.portal-login-submit{background:#2a8cf4;color:#fff;box-shadow:0 5px 16px rgba(42,140,244,.2)}.portal-login-submit:hover{background:#1676db}.portal-login-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:#858d98;font-size:11px}.portal-login-divider:before,.portal-login-divider:after{height:1px;flex:1;background:#555b63;content:""}.portal-demo-login{width:100%;border:1px solid #5b626c;background:#444950;color:#e5e8ed}.portal-demo-login:hover{border-color:#4b9cff;background:#494f58}.portal-demo-login span{color:#75b8ff;font-size:18px}.portal-login-back{align-self:center;margin-top:17px;padding:5px 8px;border:0;background:transparent;color:#a8b0bb;font:inherit;font-size:12px;cursor:pointer}.portal-login-back:hover{color:#78baff}.portal-login button:focus-visible{outline:2px solid #75b8ff;outline-offset:3px}
+@media(max-width:760px){.login-screen{place-items:start center;padding:14px}.portal-login{width:min(480px,100%);min-height:0;grid-template-columns:minmax(0,1fr);border-radius:14px}.portal-login-brand{min-height:190px;gap:18px;padding:22px 24px}.portal-login-brand:after{right:-95px;bottom:-170px;width:240px;height:240px}.portal-login-mark img{width:44px;height:44px}.portal-login-mark b{font-size:17px}.portal-login-intro{margin:5px 0 0}.portal-login-intro h1{margin:7px 0 3px;font-size:22px;line-height:1.35}.portal-login-intro p,.portal-login-foot{display:none}.portal-login-panel{padding:25px 24px 22px}.portal-login-heading h2{font-size:24px}.portal-login-form{gap:7px;margin-top:18px}.portal-login-form input{height:44px}}

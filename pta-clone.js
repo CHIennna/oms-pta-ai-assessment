@@ -2,8 +2,9 @@ const STORAGE = 'oms-pta-admin-config-v1';
 const toLocalDateTime = date => new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
 const defaultExam=window.OMS_EXAM_DATA||{examVersion:'fallback-exam',title:'程序设计考试',duration:120,questions:[{id:'1001',name:'示例题目',score:20,tests:3}]};
 const defaultStart = defaultExam.startAt?new Date(defaultExam.startAt):new Date(),defaultEnd=defaultExam.endAt?new Date(defaultExam.endAt):new Date(defaultStart.getTime()+(Number(defaultExam.duration)||120)*60*1000);
-const fallback={...defaultExam,startAt:defaultExam.startAt||toLocalDateTime(defaultStart),endAt:defaultExam.endAt||toLocalDateTime(defaultEnd),seat:'PC-08',candidateName:'admin',studentId:'102505201',registered:48};
+const fallback={...defaultExam,startAt:defaultExam.startAt||toLocalDateTime(defaultStart),endAt:defaultExam.endAt||toLocalDateTime(defaultEnd),seat:'PC-08',candidateName:'admin',studentId:'102500000',registered:48};
 let config,saved={};try{saved=JSON.parse(localStorage.getItem(STORAGE)||'{}');config=saved.examVersion===fallback.examVersion?{...fallback,...saved}:{...fallback,seat:saved.seat||fallback.seat,candidateName:saved.candidateName||fallback.candidateName,studentId:saved.studentId||fallback.studentId,registered:saved.registered||fallback.registered};}catch{config={...fallback};}if(defaultExam.scheduleVersion&&saved.scheduleVersion!==defaultExam.scheduleVersion){config.startAt=fallback.startAt;config.endAt=fallback.endAt;config.duration=defaultExam.duration;config.scheduleVersion=defaultExam.scheduleVersion;localStorage.setItem(STORAGE,JSON.stringify(config));}if(config.candidateName==='陈小雅')config.candidateName=fallback.candidateName;if(config.studentId==='202401050128')config.studentId=fallback.studentId;if(!config.startAt)config.startAt=fallback.startAt;if(!config.endAt)config.endAt=fallback.endAt;if(!Array.isArray(config.questions)||!config.questions.length)config.questions=fallback.questions;const primaryExamVersion=fallback.examVersion;let primaryConfig=config;let current=0,examExpired=false,activeRoute='info';const results={};const submissions=[];const code=document.querySelector('#code');
+if(config.studentId==='102505201')config.studentId=fallback.studentId;
 let SUBMITTED_CODE_STORAGE='',DRAFT_CODE_STORAGE='',submittedCodes={},draftCodes={};function readCodeMap(key){try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch{return {};}}function loadCodeStores(examVersion){SUBMITTED_CODE_STORAGE=`oms-pta-submitted-code-${examVersion}`;DRAFT_CODE_STORAGE=`oms-pta-draft-code-${examVersion}`;submittedCodes=readCodeMap(SUBMITTED_CODE_STORAGE);draftCodes=readCodeMap(DRAFT_CODE_STORAGE);}loadCodeStores(config.examVersion);function submittedCodeForQuestion(questionId){return Object.prototype.hasOwnProperty.call(submittedCodes,questionId)?submittedCodes[questionId]:'';}function codeForQuestion(questionId){return Object.prototype.hasOwnProperty.call(draftCodes,questionId)?draftCodes[questionId]:submittedCodeForQuestion(questionId);}let activeQuestionId=config.questions[current].id;let loadedCode=submittedCodeForQuestion(activeQuestionId);code.value=codeForQuestion(activeQuestionId);
 const $=s=>document.querySelector(s);const escape=s=>String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function lines(){ $('#lines').textContent=Array.from({length:Math.max(18,code.value.split('\n').length)},(_,i)=>i+1).join('\n'); }
@@ -273,26 +274,34 @@ function renderStudyAdvice(){
   const fontOptions=[['small','小'],['medium','中'],['large','大']].map(([value,label])=>`<button type="button" class="${experienceFontSize===value?'active':''}" data-experience-font="${value}" aria-pressed="${experienceFontSize===value}">${label}</button>`).join('');
   return `<div class="study-advice-head"><h1>备考建议</h1></div><div class="study-advice-tabs" role="tablist"><button type="button" class="active" data-study-tab="experience" role="tab" aria-selected="true">经验贴</button><button type="button" data-study-tab="mistakes" role="tab" aria-selected="false">错题集</button><button type="button" data-study-tab="key" role="tab" aria-selected="false">关键题目</button><button type="button" data-study-tab="knowledge" role="tab" aria-selected="false">知识讲解</button></div><section class="study-advice-panel active" data-study-panel="experience"><header><h2>经验贴</h2><div class="experience-header-tools"><div class="experience-font-controls" role="group" aria-label="经验贴字号"><span>字号</span>${fontOptions}</div></div></header>${renderExperienceReader()}</section><section class="study-advice-panel" data-study-panel="mistakes" hidden><header><h2>错题集</h2></header>${renderAdviceQuestionRows(wrongQuestions,'暂无错题记录')}</section><section class="study-advice-panel" data-study-panel="key" hidden><header><h2>关键题目</h2></header>${renderAdviceQuestionRows(keyQuestions,'暂无可复习题目')}</section><section class="study-advice-panel" data-study-panel="knowledge" hidden><header><h2>知识讲解</h2></header><div class="study-advice-grid knowledge"><article><i>IO</i><div><h3>输入输出与格式</h3><p>掌握多组数据读取、行输入、精度控制以及末尾空格和换行处理。</p></div></article><article><i>01</i><div><h3>循环与边界</h3><p>重点检查初值、终止条件、数组下标和空数据等容易出错的位置。</p></div></article><article><i>AZ</i><div><h3>数组与字符串</h3><p>熟悉遍历、计数、切分、字符判断和常用容器的使用方式。</p></div></article><article><i>↕</i><div><h3>排序与查找</h3><p>理解自定义排序规则、二分边界以及去重和频次统计。</p></div></article></div></section>`;
 }
-const boundaryBounceAnimations=new WeakMap();
-function boundaryBounce(event){
-  if(Math.abs(event.deltaY)<2||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
-  const selector='.secondary,.statement-inner,.test-content,.compiler-output,.cm-scroller,.editor textarea';
-  let scroller=event.target.closest?.(selector);
-  if(!scroller){const secondary=$('#secondary');scroller=!secondary.hidden?secondary:$('.statement-inner');}
-  if(!scroller)return;
-  const atTop=scroller.scrollTop<=1&&event.deltaY<0;
-  const atBottom=scroller.scrollTop+scroller.clientHeight>=scroller.scrollHeight-1&&event.deltaY>0;
-  if(!atTop&&!atBottom)return;
-  if(typeof scroller.animate!=='function')return;
-  boundaryBounceAnimations.get(scroller)?.cancel();
-  const distance=Math.min(12,6+Math.abs(event.deltaY)*.025)*(atTop?1:-1);
-  const animation=scroller.animate([{transform:'translateY(0)'},{transform:`translateY(${distance}px)`,offset:.34},{transform:'translateY(0)'}],{duration:280,easing:'cubic-bezier(.2,.78,.2,1)'});
-  boundaryBounceAnimations.set(scroller,animation);
+const DEMO_LOGIN_KEY='oms-pta-demo-login-v1';
+let portalAuthenticated=false,pendingLoginRoute='home';
+try{portalAuthenticated=sessionStorage.getItem(DEMO_LOGIN_KEY)==='1';}catch{}
+function openLogin(target='home'){
+  pendingLoginRoute=target;
+  const screen=$('#login-screen');
+  screen.innerHTML=`<main class="portal-login"><section class="portal-login-brand"><div class="portal-login-mark"><img src="/fzu-logo.png" alt="福州大学校徽"><div><b>福州大学</b><span>FUZHOU UNIVERSITY</span></div></div><div class="portal-login-intro"><span class="portal-login-kicker">FZU ONLINE JUDGE</span><h1>让每一次练习<br>都有清晰的进步</h1><p>统一进入题库、考试与评测空间，继续你的程序设计学习。</p></div><div class="portal-login-foot"><span>FZU PTA Online Judge</span><span>学习 · 练习 · 成长</span></div></section><section class="portal-login-panel"><div class="portal-login-heading"><span class="portal-login-kicker">欢迎回来</span><h2>登录平台</h2><p>使用学号或用户名继续访问</p></div><form class="portal-login-form" id="portal-login-form"><label for="portal-login-account">学号 / 用户名</label><input id="portal-login-account" name="account" autocomplete="username" placeholder="请输入学号或用户名"><label for="portal-login-password">密码</label><input id="portal-login-password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码"><p class="portal-login-note" id="portal-login-note" role="status">此站点尚未接入真实身份认证，请勿输入真实密码。</p><button type="submit" class="portal-login-submit">登录</button></form><div class="portal-login-divider"><span>演示环境</span></div><button type="button" class="portal-demo-login" data-demo-login>以演示身份继续 <span>→</span></button><button type="button" class="portal-login-back" data-login-back>暂不登录，返回主页</button></section></main>`;
+  screen.hidden=false;
+  const form=screen.querySelector('#portal-login-form');
+  form.onsubmit=event=>{event.preventDefault();screen.querySelector('#portal-login-note').textContent='当前演示环境未接入真实身份认证，请使用“以演示身份继续”进入。';};
+  screen.querySelector('[data-demo-login]').onclick=()=>{
+    portalAuthenticated=true;
+    try{sessionStorage.setItem(DEMO_LOGIN_KEY,'1');}catch{}
+    screen.hidden=true;
+    const destination=pendingLoginRoute;
+    pendingLoginRoute='home';
+    if(destination==='profile'){route('home',true);document.dispatchEvent(new CustomEvent('oms:open-profile'));}
+    else route(destination);
+  };
+  screen.querySelector('[data-login-back]').onclick=()=>{screen.hidden=true;pendingLoginRoute='home';route('home',true);};
+  screen.querySelector('#portal-login-account').focus();
 }
 let initialRoutePending=true;
-function route(name){
+function route(name,allowGuest=false){
+  const startup=initialRoutePending;
   if(initialRoutePending){initialRoutePending=false;name='home';}
   if(name==='center')name='home-contests';
+  if(!portalAuthenticated&&!startup&&!allowGuest){openLogin(name);return;}
   const previousRoute=activeRoute;activeRoute=name;
   if(previousRoute==='exam'&&name!=='exam')persistActiveDraft();
   const app=$('#pta-app'),isPortalPage=['home','problemset','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
@@ -321,7 +330,7 @@ function route(name){
     let sidebarCollapsed=false;try{sidebarCollapsed=localStorage.getItem('oms-fzuoj-sidebar-collapsed')==='1';}catch{}
     setSidebarCollapsed(sidebarCollapsed);
     sidebarToggles.forEach(button=>button.onclick=()=>setSidebarCollapsed(!homeShell.classList.contains('sidebar-collapsed')));
-    const profileButton=secondary.querySelector('[data-profile-open]');if(profileButton)profileButton.onclick=()=>document.dispatchEvent(new CustomEvent('oms:open-profile'));
+    const profileButton=secondary.querySelector('[data-profile-open]');if(profileButton){if(!portalAuthenticated){profileButton.setAttribute('aria-label','登录或打开个人中心');profileButton.querySelector('p b').textContent='未登录';profileButton.querySelector('p small').textContent='点击登录';profileButton.querySelector(':scope > span').textContent='U';}profileButton.onclick=()=>{if(!portalAuthenticated){openLogin('profile');return;}document.dispatchEvent(new CustomEvent('oms:open-profile'));};}
     if(name==='home')return;
     if(name==='about')paintPortalPage('<section class="fzuoj-card fzuoj-bulletin"><h1>关于 FZU PTA Online Judge</h1><p>福州大学程序设计练习与考试平台。</p></section>');
   }
@@ -402,7 +411,6 @@ function route(name){
     secondary.querySelectorAll('[data-question-open]').forEach(button=>button.onclick=()=>{const target=Number(button.dataset.questionOpen);if(activateExam(config.examVersion,target))route('exam');});
   }
 }
-document.addEventListener('wheel',boundaryBounce,{passive:true});
 function syncTesterToggle(){const tester=$('#tester'),collapsed=tester.classList.contains('collapsed'),toggle=$('#tester-toggle');toggle.setAttribute('aria-label',collapsed?'展开测试用例':'收起测试用例');toggle.title=toggle.getAttribute('aria-label');}
 function setTab(tab){const tester=$('#tester');tester.classList.toggle('compiler',tab==='compiler');tester.classList.remove('collapsed');document.querySelectorAll('[data-tab]').forEach(button=>button.classList.toggle('active',button.dataset.tab===tab));syncTesterToggle();}
 async function judge(mode){const state=$('#run-state'),q=config.questions[current],questionIndex=current,source=editorCode();if(q.judgeable===false){state.textContent='暂不可评测';$('#compiler-output').textContent='该题原始资料不完整，未提供可靠的输入、输出和测试点。';setTab('compiler');return;}state.textContent='正在运行…';$('#tester').classList.remove('collapsed');$('#tester').classList.add('expanded');syncTesterToggle();try{if(!['127.0.0.1','localhost'].includes(location.hostname))throw Error('在线演示不运行 Dev-C++；请通过本机评测服务运行。');const response=await fetch('/api/judge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:source,language:$('#language').value,problemId:q.id,input:$('#sample-input').value,mode})});if(!response.ok)throw Error('本机评测服务不可用');const result=await response.json();$('#compiler-output').textContent=result.compilerOutput||result.message||'评测完成。';setTab('compiler');state.textContent=result.verdict==='Accepted'?'答案正确':'答案错误';if(mode==='submit'){results[questionIndex]=result.verdict==='Accepted'?'accepted':'wrong';submissions.unshift({problemId:q.id,language:$('#language').value,verdict:state.textContent,candidate:config.candidateName,time:'刚刚'});saveSubmittedCode(q.id,source);if(activeQuestionId===q.id)loadedCode=source;$('#submit-state').textContent='刚刚提交 · '+state.textContent;render();}}catch(error){$('#compiler-output').textContent=error.message;setTab('compiler');state.textContent='运行失败';}}
