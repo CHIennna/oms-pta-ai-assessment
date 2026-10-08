@@ -9,7 +9,7 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --chown=fzupta:fzupta *.js *.css *.html package*.json .nojekyll /app/
-COPY --chown=fzupta:fzupta fzu-logo.png fzu-wordmark-official.jpg /app/
+COPY --chown=fzupta:fzupta fzu-logo.png fzu-wordmark-official.jpg fzu-brand-lockup-white.jpg /app/
 
 ENV NODE_ENV=production \
     PORT=10000 \
