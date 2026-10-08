@@ -18,6 +18,8 @@ logs
 *.db
 *.sqlite
 *.sqlite3
+!fzu-logo.png
+!fzu-wordmark-official.jpg
 network-config-backup
 fzupta-runtime
 downloads
