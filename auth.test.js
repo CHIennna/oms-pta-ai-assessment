@@ -72,6 +72,7 @@ test('registration validates fields, normalizes account name, and returns only a
 
 test('wrong / unknown credentials fail identically and successful login rotates the session', async t => {
   const { request, account } = await fixture(t);
+  assert.equal((await request('/api/auth/login', { account: account.account, password: 'short' })).status, 401);
   const old = await request('/api/auth/register', account);
   const wrong = await request('/api/auth/login', { account: account.account, password: 'wrong-password' });
   const unknown = await request('/api/auth/login', { account: 'unknown_user', password: 'wrong-password' });

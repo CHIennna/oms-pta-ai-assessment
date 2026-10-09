@@ -9,25 +9,25 @@ const DEFAULT_TOOLCHAINS = {
   'C++ (g++)': {
     commands: ['g++'],
     file: 'main.cpp',
-    compile: job => ({ command: 'g++', args: ['-O2', '-std=c++17', '-pipe', job.sourcePath, '-o', executable(job)] }),
+    compile: job => ({ command: 'g++', args: ['-O2', '-std=c++17', job.sourcePath, '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   'C++ (clang++)': {
     commands: ['clang++'],
     file: 'main.cpp',
-    compile: job => ({ command: 'clang++', args: ['-O2', '-std=c++17', '-pipe', job.sourcePath, '-o', executable(job)] }),
+    compile: job => ({ command: 'clang++', args: ['-O2', '-std=c++17', job.sourcePath, '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   'C (gcc)': {
     commands: ['gcc'],
     file: 'main.c',
-    compile: job => ({ command: 'gcc', args: ['-O2', '-std=c11', '-pipe', job.sourcePath, '-lm', '-o', executable(job)] }),
+    compile: job => ({ command: 'gcc', args: ['-O2', '-std=c11', job.sourcePath, '-lm', '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   'C (clang)': {
     commands: ['clang'],
     file: 'main.c',
-    compile: job => ({ command: 'clang', args: ['-O2', '-std=c11', '-pipe', job.sourcePath, '-lm', '-o', executable(job)] }),
+    compile: job => ({ command: 'clang', args: ['-O2', '-std=c11', job.sourcePath, '-lm', '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   Java: {
@@ -632,10 +632,18 @@ class LocalJudge {
   constructor(options = {}) {
     this.toolchains = options.toolchains || DEFAULT_TOOLCHAINS;
     this.usePrlimit = options.usePrlimit ?? process.env.JUDGE_USE_PRLIMIT !== '0';
-    this.maxConcurrency = clamp(options.maxConcurrency ?? process.env.JUDGE_MAX_CONCURRENCY, 2, 1, 8);
+    const renderRuntime = Boolean(process.env.RENDER);
+    const requestedConcurrency = clamp(options.maxConcurrency ?? process.env.JUDGE_MAX_CONCURRENCY, 2, 1, 8);
+    const requestedCompileTimeout = clamp(
+      options.compileTimeoutMs ?? process.env.JUDGE_COMPILE_TIMEOUT_MS,
+      renderRuntime ? 60000 : 15000,
+      1000,
+      60000
+    );
+    this.maxConcurrency = renderRuntime ? 1 : requestedConcurrency;
     this.maxQueue = clamp(options.maxQueue ?? process.env.JUDGE_MAX_QUEUE, 20, 1, 100);
     this.limits = {
-      compileTimeoutMs: clamp(options.compileTimeoutMs ?? process.env.JUDGE_COMPILE_TIMEOUT_MS, 15000, 1000, 60000),
+      compileTimeoutMs: renderRuntime ? Math.max(60000, requestedCompileTimeout) : requestedCompileTimeout,
       runTimeoutMs: clamp(options.runTimeoutMs ?? process.env.JUDGE_RUN_TIMEOUT_MS, 2000, 100, 10000),
       memoryLimitKb: clamp(options.memoryLimitKb ?? process.env.JUDGE_MEMORY_LIMIT_KB, 262144, 65536, 1048576),
       outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 262144, 4096, 1048576)

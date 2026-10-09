@@ -259,15 +259,16 @@ function createAuth(options = {}) {
       if (req.method !== 'POST') throw error(405, '不支持此请求方式。');
       assertSameOrigin(req);
       if (url.pathname === '/api/auth/register' || url.pathname === '/api/auth/login') {
-        if (fixedMode && url.pathname.endsWith('/register')) throw error(403, '本站账号由管理员统一配置，不开放自行注册。');
+        const registering = url.pathname.endsWith('/register');
+        if (fixedMode && registering) throw error(403, '本站账号由管理员统一配置，不开放自行注册。');
         const data = await body(req);
         const username = typeof data.account === 'string' ? data.account.trim().toLowerCase() : '';
         if (!usernameValid(username)) throw error(400, '账号须为 3–32 位字母、数字、下划线或连字符。');
-        if (typeof data.password !== 'string' || data.password.length < (fixedMode ? 1 : 10) || data.password.length > 128) throw error(400, fixedMode ? '密码格式无效。' : '本站密码须为 10–128 个字符。');
+        if (typeof data.password !== 'string' || data.password.length < (registering ? 10 : 1) || data.password.length > 128) throw error(400, registering ? '本站密码须为 10–128 个字符。' : '密码格式无效。');
         // A classroom may share one public IP. The per-account limit remains strict.
         rate(req, 'credentials', 300, 10 * 60 * 1000);
         rate(req, `account:${username}`, 15, 10 * 60 * 1000);
-        if (url.pathname.endsWith('/register')) {
+        if (registering) {
           rate(req, 'register', 100, 60 * 60 * 1000);
           if (data.password !== data.passwordConfirm) throw error(400, '两次输入的密码不一致。');
           const values = profileValues({ nickname: data.nickname || username });

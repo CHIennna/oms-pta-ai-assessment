@@ -69,7 +69,8 @@
     const status = aiVerdict(result.verdict);
     const accepted = result.verdict === 'Accepted';
     const maxScore = Number(String($('#score').textContent || '').match(/\d+/)?.[0]) || 20;
-    const testCases = result.testCases || [];
+    const allTestCases = result.testCases || [];
+    const testCases = result.verdict === 'CompilationError' && allTestCases.length ? [allTestCases[0]] : allTestCases;
     const totalTests = Number(result.totalTests) || testCases.length;
     const passedTests = Number(result.passedTests) || 0;
     const configuredScores = testCases.map(test => Number(test.score) || 0);
@@ -97,7 +98,8 @@
       const score = casePassed ? caseMaxScore : 0;
       const memory = test.memoryKb != null && Number.isFinite(Number(test.memoryKb)) ? Number(test.memoryKb) : '--';
       const duration = test.timeMs != null && Number.isFinite(Number(test.timeMs)) ? Number(test.timeMs) : '--';
-      return `<tr><td>${test.index ?? index}</td><td>${escapeHtml(test.hint || '无提示')}</td><td>${memory}</td><td>${duration}</td><td class="${caseStatus.tone}">${caseStatus.label}</td><td>${score % 1 ? score.toFixed(1) : score} / ${caseMaxScore % 1 ? caseMaxScore.toFixed(1) : caseMaxScore}</td></tr>`;
+      const caseLabel = result.verdict === 'CompilationError' ? '编译' : (test.index ?? index);
+      return `<tr><td>${caseLabel}</td><td>${escapeHtml(test.hint || '无提示')}</td><td>${memory}</td><td>${duration}</td><td class="${caseStatus.tone}">${caseStatus.label}</td><td>${score % 1 ? score.toFixed(1) : score} / ${caseMaxScore % 1 ? caseMaxScore.toFixed(1) : caseMaxScore}</td></tr>`;
     }).join('');
     const selectedLanguage = $('#language').value;
     const codeLanguage = selectedLanguage.startsWith('C++') ? 'C++' : selectedLanguage.startsWith('C ') ? 'C' : (selectedLanguage.startsWith('Python') || selectedLanguage === 'PyPy') ? 'Python' : selectedLanguage;
