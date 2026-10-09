@@ -221,6 +221,19 @@ test('fixed account mode derives its HTTPS origin from Render hostname', async t
   assert.equal(guest.data.registrationEnabled, false);
 });
 
+test('fixed account mode accepts a Render-style quoted environment assignment', async t => {
+  const password = crypto.randomBytes(4).toString('hex');
+  const records = JSON.stringify([{ account: 'fixed_three', nickname: 'Fixed learner', password }]);
+  const fixed = await fixture(t, {
+    production: true,
+    publicOrigin: 'https://school-app.example',
+    fixedUsers: `OMS_FIXED_USERS_JSON='${records}'`
+  });
+  const guest = await fixed.request('/api/auth/session');
+  assert.equal(guest.data.available, true);
+  assert.equal(guest.data.registrationEnabled, false);
+});
+
 test('repeated credential attempts are limited', async t => {
   const { request, account } = await fixture(t);
   for (let attempt = 0; attempt < 15; attempt++) assert.equal((await request('/api/auth/login', account)).status, 401);

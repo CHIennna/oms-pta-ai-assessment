@@ -39,7 +39,14 @@ function createAuth(options = {}) {
   const file = path.join(dataDir, 'users.json');
 
   function fixedUserRecords(setting) {
-    const records = typeof setting === 'string' ? JSON.parse(setting) : setting;
+    let records = setting;
+    if (typeof records === 'string') {
+      let source = records.trim().replace(/^OMS_FIXED_USERS_JSON\s*=\s*/, '');
+      if (source.startsWith("'") && source.endsWith("'")) source = source.slice(1, -1).trim();
+      records = JSON.parse(source);
+      if (typeof records === 'string') records = JSON.parse(records);
+      if (!Array.isArray(records) && Array.isArray(records?.users)) records = records.users;
+    }
     if (!Array.isArray(records) || !records.length || records.length > 50) throw Error('Invalid fixed users');
     const names = new Set();
     return records.map(record => {
