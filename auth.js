@@ -66,7 +66,10 @@ function createAuth(options = {}) {
       const passwordValue = record?.password;
       const password = typeof passwordValue === 'string' ? passwordValue : Number.isSafeInteger(passwordValue) && passwordValue >= 0 ? String(passwordValue) : undefined;
       const nickname = typeof record?.nickname === 'string' && record.nickname.trim() ? record.nickname.trim() : username;
-      if (!usernameValid(username) || names.has(username) || typeof password !== 'string' || password.length < 1 || password.length > 128 || nickname.length > 32) throw fixedConfigError('固定账号配置中的账号、密码或昵称字段无效。');
+      if (!usernameValid(username)) throw fixedConfigError('固定账号配置中的账号格式无效：账号需为 3 至 32 位英文字母、数字、下划线或短横线。');
+      if (names.has(username)) throw fixedConfigError('固定账号配置中存在重复账号。');
+      if (typeof password !== 'string' || password.length < 1 || password.length > 128) throw fixedConfigError('固定账号配置中的密码格式无效。');
+      if (nickname.length > 32) throw fixedConfigError('固定账号配置中的昵称不能超过 32 个字符。');
       names.add(username);
       const passwordSalt = crypto.randomBytes(16).toString('hex');
       const passwordHash = crypto.scryptSync(password, Buffer.from(passwordSalt, 'hex'), 32, HASH_OPTIONS).toString('hex');

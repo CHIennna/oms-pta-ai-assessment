@@ -251,6 +251,16 @@ test('fixed account mode accepts an account map and reports safe configuration e
   assert.equal(guest.data.available, false);
   assert.equal(guest.data.message, '固定账号配置的 JSON 语法无效。');
   assert.equal(guest.data.message.includes('fixed_four'), false);
+
+  const invalidAccount = await fixture(t, {
+    production: true,
+    publicOrigin: 'https://school-app.example',
+    fixedUsers: JSON.stringify({ 'invalid account': 123456 })
+  });
+  const accountGuest = await invalidAccount.request('/api/auth/session');
+  assert.equal(accountGuest.data.available, false);
+  assert.match(accountGuest.data.message, /账号格式无效/);
+  assert.equal(accountGuest.data.message.includes('invalid account'), false);
 });
 
 test('repeated credential attempts are limited', async t => {
