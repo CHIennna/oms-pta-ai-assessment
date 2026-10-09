@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 726 635" role="img" aria-labelledby="title desc">
+  <title id="title">n = 4 时的三角形网格示意图</title>
+  <desc id="desc">由三组平行线构成的三角形网格，节点以黑色圆点表示。</desc>
+  <rect width="726" height="635" fill="#fff"/>
+  <g fill="none" stroke="#000" stroke-width="4" stroke-linecap="round">
+    <path d="M363 56 288 187 212 318 136 450 60 581"/>
+    <path d="M363 56 439 187 515 318 591 450 667 581"/>
+    <path d="M288 187 364 318 439 450 515 581"/>
+    <path d="M439 187 364 318 288 450 212 581"/>
+    <path d="M212 318 288 450 364 581"/>
+    <path d="M515 318 439 450 364 581"/>
+    <path d="M136 450 212 581"/>
+    <path d="M288 187h151M212 318h303M136 450h455M60 581h607"/>
+  </g>
+  <g fill="#000">
+    <circle cx="363" cy="56" r="11"/>
+    <circle cx="288" cy="187" r="11"/><circle cx="439" cy="187" r="11"/>
+    <circle cx="212" cy="318" r="11"/><circle cx="364" cy="318" r="11"/><circle cx="515" cy="318" r="11"/>
+    <circle cx="136" cy="450" r="11"/><circle cx="288" cy="450" r="11"/><circle cx="439" cy="450" r="11"/><circle cx="591" cy="450" r="11"/>
+    <circle cx="60" cy="581" r="11"/><circle cx="212" cy="581" r="11"/><circle cx="364" cy="581" r="11"/><circle cx="515" cy="581" r="11"/><circle cx="667" cy="581" r="11"/>
+  </g>
+</svg>
