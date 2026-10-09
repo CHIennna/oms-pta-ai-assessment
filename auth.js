@@ -25,7 +25,9 @@ const localHost = value => ['localhost', '127.0.0.1', '[::1]'].includes(value);
 function createAuth(options = {}) {
   const production = options.production ?? (process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER));
   const dataDir = options.dataDir || process.env.OMS_AUTH_DATA_DIR || path.resolve(__dirname, '..', 'fzupta-runtime', 'auth-data');
-  const originSetting = options.publicOrigin ?? process.env.OMS_PUBLIC_ORIGIN;
+  const originSetting = options.publicOrigin !== undefined
+    ? options.publicOrigin
+    : process.env.OMS_PUBLIC_ORIGIN || (process.env.RENDER_EXTERNAL_HOSTNAME ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` : undefined);
   const persistent = options.persistent ?? (process.env.OMS_AUTH_PERSISTENT_STORAGE === '1');
   const fixedUsersSetting = options.fixedUsers ?? process.env.OMS_FIXED_USERS_JSON;
   const fixedMode = options.fixedUsers !== undefined || typeof fixedUsersSetting === 'string' && fixedUsersSetting.trim() !== '';

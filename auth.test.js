@@ -200,6 +200,27 @@ test('fixed account mode needs no disk, disables registration, and accepts only 
   assert.equal(fs.existsSync(path.join(fixed.directory, 'users.json')), false);
 });
 
+test('fixed account mode derives its HTTPS origin from Render hostname', async t => {
+  const priorOrigin = process.env.OMS_PUBLIC_ORIGIN;
+  const priorHostname = process.env.RENDER_EXTERNAL_HOSTNAME;
+  delete process.env.OMS_PUBLIC_ORIGIN;
+  process.env.RENDER_EXTERNAL_HOSTNAME = 'school-app.example';
+  t.after(() => {
+    if (priorOrigin === undefined) delete process.env.OMS_PUBLIC_ORIGIN;
+    else process.env.OMS_PUBLIC_ORIGIN = priorOrigin;
+    if (priorHostname === undefined) delete process.env.RENDER_EXTERNAL_HOSTNAME;
+    else process.env.RENDER_EXTERNAL_HOSTNAME = priorHostname;
+  });
+  const fixed = await fixture(t, {
+    production: true,
+    persistent: false,
+    fixedUsers: [{ account: 'fixed_two', nickname: 'Fixed learner', password: crypto.randomBytes(4).toString('hex') }]
+  });
+  const guest = await fixed.request('/api/auth/session');
+  assert.equal(guest.data.available, true);
+  assert.equal(guest.data.registrationEnabled, false);
+});
+
 test('repeated credential attempts are limited', async t => {
   const { request, account } = await fixture(t);
   for (let attempt = 0; attempt < 15; attempt++) assert.equal((await request('/api/auth/login', account)).status, 401);
