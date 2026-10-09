@@ -38,22 +38,35 @@ function createAuth(options = {}) {
   let unavailableMessage = '账号服务暂不可用，请联系管理员。';
   const file = path.join(dataDir, 'users.json');
 
+  function fixedConfigError(message) {
+    return Object.assign(new Error('Invalid fixed users'), { safeMessage: message });
+  }
+
   function fixedUserRecords(setting) {
     let records = setting;
     if (typeof records === 'string') {
       let source = records.trim().replace(/^OMS_FIXED_USERS_JSON\s*=\s*/, '');
       if (source.startsWith("'") && source.endsWith("'")) source = source.slice(1, -1).trim();
-      records = JSON.parse(source);
-      if (typeof records === 'string') records = JSON.parse(records);
-      if (!Array.isArray(records) && Array.isArray(records?.users)) records = records.users;
+      try {
+        records = JSON.parse(source);
+        if (typeof records === 'string') records = JSON.parse(records);
+      } catch {
+        throw fixedConfigError('固定账号配置的 JSON 语法无效。');
+      }
     }
-    if (!Array.isArray(records) || !records.length || records.length > 50) throw Error('Invalid fixed users');
+    if (!Array.isArray(records) && Array.isArray(records?.users)) records = records.users;
+    else if (!Array.isArray(records) && records && typeof records === 'object') {
+      records = Object.entries(records).map(([account, password]) => ({ account, password }));
+    }
+    if (!Array.isArray(records) || !records.length || records.length > 50) throw fixedConfigError('固定账号配置必须包含 1 至 50 个账号。');
     const names = new Set();
     return records.map(record => {
+      if (Array.isArray(record) && record.length === 2) record = { account: record[0], password: record[1] };
       const username = typeof (record?.account ?? record?.username) === 'string' ? String(record.account ?? record.username).trim().toLowerCase() : '';
-      const password = record?.password;
+      const passwordValue = record?.password;
+      const password = typeof passwordValue === 'string' ? passwordValue : Number.isSafeInteger(passwordValue) && passwordValue >= 0 ? String(passwordValue) : undefined;
       const nickname = typeof record?.nickname === 'string' && record.nickname.trim() ? record.nickname.trim() : username;
-      if (!usernameValid(username) || names.has(username) || typeof password !== 'string' || password.length < 1 || password.length > 128 || nickname.length > 32) throw Error('Invalid fixed user');
+      if (!usernameValid(username) || names.has(username) || typeof password !== 'string' || password.length < 1 || password.length > 128 || nickname.length > 32) throw fixedConfigError('固定账号配置中的账号、密码或昵称字段无效。');
       names.add(username);
       const passwordSalt = crypto.randomBytes(16).toString('hex');
       const passwordHash = crypto.scryptSync(password, Buffer.from(passwordSalt, 'hex'), 32, HASH_OPTIONS).toString('hex');
@@ -114,9 +127,10 @@ function createAuth(options = {}) {
       } else save([]);
       available = true;
     }
-  } catch {
+  } catch (cause) {
     // Never recreate a damaged store or expose account data / filesystem errors.
     available = false;
+    if (fixedMode) unavailableMessage = cause?.safeMessage || '固定账号配置或本站 HTTPS 地址无效。';
   }
 
   function response(res, status, body) {

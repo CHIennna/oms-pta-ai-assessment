@@ -234,6 +234,25 @@ test('fixed account mode accepts a Render-style quoted environment assignment', 
   assert.equal(guest.data.registrationEnabled, false);
 });
 
+test('fixed account mode accepts an account map and reports safe configuration errors', async t => {
+  const fixed = await fixture(t, {
+    production: true,
+    publicOrigin: 'https://school-app.example',
+    fixedUsers: JSON.stringify({ fixed_four: 123456 })
+  });
+  assert.equal((await fixed.request('/api/auth/session')).data.available, true);
+
+  const invalid = await fixture(t, {
+    production: true,
+    publicOrigin: 'https://school-app.example',
+    fixedUsers: '[invalid]'
+  });
+  const guest = await invalid.request('/api/auth/session');
+  assert.equal(guest.data.available, false);
+  assert.equal(guest.data.message, '固定账号配置的 JSON 语法无效。');
+  assert.equal(guest.data.message.includes('fixed_four'), false);
+});
+
 test('repeated credential attempts are limited', async t => {
   const { request, account } = await fixture(t);
   for (let attempt = 0; attempt < 15; attempt++) assert.equal((await request('/api/auth/login', account)).status, 401);
