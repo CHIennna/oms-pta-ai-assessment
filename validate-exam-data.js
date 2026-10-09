@@ -5,7 +5,13 @@ const vm = require('vm');
 const LEGACY_UNJUDGEABLE = new Set([
   '2024-transfer-major-exam:20',
   '2023-transfer-major-exam:10',
-  '2022-transfer-major-exam:8'
+  '2022-transfer-major-exam:8',
+  // These imported problems require an interactor or a checker that the local
+  // judge cannot reproduce safely. Keep the exception list explicit so a new
+  // incomplete problem still fails validation by default.
+  '2026-xiamen-shenzhuo-cup-may-monthly:1036',
+  '2026-xiamen-shenzhuo-cup-may-monthly:1038',
+  '2026-xiamen-shenzhuo-cup-guiding-final-exam:1046'
 ]);
 
 function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')) {
@@ -94,7 +100,9 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
         if (typeof test.input !== 'string') errors.push(`${testLabel} 缺少标准输入`);
         if (typeof test.expected !== 'string') errors.push(`${testLabel} 缺少预期输出`);
         const score = Number(test.score);
-        if (!Number.isFinite(score) || score <= 0) errors.push(`${testLabel} 分值必须大于 0`);
+        // A zero-point case is valid inside a bundled IOI subtask: it still
+        // has to pass, while the bundle's points live on its leading case.
+        if (!Number.isFinite(score) || score < 0) errors.push(`${testLabel} 分值不能为负数`);
         else testScore += score;
         testCases += 1;
       }

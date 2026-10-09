@@ -270,6 +270,29 @@ function checkGridSmallerNeighbors(input, output) {
   return true;
 }
 
+function checkFloatingResistance(input, output, expected) {
+  const actual = inputTokens(output), answer = inputTokens(expected);
+  if (!actual.length || actual.length !== answer.length) return false;
+  return answer.every((value, index) => {
+    const target = Number(value), candidate = Number(actual[index]);
+    if (!Number.isFinite(target) || !Number.isFinite(candidate)) return false;
+    if (target === -1) return candidate === -1;
+    return Math.abs(candidate - target) <= Math.max(5.1e-10, 1e-10 * Math.abs(target));
+  });
+}
+
+function checkBrooksParty(input, output) {
+  const data = inputTokens(input).map(Number), colors = inputTokens(output).map(Number);
+  const n = data[0];
+  if (!Number.isInteger(n) || n < 2 || n % 2 || data.length !== 1 + 2 * n || colors.length !== n) return false;
+  if (colors.some(color => !Number.isInteger(color) || color < 1 || color > 4)) return false;
+  const arrangements = [data.slice(1, n + 1), data.slice(n + 1)];
+  return arrangements.every(arrangement => arrangement.every((person, index) => {
+    const next = arrangement[(index + 1) % n];
+    return Number.isInteger(person) && Number.isInteger(next) && person >= 1 && person <= n && next >= 1 && next <= n && colors[person - 1] !== colors[next - 1];
+  }));
+}
+
 function checkSpecialOutput(checker, input, output, expected) {
   if (checker === 'fzu-prefix-multiple-permutation') return checkPrefixMultiplePermutation(input, output, expected);
   if (checker === 'fzu-adjacent-swap-construction') return checkAdjacentSwapConstruction(input, output);
@@ -285,6 +308,8 @@ function checkSpecialOutput(checker, input, output, expected) {
   if (checker === 'fzu-nonattacking-rooks') return checkNonattackingRooks(input, output);
   if (checker === 'fzu-tree-eccentricity') return checkTreeEccentricity(input, output, expected);
   if (checker === 'fzu-seilor-permutation') return checkSeilorPermutation(input, output, expected);
+  if (checker === 'fzu-floating-resistance') return checkFloatingResistance(input, output, expected);
+  if (checker === 'fzu-brooks-party') return checkBrooksParty(input, output);
   return normalized(output) === normalized(expected);
 }
 
@@ -613,7 +638,7 @@ class LocalJudge {
       compileTimeoutMs: clamp(options.compileTimeoutMs ?? process.env.JUDGE_COMPILE_TIMEOUT_MS, 15000, 1000, 60000),
       runTimeoutMs: clamp(options.runTimeoutMs ?? process.env.JUDGE_RUN_TIMEOUT_MS, 2000, 100, 10000),
       memoryLimitKb: clamp(options.memoryLimitKb ?? process.env.JUDGE_MEMORY_LIMIT_KB, 262144, 65536, 1048576),
-      outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 65536, 4096, 1048576)
+      outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 262144, 4096, 1048576)
     };
     this.availableLanguages = Object.entries(this.toolchains)
       .filter(([, toolchain]) => !Array.isArray(toolchain.commands) || toolchain.commands.every(commandAvailable))
@@ -663,7 +688,7 @@ class LocalJudge {
     if (!toolchain) return unavailableResult(`自建评测机暂不支持 ${language || '该语言'}。`, tests, this.limits);
     if (!source.trim()) return { ...unavailableResult('请先编写代码。', tests, this.limits), verdict: 'CompilationError' };
     if (!tests.length || tests.length > 20) return { ...unavailableResult('该题尚未配置有效测试点。', tests, this.limits), verdict: 'NotConfigured' };
-    if (source.length > 65536 || tests.some(test => test.input.length > 120000 || test.expected.length > 32768)) {
+    if (source.length > 65536 || tests.some(test => test.input.length > 2100000 || test.expected.length > 10500000)) {
       return { ...unavailableResult('代码或测试点超过评测机限制。', tests, this.limits), verdict: 'CompilationError' };
     }
 
@@ -697,7 +722,7 @@ class LocalJudge {
         runSpec.command = resolveCommand(runSpec.command);
         const execution = await runProcess(runSpec, {
           cwd: workDir, input: test.input, timeoutMs: this.limits.runTimeoutMs,
-          outputLimitBytes: this.limits.outputLimitBytes, usePrlimit: this.usePrlimit,
+          outputLimitBytes: Math.max(this.limits.outputLimitBytes, Math.min(10500000, Buffer.byteLength(test.expected, 'utf8') + 65536)), usePrlimit: this.usePrlimit,
           limits: { cpuSeconds: Math.ceil(this.limits.runTimeoutMs / 1000) + 1, addressBytes: this.limits.memoryLimitKb * 1024, fileBytes: 1024 * 1024, processes: 32, openFiles: 64 }
         });
         let verdict = 'Accepted', hint = '无提示', detail = '';
