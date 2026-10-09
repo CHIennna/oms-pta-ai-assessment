@@ -14,10 +14,13 @@ const LEGACY_UNJUDGEABLE = new Set([
   '2026-xiamen-shenzhuo-cup-guiding-final-exam:1046'
 ]);
 
-function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')) {
+function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js'), supplementalPaths = []) {
   const context = { window: {} };
-  const source = fs.readFileSync(filePath, 'utf8');
-  vm.runInNewContext(source, context, { filename: path.basename(filePath), timeout: 2000 });
+  vm.createContext(context);
+  for (const sourcePath of [filePath, ...supplementalPaths]) {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    vm.runInContext(source, context, { filename: path.basename(sourcePath), timeout: 2000 });
+  }
 
   const current = context.window.OMS_EXAM_DATA;
   const archives = context.window.OMS_EXAM_ARCHIVE || context.window.OMS_EXAM_ARCHIVES || [];
@@ -123,7 +126,11 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
 
 if (require.main === module) {
   try {
-    const { report } = loadAndValidateExamData(process.argv[2] ? path.resolve(process.argv[2]) : undefined);
+    const primaryPath = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, 'exam-data.js');
+    const supplementalPaths = process.argv.length > 3
+      ? process.argv.slice(3).map(value => path.resolve(value))
+      : (process.argv[2] ? [] : [path.join(__dirname, 'zixun-contest-data.js')].filter(fs.existsSync));
+    const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
     for (const warning of report.warnings) console.warn(`提醒：${warning}`);
   } catch (error) {

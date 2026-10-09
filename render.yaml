@@ -5,15 +5,9 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
-    disk:
-      name: oms-auth-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
-      - key: OMS_AUTH_DATA_DIR
-        value: /var/data/oms-auth
-      - key: OMS_AUTH_PERSISTENT_STORAGE
-        value: "1"
+      - key: OMS_FIXED_USERS_JSON
+        sync: false
       - key: OMS_PUBLIC_ORIGIN
         value: https://oms-pta-ai-assessment.onrender.com
       - key: JUDGE_MAX_CONCURRENCY

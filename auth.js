@@ -1,10 +1,11 @@
 'use strict';
 
 // Local: accounts live outside the source tree in ../fzupta-runtime/auth-data.
-// Production stays disabled until an operator attaches persistent storage and sets:
+// Production registration stays disabled until an operator attaches persistent storage and sets:
 // OMS_AUTH_DATA_DIR=/var/data/oms-auth
 // OMS_AUTH_PERSISTENT_STORAGE=1
 // OMS_PUBLIC_ORIGIN=https://<your-domain>
+// A small deployment can instead provide OMS_FIXED_USERS_JSON as a secret env var.
 // This file store supports ONE Node process only. Back up users.json securely.
 // Sessions deliberately expire on server restart; registered accounts do not.
 const fs = require('node:fs');
@@ -26,12 +27,30 @@ function createAuth(options = {}) {
   const dataDir = options.dataDir || process.env.OMS_AUTH_DATA_DIR || path.resolve(__dirname, '..', 'fzupta-runtime', 'auth-data');
   const originSetting = options.publicOrigin ?? process.env.OMS_PUBLIC_ORIGIN;
   const persistent = options.persistent ?? (process.env.OMS_AUTH_PERSISTENT_STORAGE === '1');
+  const fixedUsersSetting = options.fixedUsers ?? process.env.OMS_FIXED_USERS_JSON;
+  const fixedMode = options.fixedUsers !== undefined || typeof fixedUsersSetting === 'string' && fixedUsersSetting.trim() !== '';
   const now = options.now || Date.now;
   const cookieName = production ? '__Host-oms_session' : 'oms_local_session';
   const sessions = new Map(), buckets = new Map();
   let users = [], origin = '', available = false, hashJobs = 0;
   let unavailableMessage = '账号服务暂不可用，请联系管理员。';
   const file = path.join(dataDir, 'users.json');
+
+  function fixedUserRecords(setting) {
+    const records = typeof setting === 'string' ? JSON.parse(setting) : setting;
+    if (!Array.isArray(records) || !records.length || records.length > 50) throw Error('Invalid fixed users');
+    const names = new Set();
+    return records.map(record => {
+      const username = typeof (record?.account ?? record?.username) === 'string' ? String(record.account ?? record.username).trim().toLowerCase() : '';
+      const password = record?.password;
+      const nickname = typeof record?.nickname === 'string' && record.nickname.trim() ? record.nickname.trim() : username;
+      if (!usernameValid(username) || names.has(username) || typeof password !== 'string' || password.length < 1 || password.length > 128 || nickname.length > 32) throw Error('Invalid fixed user');
+      names.add(username);
+      const passwordSalt = crypto.randomBytes(16).toString('hex');
+      const passwordHash = crypto.scryptSync(password, Buffer.from(passwordSalt, 'hex'), 32, HASH_OPTIONS).toString('hex');
+      return { id: `fixed-${digest(username).slice(0, 32)}`, username, nickname, email: '', phone: '', avatar: '', passwordSalt, passwordHash, authVersion: 1, fixed: true };
+    });
+  }
 
   function save(next) {
     const temporary = `${file}.${crypto.randomBytes(8).toString('hex')}.tmp`;
@@ -62,7 +81,12 @@ function createAuth(options = {}) {
       if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && !production && localHost(parsed.hostname))) throw Error('HTTPS required');
       origin = parsed.origin;
     }
-    if (production && (!process.env.OMS_AUTH_DATA_DIR && !options.dataDir || !persistent || !origin)) {
+    if (fixedMode && (!production || origin)) {
+      users = fixedUserRecords(fixedUsersSetting);
+      available = true;
+    } else if (fixedMode) {
+      unavailableMessage = '固定账号登录需要配置本站 HTTPS 地址。';
+    } else if (production && (!process.env.OMS_AUTH_DATA_DIR && !options.dataDir || !persistent || !origin)) {
       unavailableMessage = '线上账号暂未开放：管理员需先配置持久存储和本站 HTTPS 地址。';
     } else {
       fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
@@ -128,7 +152,7 @@ function createAuth(options = {}) {
     const token = crypto.randomBytes(32).toString('hex');
     const session = { userId: user.id, authVersion: user.authVersion, csrf: crypto.randomBytes(32).toString('hex'), lastSeen: now(), expires: now() + SESSION_MS };
     sessions.set(digest(token), session); cookie(res, token);
-    return { user: publicUser(user), csrfToken: session.csrf, authenticated: true, available: true };
+    return { user: publicUser(user), csrfToken: session.csrf, authenticated: true, available: true, registrationEnabled: !fixedMode };
   }
   function assertSameOrigin(req) {
     let expected = origin;
@@ -202,17 +226,18 @@ function createAuth(options = {}) {
       if (req.method === 'GET' && url.pathname === '/api/auth/session') {
         const current = available ? sessionFor(req) : null;
         if (!current) cookie(res, '', 0);
-        response(res, 200, { available, authenticated: Boolean(current), user: current ? publicUser(current.user) : null, csrfToken: current?.session.csrf || '', message: available ? '' : unavailableMessage });
+        response(res, 200, { available, authenticated: Boolean(current), user: current ? publicUser(current.user) : null, csrfToken: current?.session.csrf || '', registrationEnabled: !fixedMode, message: available ? '' : unavailableMessage });
         return true;
       }
       if (!available) throw error(503, unavailableMessage);
       if (req.method !== 'POST') throw error(405, '不支持此请求方式。');
       assertSameOrigin(req);
       if (url.pathname === '/api/auth/register' || url.pathname === '/api/auth/login') {
+        if (fixedMode && url.pathname.endsWith('/register')) throw error(403, '本站账号由管理员统一配置，不开放自行注册。');
         const data = await body(req);
         const username = typeof data.account === 'string' ? data.account.trim().toLowerCase() : '';
         if (!usernameValid(username)) throw error(400, '账号须为 3–32 位字母、数字、下划线或连字符。');
-        if (!passwordValid(data.password)) throw error(400, '本站密码须为 10–128 个字符。');
+        if (typeof data.password !== 'string' || data.password.length < (fixedMode ? 1 : 10) || data.password.length > 128) throw error(400, fixedMode ? '密码格式无效。' : '本站密码须为 10–128 个字符。');
         // A classroom may share one public IP. The per-account limit remains strict.
         rate(req, 'credentials', 300, 10 * 60 * 1000);
         rate(req, `account:${username}`, 15, 10 * 60 * 1000);
@@ -243,6 +268,7 @@ function createAuth(options = {}) {
         response(res, 200, { ok: true }); return true;
       }
       if (url.pathname === '/api/auth/profile') {
+        if (fixedMode) throw error(403, '固定账号不支持修改资料或密码。');
         rate(req, 'profile', 30, 60 * 1000);
         const data = await body(req), values = profileValues(data);
         let updated = { ...current.user, ...values };

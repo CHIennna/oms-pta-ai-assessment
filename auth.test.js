@@ -178,6 +178,28 @@ test('production fails closed without durable storage and issues Secure cookies 
   assert.equal(registered.data.user.schoolVerified, false);
 });
 
+test('fixed account mode needs no disk, disables registration, and accepts only configured credentials', async t => {
+  const password = crypto.randomBytes(3).toString('hex');
+  const fixed = await fixture(t, {
+    production: true,
+    persistent: false,
+    publicOrigin: 'https://school-app.example',
+    fixedUsers: [{ account: 'fixed_one', nickname: 'Fixed learner', password }]
+  });
+  const origin = { Origin: 'https://school-app.example' };
+  const guest = await fixed.request('/api/auth/session');
+  assert.equal(guest.data.available, true);
+  assert.equal(guest.data.registrationEnabled, false);
+  assert.equal((await fixed.request('/api/auth/register', fixed.account, {}, origin)).status, 403);
+  assert.equal((await fixed.request('/api/auth/login', { account: 'fixed_one', password: 'wrong' }, {}, origin)).status, 401);
+  const loggedIn = await fixed.request('/api/auth/login', { account: 'fixed_one', password }, {}, origin);
+  assert.equal(loggedIn.status, 200);
+  assert.match(loggedIn.cookieHeader, /__Host-oms_session=/);
+  assert.match(loggedIn.cookieHeader, /; Secure/);
+  assert.equal((await fixed.request('/api/auth/profile', { nickname: 'Changed' }, loggedIn, origin)).status, 403);
+  assert.equal(fs.existsSync(path.join(fixed.directory, 'users.json')), false);
+});
+
 test('repeated credential attempts are limited', async t => {
   const { request, account } = await fixture(t);
   for (let attempt = 0; attempt < 15; attempt++) assert.equal((await request('/api/auth/login', account)).status, 401);

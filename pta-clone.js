@@ -6,7 +6,7 @@ const fallback={...defaultExam,startAt:defaultExam.startAt||toLocalDateTime(defa
 let config,saved={};try{saved=JSON.parse(localStorage.getItem(STORAGE)||'{}');config=saved.examVersion===fallback.examVersion?{...fallback,...saved}:{...fallback,seat:saved.seat||fallback.seat,candidateName:saved.candidateName||fallback.candidateName,studentId:saved.studentId||fallback.studentId,registered:saved.registered||fallback.registered};}catch{config={...fallback};}if(defaultExam.scheduleVersion&&saved.scheduleVersion!==defaultExam.scheduleVersion){config.startAt=fallback.startAt;config.endAt=fallback.endAt;config.duration=defaultExam.duration;config.scheduleVersion=defaultExam.scheduleVersion;localStorage.setItem(STORAGE,JSON.stringify(config));}if(config.candidateName==='陈小雅')config.candidateName=fallback.candidateName;if(config.studentId==='202401050128')config.studentId=fallback.studentId;if(!config.startAt)config.startAt=fallback.startAt;if(!config.endAt)config.endAt=fallback.endAt;if(!Array.isArray(config.questions)||!config.questions.length)config.questions=fallback.questions;const primaryExamVersion=fallback.examVersion;let primaryConfig=config;let current=0,examExpired=false,activeRoute='info';const results={};const submissions=[];const code=document.querySelector('#code');
 if(config.studentId==='102505201')config.studentId=fallback.studentId;
 if(window.OMS_NUMBER_EXAM){config=window.OMS_NUMBER_EXAM(config,[config,...(window.OMS_EXAM_ARCHIVE||[])]);primaryConfig=config;}
-let portalUser=null,portalAuthenticated=false,portalCsrf='',pendingLoginRoute='home',portalAuthAvailable=false,portalAuthMessage='',routeRevision=0,portalSessionRevision=0,loadingCode=false;
+let portalUser=null,portalAuthenticated=false,portalCsrf='',pendingLoginRoute='home',portalAuthAvailable=false,portalRegistrationEnabled=true,portalAuthMessage='',routeRevision=0,portalSessionRevision=0,loadingCode=false;
 let SUBMITTED_CODE_STORAGE='',DRAFT_CODE_STORAGE='',submittedCodes={},draftCodes={};
 function readCodeMap(key){try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch{return {};}}
 function migrateQuestionCodes(map,questions){
@@ -324,7 +324,7 @@ function setPortalSession(data){
   const next=data.authenticated?data.user:null,changed=portalUser?.id!==next?.id,profileChanged=JSON.stringify(portalUser)!==JSON.stringify(next);
   if(changed)persistActiveDraft();
   portalUser=next;portalAuthenticated=Boolean(next);portalCsrf=data.csrfToken||'';
-  portalAuthAvailable=Boolean(data.available);portalAuthMessage=data.message||'';
+  portalAuthAvailable=Boolean(data.available);portalRegistrationEnabled=data.registrationEnabled!==false;portalAuthMessage=data.message||'';
   config.candidateName=primaryConfig.candidateName=next?(next.nickname||next.username):fallback.candidateName;
   config.studentId=primaryConfig.studentId=next?next.username:fallback.studentId;
   if(changed){
@@ -359,8 +359,8 @@ async function logoutPortal(){
 }
 function openLogin(target='home',mode='login',accountValue=''){
   pendingLoginRoute=target;
-  const screen=$('#login-screen'),register=mode==='register';
-  screen.innerHTML=`<main class="portal-login"><section class="portal-login-brand"><div class="portal-login-mark"><img src="/fzu-logo.png" alt="福州大学校徽"><div><img src="/fzu-wordmark-official.jpg" alt="福州大学（郭沫若题写）" style="display:block;width:190px;height:auto;background:#fff;border-radius:2px"></div></div><div class="portal-login-intro"><h1>让每一次练习<br>都有清晰的进步</h1><p>进入题库、考试与评测空间，继续你的程序设计学习。</p></div><div class="portal-login-foot"><span>本站独立账号</span><span>暂未绑定校园身份</span></div></section><section class="portal-login-panel"><div class="portal-login-heading"><h2>${register?'注册本站账号':'登录平台'}</h2><p>${register?'创建专用于本站的账号与密码':'使用本站账号继续访问'}</p></div><form class="portal-login-form" id="portal-login-form"><label for="portal-login-account">本站账号 / 学号</label><input id="portal-login-account" name="account" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]{3,32}" title="3–32 位字母、数字、下划线或连字符" placeholder="请输入本站账号" value="${escape(accountValue)}">${register?'<label for="portal-login-nickname">昵称</label><input id="portal-login-nickname" name="nickname" autocomplete="nickname" required maxlength="32" placeholder="你希望显示的名字">':''}<label for="portal-login-password">本站密码</label><input id="portal-login-password" name="password" type="password" required minlength="10" maxlength="128" autocomplete="${register?'new-password':'current-password'}" placeholder="10–128 个字符，请勿使用校园密码">${register?'<label for="portal-login-confirm">确认密码</label><input id="portal-login-confirm" name="passwordConfirm" type="password" autocomplete="new-password" required minlength="10" maxlength="128" placeholder="再次输入本站密码">':''}<p class="portal-login-note" id="portal-login-note" role="status">${escape(portalAuthMessage||'本站独立登录，不是学校统一身份认证。请勿使用校园密码。')}</p><button type="submit" class="portal-login-submit" ${portalAuthAvailable?'':'disabled'}>${register?'注册并登录':'登录'}</button></form><div class="portal-login-divider"><span>${register?'已有本站账号？':'首次使用？'}</span></div><button type="button" class="portal-demo-login" data-auth-mode>${register?'返回登录':'注册本站账号'} <span>→</span></button><button type="button" class="portal-login-back" data-login-back>暂不登录，返回主页</button></section></main>`;
+  const screen=$('#login-screen'),register=mode==='register'&&portalRegistrationEnabled,passwordMin=portalRegistrationEnabled?10:1;
+  screen.innerHTML=`<main class="portal-login"><section class="portal-login-brand"><div class="portal-login-mark"><img src="/fzu-logo.png" alt="福州大学校徽"><div><img src="/fzu-wordmark-official.jpg" alt="福州大学（郭沫若题写）" style="display:block;width:190px;height:auto;background:#fff;border-radius:2px"></div></div><div class="portal-login-intro"><h1>让每一次练习<br>都有清晰的进步</h1><p>进入题库、考试与评测空间，继续你的程序设计学习。</p></div><div class="portal-login-foot"><span>本站独立账号</span><span>暂未绑定校园身份</span></div></section><section class="portal-login-panel"><div class="portal-login-heading"><h2>${register?'注册本站账号':'登录平台'}</h2><p>${register?'创建专用于本站的账号与密码':'使用本站账号继续访问'}</p></div><form class="portal-login-form" id="portal-login-form"><label for="portal-login-account">本站账号 / 学号</label><input id="portal-login-account" name="account" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]{3,32}" title="3–32 位字母、数字、下划线或连字符" placeholder="请输入本站账号" value="${escape(accountValue)}">${register?'<label for="portal-login-nickname">昵称</label><input id="portal-login-nickname" name="nickname" autocomplete="nickname" required maxlength="32" placeholder="你希望显示的名字">':''}<label for="portal-login-password">本站密码</label><input id="portal-login-password" name="password" type="password" required minlength="${passwordMin}" maxlength="128" autocomplete="${register?'new-password':'current-password'}" placeholder="${register?'10–128 个字符，请勿使用校园密码':'请输入本站密码'}">${register?'<label for="portal-login-confirm">确认密码</label><input id="portal-login-confirm" name="passwordConfirm" type="password" autocomplete="new-password" required minlength="10" maxlength="128" placeholder="再次输入本站密码">':''}<p class="portal-login-note" id="portal-login-note" role="status">${escape(portalAuthMessage||(portalRegistrationEnabled?'本站独立登录，不是学校统一身份认证。请勿使用校园密码。':'仅限管理员配置的账号登录。'))}</p><button type="submit" class="portal-login-submit" ${portalAuthAvailable?'':'disabled'}>${register?'注册并登录':'登录'}</button></form><div class="portal-login-divider"><span>${portalRegistrationEnabled?(register?'已有本站账号？':'首次使用？'):'仅限指定账号'}</span></div>${portalRegistrationEnabled?`<button type="button" class="portal-demo-login" data-auth-mode>${register?'返回登录':'注册本站账号'} <span>→</span></button>`:''}<button type="button" class="portal-login-back" data-login-back>暂不登录，返回主页</button></section></main>`;
   screen.querySelector('.portal-login-mark').innerHTML='<img src="/fzu-brand-lockup-red.jpg" alt="福州大学校徽与书法校名" style="display:block;width:min(320px,100%);height:auto;mix-blend-mode:screen">';
   screen.hidden=false;
   const form=screen.querySelector('#portal-login-form');
@@ -377,7 +377,7 @@ function openLogin(target='home',mode='login',accountValue=''){
     }catch(failure){form.elements.password.value='';if(register)form.elements.passwordConfirm.value='';note.textContent=failure.message||'登录失败，请稍后重试。';}
     finally{buttons.forEach(button=>button.disabled=false);}
   };
-  screen.querySelector('[data-auth-mode]').onclick=()=>openLogin(target,register?'login':'register',form.elements.account.value);
+  const authMode=screen.querySelector('[data-auth-mode]');if(authMode)authMode.onclick=()=>openLogin(target,register?'login':'register',form.elements.account.value);
   screen.querySelector('[data-login-back]').onclick=()=>{screen.hidden=true;pendingLoginRoute='home';route('home',true);};
   screen.querySelector('#portal-login-account').focus();
 }
@@ -406,6 +406,7 @@ window.addEventListener('DOMContentLoaded',async()=>{
   if(routeRevision===1&&activeRoute==='home'&&$('#login-screen').hidden)route('home',true);
 });
 let initialRoutePending=true;
+function finishAppBoot(){const app=$('#pta-app');if(!app.classList.contains('app-booting'))return;app.classList.remove('app-booting');app.removeAttribute('aria-busy');$('#app-boot-screen')?.remove();}
 async function route(name,allowGuest=false){
   const revision=++routeRevision;
   const startup=initialRoutePending;
@@ -447,7 +448,7 @@ async function route(name,allowGuest=false){
     setSidebarCollapsed(sidebarCollapsed);
     sidebarToggles.forEach(button=>button.onclick=()=>setSidebarCollapsed(!homeShell.classList.contains('sidebar-collapsed')));
     const profileButton=secondary.querySelector('[data-profile-open]');if(profileButton){if(!portalAuthenticated){profileButton.setAttribute('aria-label','登录或打开个人中心');profileButton.querySelector('p b').textContent='未登录';profileButton.querySelector('p small').textContent='点击登录';profileButton.querySelector(':scope > span').textContent='U';}else if(portalUser?.avatar){const image=profileButton.querySelector(':scope > span');image.style.backgroundImage=`url("${portalUser.avatar}")`;image.classList.add('has-image');image.textContent='';}profileButton.onclick=()=>{if(!portalAuthenticated){openLogin('profile');return;}document.dispatchEvent(new CustomEvent('oms:open-profile'));};}
-    if(name==='home')return;
+    if(name==='home'){finishAppBoot();return;}
     if(name==='about')paintPortalPage('<section class="fzuoj-card fzuoj-bulletin"><h1>关于 FZU PTA Online Judge</h1><p>福州大学程序设计练习与考试平台。</p></section>');
   }
   if(name==='submissions')secondary.innerHTML=`<h1>提交列表</h1><div class="card"><div class="row head"><span>题目</span><span>语言</span><span>状态</span><span>提交时间</span></div>${renderSubmissions()}</div>`;
