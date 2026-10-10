@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="pta-geometry.css" />
   <style>
     .pta-app.app-booting > :not(.app-boot-screen) { visibility: hidden; }
-    .app-boot-screen { position: fixed; inset: 0; z-index: 10000; display: grid; place-content: center; gap: 14px; background: #202832; color: #f4f7fb; text-align: center; }
+    .app-boot-screen { position: fixed; inset: var(--oms-client-chrome-height, 88px) 0 0; z-index: 10000; display: grid; place-content: center; gap: 14px; background: #202832; color: #f4f7fb; text-align: center; }
     .app-boot-screen::before { content: ""; width: 30px; height: 30px; margin: 0 auto; border: 3px solid rgb(255 255 255 / 20%); border-top-color: #2f92f3; border-radius: 50%; animation: app-boot-spin .8s linear infinite; }
     .app-boot-screen strong { font-size: 18px; }
     .app-boot-screen span { color: #aab5c2; font-size: 13px; }
@@ -27,6 +27,17 @@
   </style>
 </head>
 <body>
+  <header class="oms-client-chrome" aria-label="OMS 监考客户端">
+    <div class="oms-client-titlebar"><span class="oms-client-app-icon" aria-hidden="true"></span><strong>OMS 监考客户端 v2.1.3 - 考生模式</strong><span class="oms-client-window-controls" aria-hidden="true"><i>—</i><i>□</i><i>×</i></span></div>
+    <div class="oms-client-toolbar">
+      <button id="oms-client-back" type="button" title="后退"><span>◀</span> Back</button><span class="oms-client-tool-separator"></span>
+      <button id="oms-client-forward" type="button" title="前进"><span>▷</span> Forward</button><span class="oms-client-tool-separator"></span>
+      <button id="oms-client-refresh" type="button" title="刷新"><span>↻</span> 刷新</button><span class="oms-client-tool-separator"></span>
+      <span class="oms-client-tool-static"><b>⊙</b> 放大</span><span class="oms-client-tool-separator"></span><span class="oms-client-tool-static"><b>⊙</b> 缩小</span>
+      <input id="oms-client-address" class="oms-client-address" aria-label="当前页面地址" readonly />
+    </div>
+    <div class="oms-client-sessionbar"><strong class="oms-client-session-field"><small>学号</small><span id="oms-client-student-session">—</span></strong><strong class="oms-client-session-field"><small>姓名</small><span id="oms-client-name-session">—</span></strong><strong class="oms-client-session-field"><small>上机号</small><span id="oms-client-seat-session">—</span></strong><span class="oms-client-session-user"><i id="oms-client-user-avatar">U</i><b id="oms-client-user-session">未登录</b></span></div>
+  </header>
   <div id="pta-app" class="pta-app app-booting" aria-busy="true">
     <div id="app-boot-screen" class="app-boot-screen" role="status" aria-live="polite"><strong>正在进入平台</strong><span>正在加载题库与考试信息…</span></div>
     <header class="topbar">
@@ -59,6 +70,13 @@
     <main id="secondary" class="secondary" hidden></main>
   </div>
   <div id="login-screen" class="login-screen" hidden></div>
+  <dialog id="exam-reminder-dialog" class="exam-reminder-dialog" aria-labelledby="exam-reminder-title" aria-describedby="exam-reminder-content">
+    <section class="exam-reminder-window">
+      <header><h2 id="exam-reminder-title">考试提醒</h2><button type="button" data-reminder-close aria-label="关闭考试提醒">×</button></header>
+      <div class="exam-reminder-body"><span class="exam-reminder-info" aria-hidden="true">i</span><ol id="exam-reminder-content"><li>监考客户端启动后，未经监考老师同意不得关闭窗口，更不得以任何方式登出，否则会被认定为作弊。</li><li>严禁启动除OMS监考客户端外的任何浏览器和即时通信软件，否则会被认定为作弊。</li><li>请遵守考试纪律，严禁作弊。</li></ol></div>
+      <footer><button type="button" data-reminder-close autofocus>确定</button></footer>
+    </section>
+  </dialog>
   <dialog id="admin-dialog"><form id="admin-form"><button type="button" class="close">×</button><h2>考试配置</h2><div class="form-grid"><label>考试标题<input name="title" required /></label><label>考试时长（分钟）<input name="duration" type="number" min="5" required /></label><label>倒计时开始时间<input name="startAt" type="datetime-local" required /></label><label>倒计时结束时间<input name="endAt" type="datetime-local" required /></label><label>机位号<input name="seat" required /></label><label>考生姓名<input name="candidateName" required /></label><label>考生学号<input name="studentId" required /></label><label>考试人数<input name="registered" type="number" min="1" required /></label></div><div class="import-row"><label>导入外部试题<input id="import-file" type="file" accept=".md,.json,.csv,text/markdown,application/json,text/csv" /></label><small>支持 Markdown、JSON、CSV；Markdown 自动识别题号、题名和分值。</small></div><div id="import-note"></div><div id="question-settings"></div><div class="form-actions"><button class="cancel" type="button">取消</button><button class="save" type="submit">保存并应用</button></div></form></dialog>
   <dialog id="profile-dialog" class="profile-dialog"><form id="profile-form"><button type="button" class="close" aria-label="关闭个人中心">×</button><p>账户资料</p><h2>个人中心</h2><div class="profile-layout"><section class="profile-avatar-section"><span id="profile-avatar-preview" class="profile-avatar-preview">CY</span><label class="profile-avatar-upload">修改头像<input name="avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif" /></label><button type="button" id="profile-avatar-remove">移除头像</button><small>支持 PNG、JPG、WebP、GIF，文件不超过 1 MB。</small></section><div class="profile-fields"><label>用户编号<input name="userId" required maxlength="32" autocomplete="off" /></label><label>用户名<input name="username" required maxlength="32" autocomplete="username" /></label><label>昵称<input name="nickname" required maxlength="32" autocomplete="nickname" /></label><label>邮箱<input name="email" type="email" maxlength="120" autocomplete="email" placeholder="未填写" /></label><label>手机号<input name="phone" type="tel" maxlength="20" autocomplete="tel" placeholder="未填写" /></label><label class="profile-password">密码<input name="password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="不修改请留空" /><small id="profile-password-state">未设置</small></label><label class="profile-password">确认新密码<input name="passwordConfirm" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="再次输入新密码" /></label></div></div><div id="profile-note" role="status"></div><div class="form-actions"><button class="cancel" type="button">取消</button><button class="save" type="submit">保存个人资料</button></div></form></dialog>
   <dialog id="submission-dialog" class="submission-dialog" aria-labelledby="submission-dialog-title">

@@ -50,7 +50,9 @@ function activateExam(examVersion,questionIndex=0){
   const identity={seat:primaryConfig.seat,candidateName:primaryConfig.candidateName,studentId:primaryConfig.studentId};
   persistActiveDraft();config={...exam,...identity,registered:exam.registered??exam.participants??primaryConfig.registered};current=target;loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;for(const key of Object.keys(results))delete results[key];for(const key of Object.keys(scores))delete scores[key];render();restoreSavedCode();updateCountdown();return true;
 }
-function render(){const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#exam-name').textContent=config.title;$('#seat').textContent=config.seat;$('#candidate').textContent=config.candidateName;$('#student-id').textContent=config.studentId;$('#bar-title').textContent=`${q.id} ${q.name}`;$('#problem-title').textContent=`${q.id} ${q.name}`;$('#score').textContent=`分数 ${q.score}`;$('#problem-text').innerHTML=formatStatement(q.statement,q);$('#sample-input').value=sample.input||'';$('#expected').textContent=sample.expected||'';const complete=Object.keys(results).length;$('#answer-count').textContent=`${complete} / ${config.questions.length}`;$('#question-grid').innerHTML=config.questions.map((item,index)=>`<button class="${results[index]||''} ${index===current?'current':''}" data-i="${index}" title="${escape(item.id)} ${escape(item.name)}">${statusGlyph(results[index],escape(item.id))}</button>`).join('');document.querySelectorAll('#question-grid button').forEach(button=>button.onclick=()=>changeQuestion(Number(button.dataset.i)));updateCountdown();}
+function renderOmsClientChrome(routeName=activeRoute){const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');if(student)student.textContent=config.studentId||'—';if(name)name.textContent=config.candidateName||'—';if(seat)seat.textContent=config.seat||'—';const displayUser=portalUser?.username||config.studentId||'未登录',displayName=portalUser?.nickname||portalUser?.username||config.candidateName||'U';if(user)user.textContent=displayUser;if(avatar)avatar.textContent=String(displayName).trim().slice(0,1).toUpperCase()||'U';if(address)address.value=`${location.origin}/#${routeName||'home'}${routeName==='exam'&&question?`-${question.id}`:''}`;}
+function initOmsClientChrome(){const back=$('#oms-client-back'),forward=$('#oms-client-forward'),refresh=$('#oms-client-refresh');if(back)back.onclick=()=>history.back();if(forward)forward.onclick=()=>history.forward();if(refresh)refresh.onclick=()=>location.reload();renderOmsClientChrome();}
+function render(){const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#exam-name').textContent=config.title;$('#seat').textContent=config.seat;$('#candidate').textContent=config.candidateName;$('#student-id').textContent=config.studentId;$('#bar-title').textContent=`${q.id} ${q.name}`;$('#problem-title').textContent=`${q.id} ${q.name}`;$('#score').textContent=`分数 ${q.score}`;$('#problem-text').innerHTML=formatStatement(q.statement,q);$('#sample-input').value=sample.input||'';$('#expected').textContent=sample.expected||'';const complete=Object.keys(results).length;$('#answer-count').textContent=`${complete} / ${config.questions.length}`;$('#question-grid').innerHTML=config.questions.map((item,index)=>`<button class="${results[index]||''} ${index===current?'current':''}" data-i="${index}" title="${escape(item.id)} ${escape(item.name)}">${statusGlyph(results[index],escape(item.id))}</button>`).join('');document.querySelectorAll('#question-grid button').forEach(button=>button.onclick=()=>changeQuestion(Number(button.dataset.i)));renderOmsClientChrome();updateCountdown();}
   function renderPortalSubmissions(filters={},page=0){
    const pageSize=20,query=value=>String(value||'').trim().toLowerCase();
    const filtered=submissions.filter(item=>{
@@ -401,7 +403,10 @@ window.fetch=async(input,options={})=>{
   if(response.status===401){setPortalSession({available:true,authenticated:false});openLogin('exam');}
   return response;
 };
+function showExamReminder(){const dialog=$('#exam-reminder-dialog');if(!dialog)return;dialog.querySelectorAll('[data-reminder-close]').forEach(button=>button.onclick=()=>dialog.close());dialog.addEventListener('cancel',event=>event.preventDefault());if(!dialog.open)dialog.showModal();}
 window.addEventListener('DOMContentLoaded',async()=>{
+  initOmsClientChrome();
+  showExamReminder();
   try{await refreshPortalSession();}catch{portalAuthMessage='账号服务暂不可用，请确认本地服务已启动后重试。';}
   if(routeRevision===1&&activeRoute==='home'&&$('#login-screen').hidden)route('home',true);
 });
@@ -418,7 +423,7 @@ async function route(name,allowGuest=false){
     if(revision!==routeRevision)return;
     if(!portalAuthenticated){openLogin(name);return;}
   }
-  const previousRoute=activeRoute;activeRoute=name;
+  const previousRoute=activeRoute;activeRoute=name;renderOmsClientChrome(name);
   if(previousRoute==='exam'&&name!=='exam')persistActiveDraft();
   const app=$('#pta-app'),isPortalPage=['home','problemset','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
   const activeNavRoute=name==='problemset'?'exam':name==='home-submissions'?'submissions':name==='home-contests'?'center':name;
