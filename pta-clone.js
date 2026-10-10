@@ -139,7 +139,7 @@ function renderFzuOjHome(activePage='home'){
       <header class="fzuoj-topbar"><button type="button" data-fzuoj-sidebar-toggle aria-label="收起侧栏">${portalIcon('panel')}</button></header>
       <main class="fzuoj-content">
         <div class="fzuoj-primary">
-          <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU PTA Online Judge！</h1><p>请点击左侧的导航栏寻找你需要的功能。<br>拼搏百天，我要上福州大学！</p></section>
+          <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU PTA Online Judge！</h1><p>请点击左侧的导航栏寻找你需要的功能。<br>明德至诚，博学远志。<br>选择福大，就是选择奋斗。</p></section>
           <section class="fzuoj-card"><header><h2>近期比赛</h2><button type="button" data-portal-route="home-contests">查看全部 ${portalIcon('arrow')}</button></header><div class="fzuoj-list">${contests||'<p class="fzuoj-empty">暂无比赛</p>'}</div></section>
         </div>
         <aside class="fzuoj-aside">
