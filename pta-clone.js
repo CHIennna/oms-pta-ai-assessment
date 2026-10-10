@@ -51,7 +51,7 @@ function activateExam(examVersion,questionIndex=0){
   persistActiveDraft();config={...exam,...identity,registered:exam.registered??exam.participants??primaryConfig.registered};current=target;loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;for(const key of Object.keys(results))delete results[key];for(const key of Object.keys(scores))delete scores[key];render();restoreSavedCode();updateCountdown();return true;
 }
 function renderOmsClientChrome(routeName=activeRoute){const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');if(student)student.textContent=config.studentId||'—';if(name)name.textContent=config.candidateName||'—';if(seat)seat.textContent=config.seat||'—';const displayUser=portalUser?.username||config.studentId||'未登录',displayName=portalUser?.nickname||portalUser?.username||config.candidateName||'U';if(user)user.textContent=displayUser;if(avatar)avatar.textContent=String(displayName).trim().slice(0,1).toUpperCase()||'U';if(address)address.value=`${location.origin}/#${routeName||'home'}${routeName==='exam'&&question?`-${question.id}`:''}`;}
-function initOmsClientChrome(){const back=$('#oms-client-back'),forward=$('#oms-client-forward'),refresh=$('#oms-client-refresh');if(back)back.onclick=()=>history.back();if(forward)forward.onclick=()=>history.forward();if(refresh)refresh.onclick=()=>location.reload();renderOmsClientChrome();}
+function initOmsClientChrome(){const back=$('#oms-client-back'),forward=$('#oms-client-forward'),refresh=$('#oms-client-refresh');if(back)back.onclick=exitDefaultFullscreen;if(forward)forward.onclick=enterDefaultFullscreen;if(refresh)refresh.onclick=()=>location.reload();renderOmsClientChrome();}
 function render(){const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#exam-name').textContent=config.title;$('#seat').textContent=config.seat;$('#candidate').textContent=config.candidateName;$('#student-id').textContent=config.studentId;$('#bar-title').textContent=`${q.id} ${q.name}`;$('#problem-title').textContent=`${q.id} ${q.name}`;$('#score').textContent=`分数 ${q.score}`;$('#problem-text').innerHTML=formatStatement(q.statement,q);$('#sample-input').value=sample.input||'';$('#expected').textContent=sample.expected||'';const complete=Object.keys(results).length;$('#answer-count').textContent=`${complete} / ${config.questions.length}`;$('#question-grid').innerHTML=config.questions.map((item,index)=>`<button class="${results[index]||''} ${index===current?'current':''}" data-i="${index}" title="${escape(item.id)} ${escape(item.name)}">${statusGlyph(results[index],escape(item.id))}</button>`).join('');document.querySelectorAll('#question-grid button').forEach(button=>button.onclick=()=>changeQuestion(Number(button.dataset.i)));renderOmsClientChrome();updateCountdown();}
   function renderPortalSubmissions(filters={},page=0){
    const pageSize=20,query=value=>String(value||'').trim().toLowerCase();
@@ -128,11 +128,14 @@ function renderFzuOjHome(activePage='home'){
         <button type="button" class="fzuoj-nav-item" data-portal-theme><span>${portalIcon('theme')}</span><b>主题切换</b></button>
         <div class="fzuoj-service"><span></span><b>服务状态</b></div>
         <button type="button" class="fzuoj-nav-item ${activePage==='about'?'active':''}" data-portal-route="about"><span>${portalIcon('info')}</span><b>关于</b></button>
-        <button type="button" class="fzuoj-account" data-profile-open aria-label="打开个人中心"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></button>
+        <div class="fzuoj-account-wrap">
+          ${portalAuthenticated?'<div class="fzuoj-account-menu" data-account-menu role="menu" hidden><button type="button" data-profile-details role="menuitem">个人中心</button><button type="button" data-portal-logout role="menuitem">退出登录</button></div>':''}
+          <button type="button" class="fzuoj-account" data-profile-open aria-label="打开账户菜单" aria-haspopup="menu" aria-expanded="false"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></button>
+        </div>
       </footer>
     </aside>
     <div class="fzuoj-page">
-      <header class="fzuoj-topbar"><button type="button" data-fzuoj-sidebar-toggle aria-label="收起侧栏">${portalIcon('panel')}</button>${portalAuthenticated?'<button type="button" data-portal-logout aria-label="退出登录" style="width:auto;margin-left:auto;padding:0 12px;font-size:14px">退出登录</button>':''}</header>
+      <header class="fzuoj-topbar"><button type="button" data-fzuoj-sidebar-toggle aria-label="收起侧栏">${portalIcon('panel')}</button></header>
       <main class="fzuoj-content">
         <div class="fzuoj-primary">
           <section class="fzuoj-card fzuoj-bulletin"><h1>欢迎来到 FZU PTA Online Judge！</h1><p>请点击左侧的导航栏寻找你需要的功能。<br>拼搏百天，我要上福州大学！</p></section>
@@ -403,7 +406,11 @@ window.fetch=async(input,options={})=>{
   if(response.status===401){setPortalSession({available:true,authenticated:false});openLogin('exam');}
   return response;
 };
-function showExamReminder(){const dialog=$('#exam-reminder-dialog');if(!dialog)return;dialog.querySelectorAll('[data-reminder-close]').forEach(button=>button.onclick=()=>dialog.close());dialog.addEventListener('cancel',event=>event.preventDefault());if(!dialog.open)dialog.showModal();}
+let fullscreenHintTimer=0;
+function showFullscreenHint(){const hint=$('#fullscreen-hint');if(!hint)return;clearTimeout(fullscreenHintTimer);hint.hidden=false;hint.classList.remove('visible');void hint.offsetWidth;hint.classList.add('visible');fullscreenHintTimer=window.setTimeout(()=>{hint.hidden=true;hint.classList.remove('visible');},5000);}
+async function enterDefaultFullscreen(){if(document.fullscreenElement){showFullscreenHint();return;}if(!document.documentElement.requestFullscreen)return;try{await document.documentElement.requestFullscreen();showFullscreenHint();}catch{}}
+async function exitDefaultFullscreen(){if(!document.fullscreenElement||!document.exitFullscreen)return;try{await document.exitFullscreen();const hint=$('#fullscreen-hint');clearTimeout(fullscreenHintTimer);if(hint){hint.hidden=true;hint.classList.remove('visible');}}catch{}}
+function showExamReminder(){const dialog=$('#exam-reminder-dialog');if(!dialog)return;const confirm=()=>dialog.close();dialog.querySelectorAll('[data-reminder-close]').forEach(button=>button.onclick=confirm);dialog.addEventListener('cancel',event=>event.preventDefault());if(!dialog.open)dialog.showModal();}
 window.addEventListener('DOMContentLoaded',async()=>{
   initOmsClientChrome();
   showExamReminder();
@@ -441,7 +448,6 @@ async function route(name,allowGuest=false){
     secondary.querySelectorAll('[data-portal-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.portalExam,0))route('info');});
     secondary.querySelectorAll('[data-portal-question]').forEach(button=>button.onclick=()=>{if(activateExam(primaryExamVersion,Number(button.dataset.portalQuestion)))route('exam');});
     const themeButton=secondary.querySelector('[data-portal-theme]');if(themeButton)themeButton.onclick=()=>{const light=app.classList.toggle('light-mode');try{localStorage.setItem('oms-pta-theme',light?'light':'dark');}catch{}};
-    const logoutButton=secondary.querySelector('[data-portal-logout]');if(logoutButton)logoutButton.onclick=logoutPortal;
     const homeShell=secondary.querySelector('.fzuoj-shell');
     const sidebarToggles=secondary.querySelectorAll('[data-fzuoj-sidebar-toggle]');
     const setSidebarCollapsed=collapsed=>{
@@ -452,7 +458,12 @@ async function route(name,allowGuest=false){
     let sidebarCollapsed=false;try{sidebarCollapsed=localStorage.getItem('oms-fzuoj-sidebar-collapsed')==='1';}catch{}
     setSidebarCollapsed(sidebarCollapsed);
     sidebarToggles.forEach(button=>button.onclick=()=>setSidebarCollapsed(!homeShell.classList.contains('sidebar-collapsed')));
-    const profileButton=secondary.querySelector('[data-profile-open]');if(profileButton){if(!portalAuthenticated){profileButton.setAttribute('aria-label','登录或打开个人中心');profileButton.querySelector('p b').textContent='未登录';profileButton.querySelector('p small').textContent='点击登录';profileButton.querySelector(':scope > span').textContent='U';}else if(portalUser?.avatar){const image=profileButton.querySelector(':scope > span');image.style.backgroundImage=`url("${portalUser.avatar}")`;image.classList.add('has-image');image.textContent='';}profileButton.onclick=()=>{if(!portalAuthenticated){openLogin('profile');return;}document.dispatchEvent(new CustomEvent('oms:open-profile'));};}
+    const profileButton=secondary.querySelector('[data-profile-open]'),accountMenu=secondary.querySelector('[data-account-menu]'),accountWrap=secondary.querySelector('.fzuoj-account-wrap');
+    const setAccountMenu=open=>{if(!accountMenu||!profileButton)return;accountMenu.hidden=!open;profileButton.setAttribute('aria-expanded',String(open));};
+    if(profileButton){if(!portalAuthenticated){profileButton.setAttribute('aria-label','登录或打开个人中心');profileButton.querySelector('p b').textContent='未登录';profileButton.querySelector('p small').textContent='点击登录';profileButton.querySelector(':scope > span').textContent='U';}else if(portalUser?.avatar){const image=profileButton.querySelector(':scope > span');image.style.backgroundImage=`url("${portalUser.avatar}")`;image.classList.add('has-image');image.textContent='';}profileButton.onclick=event=>{event.stopPropagation();if(!portalAuthenticated){openLogin('profile');return;}setAccountMenu(accountMenu.hidden);};}
+    const profileDetails=secondary.querySelector('[data-profile-details]');if(profileDetails)profileDetails.onclick=()=>{setAccountMenu(false);document.dispatchEvent(new CustomEvent('oms:open-profile'));};
+    const logoutButton=secondary.querySelector('[data-portal-logout]');if(logoutButton)logoutButton.onclick=()=>{setAccountMenu(false);logoutPortal();};
+    if(homeShell&&accountWrap)homeShell.addEventListener('click',event=>{if(!accountWrap.contains(event.target))setAccountMenu(false);});
     if(name==='home'){finishAppBoot();return;}
     if(name==='about')paintPortalPage('<section class="fzuoj-card fzuoj-bulletin"><h1>关于 FZU PTA Online Judge</h1><p>福州大学程序设计练习与考试平台。</p></section>');
   }
