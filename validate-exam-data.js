@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const zlib = require('zlib');
 
 const LEGACY_UNJUDGEABLE = new Set([
   '2024-transfer-major-exam:20',
@@ -14,7 +15,23 @@ const LEGACY_UNJUDGEABLE = new Set([
   '2026-xiamen-shenzhuo-cup-guiding-final-exam:1046'
 ]);
 
-function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js'), supplementalPaths = []) {
+function attachPrivateTestData(exams, testDataPaths) {
+  for (const sourcePath of testDataPaths) {
+    const source = fs.readFileSync(sourcePath);
+    const text = sourcePath.endsWith('.gz') ? zlib.gunzipSync(source).toString('utf8') : source.toString('utf8');
+    const payload = JSON.parse(text);
+    const exam = exams.find(item => item.examVersion === payload.examVersion);
+    if (!exam) throw new Error(`测试库对应的试卷不存在：${payload.examVersion || path.basename(sourcePath)}`);
+    const questions = new Map((exam.questions || []).map(question => [String(question.id), question]));
+    for (const [id, testCases] of Object.entries(payload.questions || {})) {
+      const question = questions.get(String(id));
+      if (!question) throw new Error(`测试库题号与试卷不匹配：${payload.examVersion}:${id}`);
+      question.testCases = testCases;
+    }
+  }
+}
+
+function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js'), supplementalPaths = [], testDataPaths = []) {
   const context = { window: {} };
   vm.createContext(context);
   for (const sourcePath of [filePath, ...supplementalPaths]) {
@@ -29,6 +46,7 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
   }
 
   const exams = [current, ...archives];
+  attachPrivateTestData(exams, testDataPaths);
   const errors = [];
   const warnings = [];
   const examVersions = new Set();
@@ -129,8 +147,12 @@ if (require.main === module) {
     const primaryPath = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, 'exam-data.js');
     const supplementalPaths = process.argv.length > 3
       ? process.argv.slice(3).map(value => path.resolve(value))
-      : (process.argv[2] ? [] : [path.join(__dirname, 'zixun-contest-data.js')].filter(fs.existsSync));
-    const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
+      : (process.argv[2] ? [] : [
+          path.join(__dirname, 'zixun-contest-data.js'),
+          path.join(__dirname, 'weekly-practice-2.js')
+        ].filter(fs.existsSync));
+    const testDataPaths = process.argv[2] ? [] : [path.join(__dirname, 'weekly-practice-2-tests.json.gz')].filter(fs.existsSync);
+    const { report } = loadAndValidateExamData(primaryPath, supplementalPaths, testDataPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
     for (const warning of report.warnings) console.warn(`提醒：${warning}`);
   } catch (error) {

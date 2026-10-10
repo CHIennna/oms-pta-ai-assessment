@@ -696,7 +696,7 @@ class LocalJudge {
     if (!toolchain) return unavailableResult(`自建评测机暂不支持 ${language || '该语言'}。`, tests, this.limits);
     if (!source.trim()) return { ...unavailableResult('请先编写代码。', tests, this.limits), verdict: 'CompilationError' };
     if (!tests.length || tests.length > 20) return { ...unavailableResult('该题尚未配置有效测试点。', tests, this.limits), verdict: 'NotConfigured' };
-    if (source.length > 65536 || tests.some(test => test.input.length > 2100000 || test.expected.length > 10500000)) {
+    if (source.length > 65536 || tests.some(test => test.input.length > 10500000 || test.expected.length > 10500000)) {
       return { ...unavailableResult('代码或测试点超过评测机限制。', tests, this.limits), verdict: 'CompilationError' };
     }
 
@@ -730,7 +730,7 @@ class LocalJudge {
         runSpec.command = resolveCommand(runSpec.command);
         const execution = await runProcess(runSpec, {
           cwd: workDir, input: test.input, timeoutMs: this.limits.runTimeoutMs,
-          outputLimitBytes: Math.max(this.limits.outputLimitBytes, Math.min(10500000, Buffer.byteLength(test.expected, 'utf8') + 65536)), usePrlimit: this.usePrlimit,
+          outputLimitBytes: Math.max(this.limits.outputLimitBytes, Math.min(10500000, Buffer.byteLength(test.expected, 'utf8') + (test.expected.match(/\n/g) || []).length + 65536)), usePrlimit: this.usePrlimit,
           limits: { cpuSeconds: Math.ceil(this.limits.runTimeoutMs / 1000) + 1, addressBytes: this.limits.memoryLimitKb * 1024, fileBytes: 1024 * 1024, processes: 32, openFiles: 64 }
         });
         let verdict = 'Accepted', hint = '无提示', detail = '';

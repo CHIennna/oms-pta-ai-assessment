@@ -10,11 +10,15 @@ const root = __dirname;
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
 const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
-const { exams, report: examValidation } = loadAndValidateExamData(path.join(root, 'exam-data.js'), [path.join(root, 'zixun-contest-data.js')]);
+const { exams, report: examValidation } = loadAndValidateExamData(
+  path.join(root, 'exam-data.js'),
+  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js')],
+  [path.join(root, 'weekly-practice-2-tests.json.gz')]
+);
 const { testBank, testBankByExam, testAliases } = loadTestBank(exams);
 const publicFiles = new Map([
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
-  ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/zixun-contest-data.js', 'zixun-contest-data.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-score.js', 'judge-score.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
+  ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/zixun-contest-data.js', 'zixun-contest-data.js'], ['/weekly-practice-2.js', 'weekly-practice-2.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-score.js', 'judge-score.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
 ]);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const rateBuckets = new Map();
