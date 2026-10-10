@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="pta-icons.css" />
   <link rel="stylesheet" href="pta-theme.css" />
   <link rel="stylesheet" href="judge-machine.css" />
-  <link rel="stylesheet" href="pta-geometry.css" />
+  <link rel="stylesheet" href="pta-geometry.css?v=20261010-zoom" />
   <style>
     .pta-app.app-booting > :not(.app-boot-screen) { visibility: hidden; }
     .app-boot-screen { position: fixed; inset: var(--oms-client-chrome-height, 88px) 0 0; z-index: 10000; display: grid; place-content: center; gap: 14px; background: #202832; color: #f4f7fb; text-align: center; }
@@ -33,7 +33,7 @@
       <button id="oms-client-back" type="button" title="退出全屏" aria-label="退出全屏"><span>◀</span> Back</button><span class="oms-client-tool-separator"></span>
       <button id="oms-client-forward" type="button" title="进入全屏" aria-label="进入全屏"><span>▷</span> Forward</button><span class="oms-client-tool-separator"></span>
       <button id="oms-client-refresh" type="button" title="刷新"><span>↻</span> 刷新</button><span class="oms-client-tool-separator"></span>
-      <span class="oms-client-tool-static"><b>⊙</b> 放大</span><span class="oms-client-tool-separator"></span><span class="oms-client-tool-static"><b>⊙</b> 缩小</span>
+      <button id="oms-client-zoom-in" type="button" title="放大页面" aria-label="放大页面"><span>⊙</span> 放大</button><span class="oms-client-tool-separator"></span><button id="oms-client-zoom-out" type="button" title="缩小页面" aria-label="缩小页面"><span>⊙</span> 缩小</button>
       <input id="oms-client-address" class="oms-client-address" aria-label="当前页面地址" readonly />
     </div>
     <div class="oms-client-sessionbar"><strong class="oms-client-session-field"><small>学号</small><span id="oms-client-student-session">—</span></strong><strong class="oms-client-session-field"><small>姓名</small><span id="oms-client-name-session">—</span></strong><strong class="oms-client-session-field"><small>上机号</small><span id="oms-client-seat-session">—</span></strong><strong class="oms-client-session-field oms-client-session-countdown remain" hidden><small id="countdown-label">距开始</small><span id="countdown">00:00:00</span></strong></div>
@@ -43,7 +43,7 @@
     <div id="app-boot-screen" class="app-boot-screen" role="status" aria-live="polite"><strong>正在进入平台</strong><span>正在加载题库与考试信息…</span></div>
     <header class="topbar">
       <div class="brand"><button id="home-button" class="round" title="返回主页面" aria-label="返回主页面"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6 6-6"/></svg></button><strong id="exam-name">正在加载…</strong></div>
-      <div class="machine-info"><span><i></i>上机号 <b id="seat">PC-08</b></span><span>姓名 <b id="candidate">admin</b></span><span>学号 <b id="student-id">102505201</b></span></div>
+      <div hidden aria-hidden="true"><b id="seat">PC-08</b><b id="candidate">admin</b><b id="student-id">102505201</b></div>
       <div class="account"><button class="round" title="公告" aria-label="公告"><svg class="icon" viewBox="0 0 24 24"><path d="M5 5h14v14H5zM8 9h8M8 13h5"/></svg></button><button class="round" title="设置" aria-label="设置"><svg class="icon" viewBox="0 0 24 24"><path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2Z"/><path d="m19.4 15 .1 1.8-2 1.2-1.4-1a7.7 7.7 0 0 1-1.6.9l-.4 1.7h-4l-.4-1.7a7.7 7.7 0 0 1-1.6-.9l-1.4 1-2-1.2.1-1.8a7.7 7.7 0 0 1 0-1.9l-1.6-.9v-2.4l1.6-.9a7.7 7.7 0 0 1 0-1.9L4.7 6l2-1.2 1.4 1a7.7 7.7 0 0 1 1.6-.9l.4-1.7h4l.4 1.7a7.7 7.7 0 0 1 1.6.9l1.4-1 2 1.2-.1 1.8a7.7 7.7 0 0 1 0 1.9l1.6.9v2.4l-1.6.9a7.7 7.7 0 0 1 0 1.9Z"/></svg></button><button id="open-admin" class="admin-button">考试管理</button><span class="avatar">CY</span><b>ciena</b></div>
     </header>
     <nav class="rail" aria-label="考试导航">
@@ -95,7 +95,7 @@
   <script src="exam-data.js"></script>
   <script src="zixun-contest-data.js"></script>
 <script src="weekly-practice-2.js?v=20261011-2"></script>
-  <script src="pta-clone.js"></script>
+  <script src="pta-clone.js?v=20261010-zoom"></script>
   <script src="pta-clone-interactions.js"></script>
   <script type="module" src="codemirror-editor.js"></script>
   <script src="judge-score.js"></script>
