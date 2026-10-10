@@ -8,6 +8,7 @@ coverage
 logs
 *.log
 *.zip
+!weekly-practice-2-tests.zip
 *.rar
 *.7z
 *.png
