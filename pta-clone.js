@@ -128,10 +128,7 @@ function renderFzuOjHome(activePage='home'){
         <button type="button" class="fzuoj-nav-item" data-portal-theme><span>${portalIcon('theme')}</span><b>主题切换</b></button>
         <div class="fzuoj-service"><span></span><b>服务状态</b></div>
         <button type="button" class="fzuoj-nav-item ${activePage==='about'?'active':''}" data-portal-route="about"><span>${portalIcon('info')}</span><b>关于</b></button>
-        <div class="fzuoj-account-wrap">
-          ${portalAuthenticated?'<div class="fzuoj-account-menu" data-account-menu role="menu" hidden><button type="button" data-profile-details role="menuitem">个人中心</button><button type="button" data-portal-logout role="menuitem">退出登录</button></div>':''}
-          <button type="button" class="fzuoj-account" data-profile-open aria-label="打开账户菜单" aria-haspopup="menu" aria-expanded="false"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></button>
-        </div>
+        <button type="button" class="fzuoj-account" data-profile-open aria-label="打开个人中心"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></button>
       </footer>
     </aside>
     <div class="fzuoj-page">
@@ -458,12 +455,8 @@ async function route(name,allowGuest=false){
     let sidebarCollapsed=false;try{sidebarCollapsed=localStorage.getItem('oms-fzuoj-sidebar-collapsed')==='1';}catch{}
     setSidebarCollapsed(sidebarCollapsed);
     sidebarToggles.forEach(button=>button.onclick=()=>setSidebarCollapsed(!homeShell.classList.contains('sidebar-collapsed')));
-    const profileButton=secondary.querySelector('[data-profile-open]'),accountMenu=secondary.querySelector('[data-account-menu]'),accountWrap=secondary.querySelector('.fzuoj-account-wrap');
-    const setAccountMenu=open=>{if(!accountMenu||!profileButton)return;accountMenu.hidden=!open;profileButton.setAttribute('aria-expanded',String(open));};
-    if(profileButton){if(!portalAuthenticated){profileButton.setAttribute('aria-label','登录或打开个人中心');profileButton.querySelector('p b').textContent='未登录';profileButton.querySelector('p small').textContent='点击登录';profileButton.querySelector(':scope > span').textContent='U';}else if(portalUser?.avatar){const image=profileButton.querySelector(':scope > span');image.style.backgroundImage=`url("${portalUser.avatar}")`;image.classList.add('has-image');image.textContent='';}profileButton.onclick=event=>{event.stopPropagation();if(!portalAuthenticated){openLogin('profile');return;}setAccountMenu(accountMenu.hidden);};}
-    const profileDetails=secondary.querySelector('[data-profile-details]');if(profileDetails)profileDetails.onclick=()=>{setAccountMenu(false);document.dispatchEvent(new CustomEvent('oms:open-profile'));};
-    const logoutButton=secondary.querySelector('[data-portal-logout]');if(logoutButton)logoutButton.onclick=()=>{setAccountMenu(false);logoutPortal();};
-    if(homeShell&&accountWrap)homeShell.addEventListener('click',event=>{if(!accountWrap.contains(event.target))setAccountMenu(false);});
+    const profileButton=secondary.querySelector('[data-profile-open]');
+    if(profileButton){if(!portalAuthenticated){profileButton.setAttribute('aria-label','登录或打开个人中心');profileButton.querySelector('p b').textContent='未登录';profileButton.querySelector('p small').textContent='点击登录';profileButton.querySelector(':scope > span').textContent='U';}else if(portalUser?.avatar){const image=profileButton.querySelector(':scope > span');image.style.backgroundImage=`url("${portalUser.avatar}")`;image.classList.add('has-image');image.textContent='';}profileButton.onclick=()=>{if(!portalAuthenticated){openLogin('profile');return;}document.dispatchEvent(new CustomEvent('oms:open-profile'));};}
     if(name==='home'){finishAppBoot();return;}
     if(name==='about')paintPortalPage('<section class="fzuoj-card fzuoj-bulletin"><h1>关于 FZU PTA Online Judge</h1><p>福州大学程序设计练习与考试平台。</p></section>');
   }

@@ -32,6 +32,7 @@
   const profilePreview = document.querySelector('#profile-avatar-preview');
   const profileNote = document.querySelector('#profile-note');
   const profilePasswordState = document.querySelector('#profile-password-state');
+  const profileLogout = document.querySelector('#profile-logout');
   const accountName = account.querySelector(':scope > b');
   const defaults = { userId: '', username: '', nickname: '', avatar: '', email: '', phone: '' };
   let profile = { ...defaults, ...(window.omsAuth.user || {}) };
@@ -89,8 +90,7 @@
   const theme = document.createElement('button'); theme.type = 'button'; theme.className = 'account-menu-item';
   const setTheme = light => { app.classList.toggle('light-mode', light); profileDialog.classList.toggle('light-mode', light); theme.textContent = light ? '切换深色模式' : '切换浅色模式'; localStorage.setItem('oms-pta-theme', light ? 'light' : 'dark'); };
   setTheme(localStorage.getItem('oms-pta-theme') === 'light'); theme.addEventListener('click', () => setTheme(!app.classList.contains('light-mode')));
-  const logout = document.createElement('button'); logout.type = 'button'; logout.className = 'account-menu-item'; logout.textContent = '退出登录'; logout.addEventListener('click', () => { closeAccountMenu(); window.omsAuth.logout(); });
-  menu.append(admin, preferences, theme, logout);
+  menu.append(admin, preferences, theme);
   account.prepend(menu);
   const avatar = account.querySelector('.avatar');
   avatar.setAttribute('role', 'button'); avatar.tabIndex = 0; avatar.setAttribute('aria-expanded', 'false');
@@ -100,6 +100,7 @@
   document.addEventListener('click', event => { if (!account.contains(event.target)) { account.classList.remove('menu-open'); avatar.setAttribute('aria-expanded', 'false'); } });
   profileDialog.querySelector('.close').addEventListener('click', () => profileDialog.close());
   profileDialog.querySelector('.cancel').addEventListener('click', () => profileDialog.close());
+  profileLogout.addEventListener('click', () => { profileDialog.close(); closeAccountMenu(); window.omsAuth.logout(); });
   profileForm.elements.avatar.addEventListener('change', event => {
     const file = event.target.files[0];
     if (!file) return;
