@@ -106,7 +106,25 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
       }
 
       if (!Array.isArray(question.testCases) || !question.testCases.length) {
-        errors.push(`${questionLabel} 没有正式测试点`);
+        const archive = question.testArchive;
+        const count = Number(archive?.count);
+        const score = Number(archive?.score);
+        if (!archive || typeof archive.file !== 'string' || !archive.file.trim() || typeof archive.prefix !== 'string' || !archive.prefix.trim()
+          || !Number.isInteger(count) || count < 1 || count > 20 || !Number.isFinite(score) || score < 0) {
+          errors.push(`${questionLabel} 没有正式测试点`);
+          continue;
+        }
+        const archivePath = path.resolve(path.dirname(filePath), archive.file);
+        const archiveRoot = `${path.resolve(path.dirname(filePath))}${path.sep}`;
+        if (!archivePath.startsWith(archiveRoot) || !fs.existsSync(archivePath)) {
+          errors.push(`${questionLabel} 的测试库文件不存在或路径无效`);
+          continue;
+        }
+        judgeableProblems += 1;
+        testCases += count;
+        if (Number.isFinite(Number(question.score)) && count * score !== Number(question.score)) {
+          errors.push(`${questionLabel} 测试点总分 ${count * score} 与题目分值 ${question.score} 不一致`);
+        }
         continue;
       }
 
@@ -151,8 +169,7 @@ if (require.main === module) {
           path.join(__dirname, 'zixun-contest-data.js'),
           path.join(__dirname, 'weekly-practice-2.js')
         ].filter(fs.existsSync));
-    const testDataPaths = process.argv[2] ? [] : [path.join(__dirname, 'weekly-practice-2-tests.json.gz')].filter(fs.existsSync);
-    const { report } = loadAndValidateExamData(primaryPath, supplementalPaths, testDataPaths);
+    const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
     for (const warning of report.warnings) console.warn(`提醒：${warning}`);
   } catch (error) {
