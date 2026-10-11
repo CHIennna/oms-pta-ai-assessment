@@ -318,7 +318,7 @@ function createAuth(options = {}) {
       return true;
     }
   }
-  return { handle, authorize, get available() { return available; } };
+  return { handle, authorize, get available() { return available; }, get dataDir() { return dataDir; } };
 }
 
 module.exports = { createAuth };

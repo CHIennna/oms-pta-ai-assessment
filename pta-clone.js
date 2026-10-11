@@ -3,7 +3,7 @@ const toLocalDateTime = date => new Date(date.getTime()-date.getTimezoneOffset()
 const defaultExam=window.OMS_EXAM_DATA||{examVersion:'fallback-exam',title:'程序设计考试',duration:120,questions:[{id:'1001',name:'示例题目',score:20,tests:3}]};
 const defaultStart = defaultExam.startAt?new Date(defaultExam.startAt):new Date(),defaultEnd=defaultExam.endAt?new Date(defaultExam.endAt):new Date(defaultStart.getTime()+(Number(defaultExam.duration)||120)*60*1000);
 const fallback={...defaultExam,startAt:defaultExam.startAt||toLocalDateTime(defaultStart),endAt:defaultExam.endAt||toLocalDateTime(defaultEnd),seat:'PC-08',candidateName:'admin',studentId:'102500000',registered:48};
-let config,saved={};try{saved=JSON.parse(localStorage.getItem(STORAGE)||'{}');config=saved.examVersion===fallback.examVersion?{...fallback,...saved}:{...fallback,seat:saved.seat||fallback.seat,candidateName:saved.candidateName||fallback.candidateName,studentId:saved.studentId||fallback.studentId,registered:saved.registered||fallback.registered};}catch{config={...fallback};}if(defaultExam.scheduleVersion&&saved.scheduleVersion!==defaultExam.scheduleVersion){config.startAt=fallback.startAt;config.endAt=fallback.endAt;config.duration=defaultExam.duration;config.scheduleVersion=defaultExam.scheduleVersion;localStorage.setItem(STORAGE,JSON.stringify(config));}if(config.candidateName==='陈小雅')config.candidateName=fallback.candidateName;if(config.studentId==='202401050128')config.studentId=fallback.studentId;if(!config.startAt)config.startAt=fallback.startAt;if(!config.endAt)config.endAt=fallback.endAt;if(!Array.isArray(config.questions)||!config.questions.length)config.questions=fallback.questions;const primaryExamVersion=fallback.examVersion;let primaryConfig=config;let current=0,examExpired=false,activeRoute='info',submissionPending=false;const results={},scores={};const submissions=[];const code=document.querySelector('#code');
+let config,saved={};try{saved=JSON.parse(localStorage.getItem(STORAGE)||'{}');config=saved.examVersion===fallback.examVersion?{...fallback,...saved}:{...fallback,seat:saved.seat||fallback.seat,candidateName:saved.candidateName||fallback.candidateName,studentId:saved.studentId||fallback.studentId,registered:saved.registered||fallback.registered};}catch{config={...fallback};}if(defaultExam.scheduleVersion&&saved.scheduleVersion!==defaultExam.scheduleVersion){config.startAt=fallback.startAt;config.endAt=fallback.endAt;config.duration=defaultExam.duration;config.scheduleVersion=defaultExam.scheduleVersion;localStorage.setItem(STORAGE,JSON.stringify(config));}if(config.candidateName==='陈小雅')config.candidateName=fallback.candidateName;if(config.studentId==='202401050128')config.studentId=fallback.studentId;if(!config.startAt)config.startAt=fallback.startAt;if(!config.endAt)config.endAt=fallback.endAt;if(!Array.isArray(config.questions)||!config.questions.length)config.questions=fallback.questions;const primaryExamVersion=fallback.examVersion;let primaryConfig=config;let current=0,examExpired=false,activeRoute='info',submissionPending=false;const results={},scores={};const submissions=[],progressByExam=new Map();let progressOwner='';const code=document.querySelector('#code');
 config.title=fallback.title;
 if(config.studentId==='102505201')config.studentId=fallback.studentId;
 if(window.OMS_NUMBER_EXAM){config=window.OMS_NUMBER_EXAM(config,[config,...(window.OMS_EXAM_ARCHIVE||[])]);primaryConfig=config;}
@@ -49,7 +49,7 @@ function activateExam(examVersion,questionIndex=0){
   const target=Math.max(0,Math.min(Number(questionIndex)||0,exam.questions.length-1));
   if(config.examVersion===exam.examVersion){changeQuestion(target);return current===target;}
   const identity={seat:primaryConfig.seat,candidateName:primaryConfig.candidateName,studentId:primaryConfig.studentId};
-  persistActiveDraft();config={...exam,...identity,registered:exam.registered??exam.participants??primaryConfig.registered};current=target;loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;for(const key of Object.keys(results))delete results[key];for(const key of Object.keys(scores))delete scores[key];render();restoreSavedCode();updateCountdown();return true;
+  persistActiveDraft();config={...exam,...identity,registered:exam.registered??exam.participants??primaryConfig.registered};current=target;loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;applyPersistedProgress(config.examVersion);restoreSavedCode();updateCountdown();return true;
 }
 function renderOmsClientChrome(routeName=activeRoute){const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');if(student)student.textContent=config.studentId||'—';if(name)name.textContent=config.candidateName||'—';if(seat)seat.textContent=config.seat||'—';const displayUser=portalUser?.username||config.studentId||'未登录',displayName=portalUser?.nickname||portalUser?.username||config.candidateName||'U';if(user)user.textContent=displayUser;if(avatar)avatar.textContent=String(displayName).trim().slice(0,1).toUpperCase()||'U';if(address)address.value=`${location.origin}/#${routeName||'home'}${routeName==='exam'&&question?`-${question.id}`:''}`;}
 const OMS_CONTENT_ZOOM_KEY='oms-pta-content-zoom',OMS_CONTENT_ZOOM_MIN=.8,OMS_CONTENT_ZOOM_MAX=1.5,OMS_CONTENT_ZOOM_STEP=.1;
@@ -324,6 +324,40 @@ function renderStudyAdvice(){
   const fontOptions=[['small','小'],['medium','中'],['large','大']].map(([value,label])=>`<button type="button" class="${experienceFontSize===value?'active':''}" data-experience-font="${value}" aria-pressed="${experienceFontSize===value}">${label}</button>`).join('');
   return `<div class="study-advice-head"><h1>备考</h1></div><div class="study-advice-tabs" role="tablist"><button type="button" class="active" data-study-tab="experience" role="tab" aria-selected="true">经验贴</button><button type="button" data-study-tab="mistakes" role="tab" aria-selected="false">错题集</button><button type="button" data-study-tab="key" role="tab" aria-selected="false">关键题目</button><button type="button" data-study-tab="knowledge" role="tab" aria-selected="false">知识讲解</button></div><section class="study-advice-panel active" data-study-panel="experience"><header><h2>经验贴</h2><div class="experience-header-tools"><div class="experience-font-controls" role="group" aria-label="经验贴字号"><span>字号</span>${fontOptions}</div></div></header>${renderExperienceReader()}</section><section class="study-advice-panel" data-study-panel="mistakes" hidden><header><h2>错题集</h2></header>${renderAdviceQuestionRows(wrongQuestions,'暂无错题记录')}</section><section class="study-advice-panel" data-study-panel="key" hidden><header><h2>关键题目</h2></header><div class="study-advice-empty"><b>暂无</b></div></section><section class="study-advice-panel" data-study-panel="knowledge" hidden><header><h2>知识讲解</h2></header><div class="study-advice-empty"><b>暂无</b></div></section>`;
 }
+function storedVerdictLabel(item){
+  if(item.status==='partial')return '部分正确';
+  return {Accepted:'答案正确',WrongAnswer:'答案错误',CompilationError:'编译错误',RuntimeError:'运行时错误',TimeLimitExceeded:'运行超时'}[item.verdict]||'答案错误';
+}
+function applyPersistedProgress(examVersion=config.examVersion){
+  for(const key of Object.keys(results))delete results[key];
+  for(const key of Object.keys(scores))delete scores[key];
+  submissions.length=0;
+  const progress=progressByExam.get(examVersion);
+  if(progress){
+    config.questions.forEach((question,index)=>{
+      const score=Number(progress.scores?.[question.id]);
+      if(Number.isFinite(score))scores[index]=score;
+      if(progress.statuses?.[question.id])results[index]=progress.statuses[question.id];
+    });
+    submissions.push(...(Array.isArray(progress.submissions)?progress.submissions:[]).map(item=>({
+      ...item, verdict:storedVerdictLabel(item), candidateId:portalUser?.username||config.studentId,
+      candidate:portalUser?.nickname||config.candidateName, contestId:item.examVersion, contestTitle:config.title,
+      time:item.createdAt?formatExamTime(item.createdAt):'—'
+    })));
+  }
+  render();
+}
+async function refreshPersistedProgress(force=false){
+  if(!portalAuthenticated||!portalUser)return;
+  const owner=portalUser.id;
+  if(!force&&progressOwner===owner)return;
+  const data=await portalRequest('/api/progress');
+  if(!portalAuthenticated||portalUser?.id!==owner)return;
+  progressByExam.clear();
+  for(const [examVersion,progress] of Object.entries(data.exams||{}))progressByExam.set(examVersion,progress);
+  progressOwner=owner;
+  applyPersistedProgress(config.examVersion);
+}
 function setPortalSession(data){
   portalSessionRevision++;
   const next=data.authenticated?data.user:null,changed=portalUser?.id!==next?.id,profileChanged=JSON.stringify(portalUser)!==JSON.stringify(next);
@@ -333,6 +367,7 @@ function setPortalSession(data){
   config.candidateName=primaryConfig.candidateName=next?(next.nickname||next.username):fallback.candidateName;
   config.studentId=primaryConfig.studentId=next?next.username:fallback.studentId;
   if(changed){
+    progressByExam.clear();progressOwner='';
     for(const key of Object.keys(results))delete results[key];for(const key of Object.keys(scores))delete scores[key];submissions.length=0;
     loadCodeStores(config.examVersion);restoreSavedCode();$('#submit-state').textContent='本站草稿已加载';
   }
@@ -348,7 +383,7 @@ async function portalRequest(endpoint,payload){
   }catch(failure){if(failure.name==='AbortError')throw Error('账号服务响应超时，请稍后重试。');throw failure;}
   finally{clearTimeout(timer);}
 }
-async function refreshPortalSession(){const revision=portalSessionRevision,data=await portalRequest('/api/auth/session');if(revision===portalSessionRevision)setPortalSession(data);return portalAuthenticated;}
+async function refreshPortalSession(){const revision=portalSessionRevision,data=await portalRequest('/api/auth/session');if(revision===portalSessionRevision){setPortalSession(data);if(portalAuthenticated)try{await refreshPersistedProgress();}catch{progressOwner='';}}return portalAuthenticated;}
 async function requirePortalSession(target='profile'){
   try{if(await refreshPortalSession())return true;}
   catch{portalAuthMessage='账号服务暂不可用，请确认本地服务已启动后重试。';}

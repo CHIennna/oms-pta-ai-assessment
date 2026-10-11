@@ -357,10 +357,20 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   assert.equal(await evaluate('document.querySelector("#profile-form").elements.username.readOnly'), true);
   await evaluate('document.querySelector("#profile-form").elements.nickname.value="Updated UI Learner"; document.querySelector("#profile-form").requestSubmit()');
   await until('window.omsAuth.user.nickname === "Updated UI Learner" && !document.querySelector("#profile-dialog").open');
-  await until('Boolean(document.querySelector("[data-portal-logout]"))');
+  phase = 'persist a submission';
+  const persisted = await evaluate(`(async () => {
+    const question=config.questions.find(item => item.judgeable !== false);
+    const response=await fetch('/api/judge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:'',language:'C++ (g++)',problemId:question.id,examVersion:config.examVersion,mode:'submit'})});
+    const result=await response.json();
+    const progress=await (await fetch('/api/progress')).json();
+    return {saved:result.progressSaved,count:progress.exams[config.examVersion]?.submissions?.length||0};
+  })()`);
+  assert.deepEqual(persisted, { saved: true, count: 1 });
   phase = 'logout';
-  await evaluate('document.querySelector("[data-portal-logout]").click()');
-  await until('!window.omsAuth.user && !document.querySelector("[data-portal-logout]")');
+  await evaluate('document.querySelector("[data-profile-open]").click()');
+  await until('document.querySelector("#profile-dialog").open');
+  await evaluate('document.querySelector("#profile-logout").click()');
+  await until('!window.omsAuth.user && !document.querySelector("#profile-dialog").open');
   assert.equal(await evaluate('DRAFT_CODE_STORAGE.includes("-guest-")'), true);
   assert.notEqual(await evaluate('codeForQuestion(activeQuestionId)'), 'first-account-private-draft');
   await evaluate('document.querySelector("[data-profile-open]").click()');
@@ -376,8 +386,10 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   assert.equal(await evaluate('codeForQuestion(activeQuestionId)'), 'first-account-private-draft');
   phase = 'restore session on refresh';
   await command('Page.reload', {}, sessionId);
-  await until('Boolean(window.omsAuth && window.omsAuth.user && document.querySelector("[data-portal-logout]"))');
+  await until('Boolean(window.omsAuth && window.omsAuth.user && progressByExam.get(config.examVersion)?.submissions?.length === 1)');
   assert.equal(await evaluate('window.omsAuth.user.nickname'), 'Updated UI Learner');
-  await evaluate('document.querySelector("[data-portal-logout]").click()');
-  await until('!window.omsAuth.user && !document.querySelector("[data-portal-logout]")');
+  await evaluate('document.querySelector("[data-profile-open]").click()');
+  await until('document.querySelector("#profile-dialog").open');
+  await evaluate('document.querySelector("#profile-logout").click()');
+  await until('!window.omsAuth.user && !document.querySelector("#profile-dialog").open');
 });

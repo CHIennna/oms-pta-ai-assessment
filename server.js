@@ -1,11 +1,13 @@
 const http = require('http');
 const fsSync = require('fs');
+const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
 const { LocalJudge } = require('./local-judge');
 const { loadAndValidateExamData } = require('./validate-exam-data');
 const { createAuth } = require('./auth');
+const { calculate: calculateScore } = require('./judge-score');
 
 const root = __dirname;
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
@@ -15,7 +17,7 @@ const { exams, report: examValidation } = loadAndValidateExamData(
   path.join(root, 'exam-data.js'),
   [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js')]
 );
-const { testBank, testBankByExam, testAliases } = loadTestBank(exams);
+const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(exams);
 const publicFiles = new Map([
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/zixun-contest-data.js', 'zixun-contest-data.js'], ['/weekly-practice-2.js', 'weekly-practice-2.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-score.js', 'judge-score.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
@@ -23,8 +25,96 @@ const publicFiles = new Map([
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const rateBuckets = new Map();
 const auth = createAuth();
+const progressFile = path.join(auth.dataDir, 'progress.json');
+let progressStore = { version: 1, users: {} };
+let progressStoreAvailable = false;
 const zipArchives = new Map();
 const archivedTestCases = new Map();
+
+function loadProgressStore() {
+  if (!auth.available) return;
+  try {
+    fsSync.mkdirSync(auth.dataDir, { recursive: true, mode: 0o700 });
+    if (fsSync.existsSync(progressFile)) {
+      if (fsSync.statSync(progressFile).size > 50 * 1024 * 1024) throw new Error('Progress store too large');
+      const parsed = JSON.parse(fsSync.readFileSync(progressFile, 'utf8'));
+      if (parsed?.version !== 1 || !parsed.users || Array.isArray(parsed.users) || typeof parsed.users !== 'object') throw new Error('Invalid progress store');
+      progressStore = parsed;
+    }
+    progressStoreAvailable = true;
+  } catch {
+    progressStoreAvailable = false;
+  }
+}
+
+function saveProgressStore(next) {
+  if (!progressStoreAvailable) throw new Error('Progress store unavailable');
+  const temporary = `${progressFile}.${crypto.randomBytes(8).toString('hex')}.tmp`;
+  let descriptor;
+  try {
+    descriptor = fsSync.openSync(temporary, 'wx', 0o600);
+    fsSync.writeFileSync(descriptor, JSON.stringify(next), 'utf8');
+    fsSync.fsyncSync(descriptor);
+    fsSync.closeSync(descriptor); descriptor = undefined;
+    fsSync.renameSync(temporary, progressFile);
+    progressStore = next;
+    if (process.platform !== 'win32') {
+      let directory;
+      try { directory = fsSync.openSync(auth.dataDir, 'r'); fsSync.fsyncSync(directory); }
+      finally { if (directory !== undefined) fsSync.closeSync(directory); }
+    }
+  } finally {
+    if (descriptor !== undefined) fsSync.closeSync(descriptor);
+    if (fsSync.existsSync(temporary)) fsSync.unlinkSync(temporary);
+  }
+}
+
+function progressFor(userId) {
+  const exams = progressStore.users[userId]?.exams;
+  return { available: progressStoreAvailable, exams: exams && typeof exams === 'object' ? exams : {} };
+}
+
+function recordSubmission(current, payload, result, question) {
+  if (!progressStoreAvailable || !question) return { progressSaved: false };
+  const scoring = calculateScore(result, question);
+  const userId = current.user.id;
+  const examVersion = String(payload.examVersion);
+  const problemId = String(payload.problemId);
+  const previousUser = progressStore.users[userId] || { exams: {} };
+  const previousExam = previousUser.exams?.[examVersion] || { scores: {}, statuses: {}, submissions: [] };
+  const previousScore = Math.max(0, Number(previousExam.scores?.[problemId]) || 0);
+  const bestScore = Math.max(previousScore, scoring.score);
+  const bestStatus = scoring.maxScore > 0 && bestScore >= scoring.maxScore ? 'accepted' : bestScore > 0 ? 'partial' : 'wrong';
+  const submission = {
+    id: crypto.randomUUID(), examVersion, problemId,
+    language: String(payload.language || '').slice(0, 40), verdict: String(result.verdict || ''),
+    status: scoring.status, score: scoring.score, maxScore: scoring.maxScore,
+    passedTests: Number(result.passedTests) || 0, totalTests: Number(result.totalTests) || 0,
+    createdAt: new Date().toISOString()
+  };
+  const examProgress = {
+    scores: { ...(previousExam.scores || {}), [problemId]: bestScore },
+    statuses: { ...(previousExam.statuses || {}), [problemId]: bestStatus },
+    submissions: [submission, ...(Array.isArray(previousExam.submissions) ? previousExam.submissions : [])].slice(0, 500),
+    updatedAt: submission.createdAt
+  };
+  const next = {
+    version: 1,
+    users: {
+      ...progressStore.users,
+      [userId]: { exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } }
+    }
+  };
+  try {
+    saveProgressStore(next);
+    return { progressSaved: true, scoring, submission, progress: examProgress };
+  } catch {
+    progressStoreAvailable = false;
+    return { progressSaved: false, scoring, submission };
+  }
+}
+
+loadProgressStore();
 
 function openZipArchive(fileName) {
   const resolved = path.resolve(root, fileName);
@@ -110,6 +200,7 @@ function loadTestBank(exams) {
   const bank = new Map();
   const byExam = new Map();
   const aliases = new Map();
+  const questions = new Map();
   for (const [examIndex, exam] of exams.entries()) {
     const examVersion = String(exam.examVersion || exam.title || examIndex);
     for (const question of (exam.questions || [])) {
@@ -119,10 +210,11 @@ function loadTestBank(exams) {
       const source = Array.isArray(question.testCases) && question.testCases.length ? question.testCases : question.testArchive;
       if (!bank.has(id)) bank.set(id, source);
       byExam.set(`${examVersion}:${id}`, source);
+      questions.set(`${examVersion}:${id}`, question);
       for (const alias of question.legacyIds || []) aliases.set(`${examVersion}:${alias}`, id);
     }
   }
-  return { testBank: bank, testBankByExam: byExam, testAliases: aliases };
+  return { testBank: bank, testBankByExam: byExam, testAliases: aliases, questionBankByExam: questions };
 }
 
 function trustedPayload(payload) {
@@ -161,11 +253,24 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (await auth.handle(req, res, url)) return;
-  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, portableRuntime: portableRuntime.detected });
+  if (req.method === 'GET' && url.pathname === '/api/progress') {
+    const current = auth.authorize(req, res);
+    if (!current) return;
+    return reply(res, 200, progressFor(current.user.id));
+  }
+  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, progressPersistence: progressStoreAvailable, portableRuntime: portableRuntime.detected });
   if (req.method === 'POST' && url.pathname === '/api/judge') {
-    if (!auth.authorize(req, res)) return;
+    const current = auth.authorize(req, res);
+    if (!current) return;
     if (!permitsRequest(req)) return reply(res, 429, { verdict: 'RateLimited', message: '请求过于频繁，请稍后重试。', compilerOutput: '' });
-    try { return reply(res, 200, await localJudge.judge(trustedPayload(await collect(req)))); } catch (error) { return reply(res, error.statusCode || 500, { verdict: error.statusCode === 400 ? 'InvalidProblem' : 'JudgeUnavailable', message: error.statusCode === 400 ? error.message : '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
+    try {
+      const payload = trustedPayload(await collect(req));
+      const result = await localJudge.judge(payload);
+      const recordable = payload.mode === 'submit' && ['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded'].includes(result.verdict);
+      const question = questionBankByExam.get(`${payload.examVersion}:${payload.problemId}`);
+      const persisted = recordable ? recordSubmission(current, payload, result, question) : {};
+      return reply(res, 200, { ...result, ...persisted });
+    } catch (error) { return reply(res, error.statusCode || 500, { verdict: error.statusCode === 400 ? 'InvalidProblem' : 'JudgeUnavailable', message: error.statusCode === 400 ? error.message : '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
   }
   if (req.method === 'GET' && publicFiles.has(url.pathname)) { const file = publicFiles.get(url.pathname); return reply(res, 200, fsSync.readFileSync(path.join(root, file)), types[path.extname(file)] || 'text/plain'); }
   reply(res, 404, 'Not found', 'text/plain; charset=utf-8');

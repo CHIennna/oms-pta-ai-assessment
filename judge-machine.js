@@ -110,25 +110,26 @@
     submissionPending = true; updateCountdown();
     state.textContent = '正在本机编译并运行测试点…';
     try {
-      if (!tests.length) throw Error('该题尚未配置固定测试点。');
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
       const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language, problemId:question.id, examVersion, mode:'submit', tests, problem:{ id:question.id, title:question.name, statement:question.statement || '' } }) });
       const result = await response.json();
       if (!response.ok) throw Error(result.detail || result.message || '自建评测机暂不可用。');
       if (config.examVersion !== examVersion) return;
-      const scoring = calculateScore(result, question);
+      const scoring = result.scoring || calculateScore(result, question);
       const previousScore = Number(scores[questionIndex]) || 0;
-      const bestScore = Math.max(previousScore, scoring.score);
+      const persistedBestScore = Number(result.progress?.scores?.[question.id]);
+      const bestScore = Number.isFinite(persistedBestScore) ? persistedBestScore : Math.max(previousScore, scoring.score);
       const maxScore = Number(question.score) || 0;
       scores[questionIndex] = bestScore;
       results[questionIndex] = maxScore > 0 && bestScore >= maxScore ? 'accepted' : bestScore > 0 ? 'partial' : 'wrong';
-      $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || '评测完成。'}`.trim();
+      $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || '评测完成。'}${result.progressSaved===false?'\n\n注意：本次成绩未能保存到服务器，请稍后重新提交。':''}`.trim();
       const status = scoring.status === 'partial' ? { label:'部分正确', tone:'review' } : aiVerdict(result.verdict);
-      submissions.unshift({ problemId:question.id, language, verdict:status.label, score:scoring.score, maxScore, candidate:config.candidateName, time:'刚刚' });
+      if(result.progress){progressByExam.set(examVersion,result.progress);applyPersistedProgress(examVersion);}
+      else submissions.unshift({ problemId:question.id, language, verdict:status.label, score:scoring.score, maxScore, candidate:config.candidateName, candidateId:config.studentId, createdAt:result.submission?.createdAt, time:'刚刚' });
       saveSubmittedCode(question.id, source); if (activeQuestionId === question.id) loadedCode = source;
       if (current === questionIndex) {
         state.textContent = `自建评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
-        $('#submit-state').textContent = `刚刚提交 · ${status.label} · ${scoring.score}/${maxScore} 分`;
+        $('#submit-state').textContent = `刚刚提交 · ${status.label} · ${scoring.score}/${maxScore} 分${result.progressSaved===false?' · 未保存':''}`;
         showSubmissionResult(result, question, { source, language });
       }
       render();
