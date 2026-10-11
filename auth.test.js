@@ -359,11 +359,12 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   await until('window.omsAuth.user.nickname === "Updated UI Learner" && !document.querySelector("#profile-dialog").open');
   phase = 'persist a submission';
   const persisted = await evaluate(`(async () => {
-    const question=config.questions.find(item => item.judgeable !== false);
-    const response=await fetch('/api/judge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:'',language:'C++ (g++)',problemId:question.id,examVersion:config.examVersion,mode:'submit'})});
+    const exam=window.OMS_EXAM_ARCHIVE.find(item => item.category === 'past' && item.questions.some(question => question.judgeable !== false));
+    const question=exam.questions.find(item => item.judgeable !== false);
+    const response=await fetch('/api/judge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:'',language:'C++ (g++)',problemId:question.id,examVersion:exam.examVersion,mode:'submit'})});
     const result=await response.json();
     const progress=await (await fetch('/api/progress')).json();
-    return {saved:result.progressSaved,count:progress.exams[config.examVersion]?.submissions?.length||0};
+    return {saved:result.progressSaved,count:progress.exams[exam.examVersion]?.submissions?.length||0};
   })()`);
   assert.deepEqual(persisted, { saved: true, count: 1 });
   phase = 'logout';
@@ -386,10 +387,147 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   assert.equal(await evaluate('codeForQuestion(activeQuestionId)'), 'first-account-private-draft');
   phase = 'restore session on refresh';
   await command('Page.reload', {}, sessionId);
-  await until('Boolean(window.omsAuth && window.omsAuth.user && progressByExam.get(config.examVersion)?.submissions?.length === 1)');
+  await until('Boolean(window.omsAuth && window.omsAuth.user && [...progressByExam.values()].some(progress => progress.submissions?.length === 1))');
   assert.equal(await evaluate('window.omsAuth.user.nickname'), 'Updated UI Learner');
   await evaluate('document.querySelector("[data-profile-open]").click()');
   await until('document.querySelector("#profile-dialog").open');
   await evaluate('document.querySelector("#profile-logout").click()');
   await until('!window.omsAuth.user && !document.querySelector("#profile-dialog").open');
+});
+
+// These regressions execute production functions against synthetic exams and delayed
+// responses. No real accounts, test archives, compiler processes or persistent data.
+const vm = require('node:vm');
+function sourceBetween(file, start, end) {
+  const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+  const from = source.indexOf(start), to = source.indexOf(end, from);
+  assert.ok(from >= 0 && to > from, `Missing source boundary in ${file}`);
+  return source.slice(from, to);
+}
+
+test('regression: server enforces campus schedule at API boundary and permits archived practice', async () => {
+  let time = Date.parse('2030-01-01T10:00:00+08:00'), judgeCalls = 0;
+  const exam = { examVersion:'live', startAt:'2030-01-01T10:00', endAt:'2030-01-01T11:00', questions:[{id:'q1',score:100,testCases:[{input:'1',expected:'1'}]}] };
+  const context = { __dirname, module:{exports:{}}, process:{env:{},platform:process.platform}, Buffer, URL,
+    Date:class extends Date { static now(){return time;} },
+    require(name) {
+      if(name==='http')return {createServer:handler=>({handler})};
+      if(name==='fs')return {existsSync:()=>false};
+      if(name==='./local-judge')return {LocalJudge:class {async judge(){judgeCalls++;return {verdict:'Accepted'};}}};
+      if(name==='./validate-exam-data')return {loadAndValidateExamData:()=>({exams:[exam,{...exam,examVersion:'archive',category:'past'},{...exam,examVersion:'broken',endAt:'invalid'}],report:{}})};
+      if(name==='./auth')return {createAuth:()=>({available:false,dataDir:os.tmpdir(),handle:async()=>false,authorize:()=>({user:{id:'synthetic'}})})};
+      if(name==='./judge-score')return {calculate:()=>({score:100})};
+      assert.ok(['crypto','os','path','zlib'].includes(name));return require(name);
+    }
+  };
+  vm.createContext(context);vm.runInContext(fs.readFileSync(path.join(__dirname,'server.js'),'utf8'),context);
+  async function submit(examVersion='live',mode='submit') {
+    const body=JSON.stringify({examVersion,problemId:'q1',mode,category:'past'});
+    const req={method:'POST',url:'/api/judge',headers:{host:'localhost'},socket:{remoteAddress:'synthetic'},on(event,fn){if(event==='data')fn(body);if(event==='end')fn();}};
+    const res={writeHead(status){this.status=status;},end(body){this.body=JSON.parse(body);}};
+    await context.module.exports.server.handler(req,res);return res;
+  }
+  time--;assert.equal((await submit()).body.verdict,'ExamNotStarted');
+  assert.equal((await submit('live','sample')).status,403);assert.equal(judgeCalls,0);
+  time++;assert.equal((await submit()).status,200);assert.equal(judgeCalls,1);
+  time+=60*60*1000;assert.equal((await submit()).body.verdict,'ExamEnded');assert.equal(judgeCalls,1);
+  assert.equal((await submit('')).status,400);assert.equal((await submit('unknown')).status,400);
+  assert.equal((await submit('broken')).body.verdict,'InvalidSchedule');
+  assert.equal((await submit('archive')).status,200);assert.equal(judgeCalls,2);
+});
+
+function submissionFixture() {
+  const elements=new Map(),storage=new Map();let release,reject;
+  const context={current:0,activeRoute:'exam',submissionPending:false,portalUser:{id:'user-a'},portalAuthenticated:true,portalIdentityRevision:1,
+    config:{examVersion:'exam-a',questions:[{id:'q1',score:100,testCases:[]}]},scores:{},results:{},submissions:[],progressByExam:new Map(),submittedCodes:{},activeQuestionId:'q1',loadedCode:'',
+    $:selector=>{if(!elements.has(selector))elements.set(selector,{value:'cpp',textContent:'',classList:{toggle(){}}});return elements.get(selector);},
+    document:{querySelector:()=>null},editorCode:()=>'submitted snapshot',updateCountdown(){},render(){},formatExamTime:value=>value,
+    localStorage:{setItem:(key,value)=>storage.set(key,value)},readCodeMap:key=>JSON.parse(storage.get(key)||'{}'),
+    fetch:()=>new Promise((resolve,fail)=>{release=resolve;reject=fail;}),
+    calculateScore:result=>({score:result.verdict==='Accepted'?100:0,status:result.verdict==='Accepted'?'accepted':'wrong'}),
+    aiVerdict:verdict=>({label:verdict}),showSubmissionResult(){context.modalShown=true;}
+  };
+  vm.createContext(context);
+  vm.runInContext(sourceBetween('pta-clone.js','function storedVerdictLabel(', 'async function refreshPersistedProgress('),context);
+  vm.runInContext(sourceBetween('judge-machine.js','  async function aiJudgeSubmit()',"  document.querySelector('#copy-submission-code')"),context);
+  return {context,storage,elements,finish:result=>release({ok:true,json:async()=>result}),fail:()=>reject(Error('synthetic network failure'))};
+}
+
+test('regression: delayed result cannot update a different account or a renewed login', async () => {
+  for(const changedUser of [true,false]) {
+    const f=submissionFixture(),pending=f.context.aiJudgeSubmit();
+    if(changedUser)f.context.portalUser={id:'user-b'};
+    f.context.portalIdentityRevision++;
+    f.finish({verdict:'Accepted'});await pending;
+    assert.equal(f.context.progressByExam.size,0);assert.equal(f.storage.size,0);
+    assert.equal(Object.keys(f.context.results).length,0);assert.equal(f.context.modalShown,undefined);
+    assert.equal(f.context.submissionPending,false);
+  }
+});
+
+test('regression: infrastructure failures never become wrong answers or submission records', async () => {
+  for(const verdict of ['JudgeUnavailable','NotConfigured','RateLimited','NeedsReview','Unknown']) {
+    const f=submissionFixture(),pending=f.context.aiJudgeSubmit();
+    f.finish({verdict});await pending;
+    assert.equal(f.context.progressByExam.size,0);assert.equal(f.context.submissions.length,0);
+    assert.equal(Object.keys(f.context.results).length,0);assert.equal(f.storage.size,0);
+    assert.match(f.elements.get('#run-state').textContent,/本次不计成绩/);
+  }
+});
+
+test('regression: all final verdicts remain recordable and newer drafts are not overwritten', async () => {
+  for(const verdict of ['Accepted','WrongAnswer','CompilationError','RuntimeError','TimeLimitExceeded']) {
+    const f=submissionFixture(),pending=f.context.aiJudgeSubmit();
+    f.context.editorCode=()=>'newer draft';f.finish({verdict,progressSaved:false});await pending;
+    assert.equal(f.context.submissions.length,1);assert.equal(f.context.modalShown,true);
+    assert.equal(f.context.editorCode(),'newer draft');assert.equal(f.context.submittedCodes.q1,'submitted snapshot');
+    assert.match(f.elements.get('#submit-state').textContent,/未保存/);
+  }
+});
+
+test('regression: switching exams preserves original result and code without painting the new exam', async () => {
+  const f=submissionFixture(),original=f.context.config,pending=f.context.aiJudgeSubmit();
+  f.context.config={examVersion:'exam-b',questions:[{id:'q2',score:100}]};
+  f.context.activeQuestionId='q2';
+  const progress={scores:{q1:100},statuses:{q1:'accepted'},submissions:[{problemId:'q1',verdict:'Accepted'}]};
+  f.finish({verdict:'Accepted',progress});await pending;
+  assert.equal(f.context.progressByExam.get('exam-a'),progress);assert.equal(f.context.submissions.length,0);
+  assert.equal(f.context.modalShown,undefined);assert.equal(f.context.submittedCodes.q1,undefined);
+  assert.equal(JSON.parse(f.storage.get('oms-pta-submitted-code-user-a-exam-a')).q1,'submitted snapshot');
+  f.context.config=original;f.context.applyPersistedProgress('exam-a');
+  assert.equal(f.context.scores[0],100);assert.equal(f.context.results[0],'accepted');assert.equal(f.context.submissions.length,1);
+});
+
+test('regression: late errors do not paint a newly selected exam or account', async () => {
+  const f=submissionFixture(),pending=f.context.aiJudgeSubmit();
+  f.context.config={examVersion:'exam-b',questions:[{id:'q2',score:100}]};f.fail();await pending;
+  assert.equal(f.elements.has('#compiler-output'),false);
+});
+
+test('regression: countdown disables early/closed submissions but not archived practice', () => {
+  const f=submissionFixture(),ctx=f.context;
+  const now=Date.parse('2030-01-01T10:00:00+08:00');
+  ctx.Date=class extends Date {static now(){return now;}};
+  vm.runInContext(sourceBetween('pta-clone.js','function updateCountdown()', 'function editorCode()'),ctx);
+  Object.assign(ctx.config,{startAt:'2030-01-01T10:01',endAt:'2030-01-01T11:00'});
+  ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,true);assert.equal(ctx.$('#run-test').disabled,true);
+  ctx.config.startAt='2030-01-01T10:00';ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,false);
+  ctx.config.endAt='2030-01-01T10:00';ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,true);
+  ctx.config.category='past';ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,false);
+});
+
+test('regression: judge fetch keeps explicit exam identity and ignores stale unauthorized responses', async () => {
+  let release;const calls=[];
+  const context={URL,Request,Headers,location:{href:'http://localhost/',origin:'http://localhost'},portalUser:{id:'user-a'},portalIdentityRevision:1,portalCsrf:'synthetic',
+    config:{examVersion:'visible-exam',questions:[{id:'visible-question'}]},current:0,
+    requirePortalSession:async()=>true,setPortalSession(){throw Error('stale response cleared session');},openLogin(){throw Error('stale response opened login');},
+    window:{fetch:(input,options)=>{calls.push(JSON.parse(options.body));return new Promise(resolve=>release=resolve);}}
+  };
+  vm.createContext(context);vm.runInContext(sourceBetween('pta-clone.js','const portalNativeFetch=', 'let fullscreenHintTimer='),context);
+  const pending=context.window.fetch('/api/judge',{body:JSON.stringify({examVersion:'submitted-exam',problemId:'submitted-question'})});
+  await new Promise(setImmediate);assert.equal(calls[0].examVersion,'submitted-exam');assert.equal(calls[0].problemId,'submitted-question');
+  context.portalUser={id:'user-b'};context.portalIdentityRevision++;
+  release({status:401});await pending;
+  context.requirePortalSession=async()=>{context.portalIdentityRevision++;return true;};
+  await assert.rejects(context.window.fetch('/api/judge',{body:'{}'}),/登录状态已变化/);assert.equal(calls.length,1);
 });

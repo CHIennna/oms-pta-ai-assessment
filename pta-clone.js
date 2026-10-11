@@ -7,7 +7,7 @@ let config,saved={};try{saved=JSON.parse(localStorage.getItem(STORAGE)||'{}');co
 config.title=fallback.title;
 if(config.studentId==='102505201')config.studentId=fallback.studentId;
 if(window.OMS_NUMBER_EXAM){config=window.OMS_NUMBER_EXAM(config,[config,...(window.OMS_EXAM_ARCHIVE||[])]);primaryConfig=config;}
-let portalUser=null,portalAuthenticated=false,portalCsrf='',pendingLoginRoute='home',portalAuthAvailable=false,portalRegistrationEnabled=true,portalAuthMessage='',routeRevision=0,portalSessionRevision=0,loadingCode=false;
+let portalUser=null,portalAuthenticated=false,portalCsrf='',pendingLoginRoute='home',portalAuthAvailable=false,portalRegistrationEnabled=true,portalAuthMessage='',routeRevision=0,portalSessionRevision=0,portalIdentityRevision=0,loadingCode=false;
 let SUBMITTED_CODE_STORAGE='',DRAFT_CODE_STORAGE='',submittedCodes={},draftCodes={};
 function readCodeMap(key){try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch{return {};}}
 function migrateQuestionCodes(map,questions){
@@ -40,7 +40,7 @@ function enhanceStatementSamples(text,q){let html=markdownToHtml(text);const rep
 function cleanStatementDecoration(text){return String(text||'').replace(/^[ \t]*\[【原题配图 photo1\.png：HTML 未附图像文件，点此查看原题】\]\([^)]+\)[ \t]*(?:\r?\n|$)/gmi,'FZUTRIANGLEFIGUREMARKER\n').replace(/^[ \t]*(?:\*\*原题\*\*|原题)\s*[:：]\s*\[FZU Online Judge\]\([^)]+\)(?=[^\r\n]*(?:时间|time))(?=[^\r\n]*(?:内存|memory))[^\r\n]*(?:\r?\n|$)/gmi,'').replace(/^[ \t]*\[?【原题配图[^\r\n]*HTML 未附图像文件[^\r\n]*】\]?(?:\([^)]+\))?[ \t]*(?:\r?\n|$)/gmi,'').replace(/\n{3,}/g,'\n\n').trim();}
 function formatStatement(text,q){const limits=resourceLimits();if(!text)return `<div class="rendered-markdown problem-copy"><p>请根据题目要求完成程序。提交后，AI 助教将检查程序逻辑、边界条件和代码风格。</p><h3>输入格式：</h3><p>输入数据由题目给定。</p><h3>输出格式：</h3><p>按题目要求输出计算结果。</p><h3>输入样例：</h3>${sampleBlock('in',q.sampleInput||'100311')}<h3>输出样例：</h3>${sampleBlock('out',q.sampleOutput||'0:2\n1:3\n3:1')}${limits}</div>`;const statementHtml=enhanceStatementSamples(cleanStatementDecoration(text),q).replaceAll('FZUTRIANGLEFIGUREMARKER','<img src="./fzu-triangle-lattice.svg" alt="n = 4 时的三角形网格示意图" style="display:block;max-width:100%;height:auto;margin:12px auto">');return `<div class="rendered-markdown problem-copy">${statementHtml}${limits}</div>`;}
 function statusGlyph(status,label){if(status==='accepted')return '<svg viewBox="0 0 24 24" aria-label="答案正确"><path d="m5.5 12.5 4.1 4.1L18.5 7.5"/></svg>';if(status==='wrong')return '<svg viewBox="0 0 24 24" aria-label="答案错误"><path d="m8 8 8 8M16 8l-8 8"/></svg>';return label;}
-function updateCountdown(){const start=Date.parse(config.startAt),end=Date.parse(config.endAt),now=Date.now(),remain=$('.remain'),archived=config.category==='past',beforeStart=!archived&&now<start,displayEnded=archived||now>=end,judgeable=config.questions[current]?.judgeable!==false;let milliseconds=archived?0:Math.max(0,beforeStart?start-now:end-now);examExpired=!archived&&now>=end;const seconds=Math.floor(milliseconds/1000),hours=String(Math.floor(seconds/3600)).padStart(2,'0'),minutes=String(Math.floor(seconds%3600/60)).padStart(2,'0'),secs=String(seconds%60).padStart(2,'0');$('#countdown-label').textContent=beforeStart?'距开始':displayEnded?'已结束':'剩余';$('#countdown').textContent=`${hours}:${minutes}:${secs}`;remain.classList.toggle('warning',!displayEnded&&milliseconds<=5*60*1000);remain.classList.toggle('expired',displayEnded);$('#submit').disabled=examExpired||!judgeable||submissionPending;$('#run-test').disabled=examExpired||!judgeable||submissionPending;if(!judgeable)$('#submit-state').textContent=config.questions[current]?.unjudgeableReason||'题面资料不完整，暂不支持评测';else if(examExpired)$('#submit-state').textContent='考试已结束';}
+function updateCountdown(){const timestamp=value=>{const text=String(value||'').trim().replace(' ','T');return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text)?`${text}+08:00`:text);};const start=timestamp(config.startAt),end=timestamp(config.endAt),now=Date.now(),remain=$('.remain'),archived=config.category==='past',invalid=!archived&&(!Number.isFinite(start)||!Number.isFinite(end)||end<=start),beforeStart=!archived&&now<start,displayEnded=archived||now>=end,judgeable=config.questions[current]?.judgeable!==false;let milliseconds=archived||invalid?0:Math.max(0,beforeStart?start-now:end-now);examExpired=!archived&&now>=end;const seconds=Math.floor(milliseconds/1000),hours=String(Math.floor(seconds/3600)).padStart(2,'0'),minutes=String(Math.floor(seconds%3600/60)).padStart(2,'0'),secs=String(seconds%60).padStart(2,'0');$('#countdown-label').textContent=invalid?'时间异常':beforeStart?'距开始':displayEnded?'已结束':'剩余';$('#countdown').textContent=`${hours}:${minutes}:${secs}`;remain.classList.toggle('warning',!displayEnded&&!invalid&&milliseconds<=5*60*1000);remain.classList.toggle('expired',displayEnded);$('#submit').disabled=invalid||beforeStart||examExpired||!judgeable||submissionPending;$('#run-test').disabled=invalid||beforeStart||examExpired||!judgeable||submissionPending;if(!judgeable)$('#submit-state').textContent=config.questions[current]?.unjudgeableReason||'题面资料不完整，暂不支持评测';else if(invalid)$('#submit-state').textContent='考试时间配置无效';else if(beforeStart)$('#submit-state').textContent='考试尚未开始';else if(examExpired)$('#submit-state').textContent='考试已结束';}
 function editorCode(){return window.omsCodeEditor?.getValue?.()??code.value;}function saveDraftCode(questionId,source){if(!questionId)return false;draftCodes[questionId]=source;try{localStorage.setItem(DRAFT_CODE_STORAGE,JSON.stringify(draftCodes));return true;}catch{return false;}}function persistActiveDraft(){if(loadingCode)return false;return saveDraftCode(activeQuestionId,editorCode());}function saveSubmittedCode(questionId,source){if(!questionId)return;submittedCodes[questionId]=source;try{localStorage.setItem(SUBMITTED_CODE_STORAGE,JSON.stringify(submittedCodes));}catch{}saveDraftCode(questionId,source);}function hasUnsavedCode(){return editorCode()!==loadedCode;}function loadCode(source){loadingCode=true;try{code.value=source;code.dispatchEvent(new Event('input',{bubbles:true}));}finally{loadingCode=false;}lines();}function restoreSavedCode(){const source=codeForQuestion(activeQuestionId);loadedCode=submittedCodeForQuestion(activeQuestionId);loadCode(source);}function changeQuestion(index){if(index===current)return;persistActiveDraft();current=index;activeQuestionId=config.questions[current].id;render();restoreSavedCode();}
 function activateExam(examVersion,questionIndex=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
@@ -361,6 +361,7 @@ async function refreshPersistedProgress(force=false){
 function setPortalSession(data){
   portalSessionRevision++;
   const next=data.authenticated?data.user:null,changed=portalUser?.id!==next?.id,profileChanged=JSON.stringify(portalUser)!==JSON.stringify(next);
+  if(changed||portalCsrf!==(data.csrfToken||''))portalIdentityRevision++;
   if(changed)persistActiveDraft();
   portalUser=next;portalAuthenticated=Boolean(next);portalCsrf=data.csrfToken||'';
   portalAuthAvailable=Boolean(data.available);portalRegistrationEnabled=data.registrationEnabled!==false;portalAuthMessage=data.message||'';
@@ -428,17 +429,18 @@ const portalNativeFetch=window.fetch.bind(window);
 window.fetch=async(input,options={})=>{
   const url=new URL(input instanceof Request?input.url:String(input),location.href);
   if(url.origin!==location.origin||url.pathname!=='/api/judge')return portalNativeFetch(input,options);
-  const question=config.questions[current],examVersion=config.examVersion;
+  const question=config.questions[current],examVersion=config.examVersion,owner=portalUser?.id,identityRevision=portalIdentityRevision;
   const rawBody=options.body??(input instanceof Request?await input.clone().text():null);
   if(typeof rawBody==='string'){
     const payload=JSON.parse(rawBody);
-    options={...options,body:JSON.stringify({...payload,problemId:question.id,examVersion})};
+    options={...options,body:JSON.stringify({...payload,problemId:payload.problemId??question.id,examVersion:payload.examVersion??examVersion})};
   }
   if(!await requirePortalSession('exam'))throw Error('请先登录后再运行或提交。');
+  if(!owner||portalUser?.id!==owner||portalIdentityRevision!==identityRevision)throw Error('登录状态已变化，请重新运行或提交。');
   const headers=new Headers(options.headers||(input instanceof Request?input.headers:undefined));
   headers.set('X-OMS-Request','1');headers.set('X-OMS-CSRF',portalCsrf);
   const response=await portalNativeFetch(input,{...options,credentials:'same-origin',headers});
-  if(response.status===401){setPortalSession({available:true,authenticated:false});openLogin('exam');}
+  if(response.status===401&&portalUser?.id===owner&&portalIdentityRevision===identityRevision){setPortalSession({available:true,authenticated:false});openLogin('exam');}
   return response;
 };
 let fullscreenHintTimer=0;

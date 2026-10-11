@@ -18,6 +18,7 @@ const { exams, report: examValidation } = loadAndValidateExamData(
   [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js')]
 );
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(exams);
+const examsByVersion = new Map(exams.map(exam => [String(exam.examVersion), exam]));
 const publicFiles = new Map([
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/zixun-contest-data.js', 'zixun-contest-data.js'], ['/weekly-practice-2.js', 'weekly-practice-2.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-score.js', 'judge-score.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
@@ -217,8 +218,26 @@ function loadTestBank(exams) {
   return { testBank: bank, testBankByExam: byExam, testAliases: aliases, questionBankByExam: questions };
 }
 
+function examTimestamp(value) {
+  // Imported schedules without an offset are campus time, not the host's timezone.
+  const text = String(value || '').trim().replace(' ', 'T');
+  return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text) ? `${text}+08:00` : text);
+}
+
+function assertExamOpen(examVersion, now = Date.now()) {
+  const exam = examsByVersion.get(String(examVersion || ''));
+  const reject = (statusCode, verdict, message) => { throw Object.assign(new Error(message), { statusCode, verdict }); };
+  if (!exam) reject(400, 'InvalidProblem', '请选择有效的考试后再运行或提交。');
+  if (exam.category === 'past') return;
+  const start = examTimestamp(exam.startAt), end = examTimestamp(exam.endAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) reject(503, 'InvalidSchedule', '考试时间配置无效，请联系管理员。');
+  if (now < start) reject(403, 'ExamNotStarted', '考试尚未开始，暂不能运行或提交。');
+  if (now >= end) reject(403, 'ExamEnded', '考试已结束，不能继续运行或提交。');
+}
+
 function trustedPayload(payload) {
-  if (!payload || payload.mode !== 'submit') return payload;
+  assertExamOpen(payload?.examVersion);
+  if (payload.mode !== 'submit') return payload;
   const requestedId = String(payload.problemId || '');
   const examVersion = String(payload.examVersion || '');
   const aliasId = examVersion && testAliases.get(`${examVersion}:${requestedId}`);
@@ -270,7 +289,7 @@ const server = http.createServer(async (req, res) => {
       const question = questionBankByExam.get(`${payload.examVersion}:${payload.problemId}`);
       const persisted = recordable ? recordSubmission(current, payload, result, question) : {};
       return reply(res, 200, { ...result, ...persisted });
-    } catch (error) { return reply(res, error.statusCode || 500, { verdict: error.statusCode === 400 ? 'InvalidProblem' : 'JudgeUnavailable', message: error.statusCode === 400 ? error.message : '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
+    } catch (error) { return reply(res, error.statusCode || 500, { verdict: error.verdict || (error.statusCode === 400 ? 'InvalidProblem' : 'JudgeUnavailable'), message: error.verdict || error.statusCode === 400 ? error.message : '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
   }
   if (req.method === 'GET' && publicFiles.has(url.pathname)) { const file = publicFiles.get(url.pathname); return reply(res, 200, fsSync.readFileSync(path.join(root, file)), types[path.extname(file)] || 'text/plain'); }
   reply(res, 404, 'Not found', 'text/plain; charset=utf-8');

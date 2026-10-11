@@ -35,19 +35,22 @@
 
   judge = async function (mode) {
     if (mode === 'submit') return aiJudgeSubmit();
-    const state = $('#run-state'), question = config.questions[current];
+    const state = $('#run-state'), question = config.questions[current], examVersion = config.examVersion;
+    const owner = portalUser?.id, identityRevision = portalIdentityRevision;
+    const stillVisible = () => portalAuthenticated && portalUser?.id === owner && portalIdentityRevision === identityRevision && config.examVersion === examVersion && config.questions[current]?.id === question.id && activeRoute === 'exam';
     const sample = { input: $('#sample-input').value, expected: $('#expected').textContent.replace(/\\n/g, '\n') };
     const tests = mode === 'sample' ? [sample] : (question.testCases || []);
     state.textContent = '评测机正在运行…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
-      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:code.value, language:$('#language').value, problemId:question.id, input:sample.input, mode, tests }) });
-      if (!response.ok) throw Error('自建评测机暂不可用。');
+      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, problemId:question.id, examVersion, input:sample.input, mode, tests }) });
       const result = await response.json();
+      if (!stillVisible()) return;
+      if (!response.ok) throw Error(result.message || '自建评测机暂不可用。');
       $('#compiler-output').textContent = result.compilerOutput || result.message || '评测完成。'; setTab('compiler');
       const label = { Accepted:'答案正确', WrongAnswer:'答案错误', CompilationError:'编译错误', RuntimeError:'运行时错误', TimeLimitExceeded:'运行超时', NotConfigured:'未配置测试点' }[result.verdict] || '评测失败';
       state.textContent = `${label} · ${result.passedTests ?? 0}/${result.totalTests ?? tests.length}`;
-    } catch (error) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = '评测失败'; }
+    } catch (error) { if (stillVisible()) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = '评测失败'; } }
   };
 
   const aiVerdict = verdict => ({
@@ -107,35 +110,53 @@
     if (submissionPending) { $('#submit-state').textContent = '当前提交仍在评测，请稍候'; return; }
     const state = $('#run-state'), questionIndex = current, examVersion = config.examVersion, question = config.questions[questionIndex];
     const tests = question.testCases || [], source = editorCode(), language = $('#language').value;
+    const owner = portalUser?.id, identityRevision = portalIdentityRevision;
+    const sameIdentity = () => Boolean(owner && portalAuthenticated && portalUser?.id === owner && portalIdentityRevision === identityRevision);
+    const stillVisible = () => sameIdentity() && config.examVersion === examVersion && config.questions[current]?.id === question.id && activeRoute === 'exam';
     submissionPending = true; updateCountdown();
     state.textContent = '正在本机编译并运行测试点…';
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
       const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language, problemId:question.id, examVersion, mode:'submit', tests, problem:{ id:question.id, title:question.name, statement:question.statement || '' } }) });
       const result = await response.json();
+      if (!sameIdentity()) return;
       if (!response.ok) throw Error(result.detail || result.message || '自建评测机暂不可用。');
-      if (config.examVersion !== examVersion) return;
+      if (!['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded'].includes(result.verdict)) {
+        throw Error(result.message || '评测未完成，请稍后重试；本次不计成绩。');
+      }
       const scoring = result.scoring || calculateScore(result, question);
-      const previousScore = Number(scores[questionIndex]) || 0;
-      const persistedBestScore = Number(result.progress?.scores?.[question.id]);
-      const bestScore = Number.isFinite(persistedBestScore) ? persistedBestScore : Math.max(previousScore, scoring.score);
+      const previous = progressByExam.get(examVersion) || { scores: {}, statuses: {}, submissions: [] };
+      const bestScore = Math.max(Number(previous.scores?.[question.id]) || 0, scoring.score);
       const maxScore = Number(question.score) || 0;
-      scores[questionIndex] = bestScore;
-      results[questionIndex] = maxScore > 0 && bestScore >= maxScore ? 'accepted' : bestScore > 0 ? 'partial' : 'wrong';
-      $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || '评测完成。'}${result.progressSaved===false?'\n\n注意：本次成绩未能保存到服务器，请稍后重新提交。':''}`.trim();
+      const progress = result.progress || {
+        scores: { ...previous.scores, [question.id]: bestScore },
+        statuses: { ...previous.statuses, [question.id]: maxScore > 0 && bestScore >= maxScore ? 'accepted' : bestScore > 0 ? 'partial' : 'wrong' },
+        submissions: [result.submission || { problemId: question.id, language, verdict: result.verdict, status: scoring.status, score: scoring.score, maxScore, createdAt: new Date().toISOString() }, ...(previous.submissions || [])]
+      };
+      // Cache belongs to the submitted exam, even if another exam is now visible.
+      progressByExam.set(examVersion, progress);
+      const storageKey = `oms-pta-submitted-code-${owner}-${examVersion}`;
+      const savedCodes = config.examVersion === examVersion ? submittedCodes : readCodeMap(storageKey);
+      savedCodes[question.id] = source;
+      try { localStorage.setItem(storageKey, JSON.stringify(savedCodes)); } catch { /* Keep current in-memory code if storage is full. */ }
+      if (config.examVersion !== examVersion) return;
+      applyPersistedProgress(examVersion);
       const status = scoring.status === 'partial' ? { label:'部分正确', tone:'review' } : aiVerdict(result.verdict);
-      if(result.progress){progressByExam.set(examVersion,result.progress);applyPersistedProgress(examVersion);}
-      else submissions.unshift({ problemId:question.id, language, verdict:status.label, score:scoring.score, maxScore, candidate:config.candidateName, candidateId:config.studentId, createdAt:result.submission?.createdAt, time:'刚刚' });
-      saveSubmittedCode(question.id, source); if (activeQuestionId === question.id) loadedCode = source;
-      if (current === questionIndex) {
+      // Do not replace a newer draft typed while the submitted snapshot was running.
+      if (activeQuestionId === question.id) loadedCode = source;
+      if (stillVisible()) {
+        $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || '评测完成。'}${result.progressSaved===false?'\n\n注意：本次成绩未能保存到服务器，请稍后重新提交。':''}`.trim();
         state.textContent = `自建评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
         $('#submit-state').textContent = `刚刚提交 · ${status.label} · ${scoring.score}/${maxScore} 分${result.progressSaved===false?' · 未保存':''}`;
         showSubmissionResult(result, question, { source, language });
       }
       render();
     } catch (error) {
-      $('#compiler-output').textContent = error.message;
-      if (current === questionIndex) state.textContent = '自建评测机失败';
+      if (stillVisible()) {
+        $('#compiler-output').textContent = error.message;
+        state.textContent = '评测未完成 · 本次不计成绩';
+        $('#submit-state').textContent = '评测未完成，请重试';
+      }
     } finally {
       submissionPending = false; updateCountdown();
     }
