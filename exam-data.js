@@ -504,6 +504,9 @@ window.OMS_EXAM_ARCHIVE = [
     "title": "2025 计算机转专业机试",
     "duration": 120,
     "totalScore": 800,
+    "participants": 39,
+    "startAt": "2025-12-01T19:00",
+    "endAt": "2025-12-01T21:00",
     "questions": [
       {
         "id": "1",
@@ -950,7 +953,7 @@ window.OMS_EXAM_ARCHIVE = [
       }
     ],
     "category": "past",
-    "date": "2025",
+    "date": "2025-12-01",
     "status": "历年卷"
   }
 ];
@@ -959,6 +962,9 @@ window.OMS_EXAM_ARCHIVE.push({
   "title": "2024 计算机转专业机试",
   "duration": 120,
   "totalScore": 1000,
+  "participants": 42,
+  "startAt": "2024-12-01T19:00",
+  "endAt": "2024-12-01T21:00",
   "questions": [
     {
       "id": "2024-1",
@@ -1126,7 +1132,7 @@ window.OMS_EXAM_ARCHIVE.push({
     }
   ],
   "category": "past",
-  "date": "2024",
+  "date": "2024-12-01",
   "status": "历年卷"
 });
 
@@ -1357,6 +1363,9 @@ window.OMS_EXAM_ARCHIVE.push({
   "title": "2023 计算机转专业机试",
   "duration": 120,
   "totalScore": 800,
+  "participants": 42,
+  "startAt": "2023-12-01T19:00",
+  "endAt": "2023-12-01T21:00",
   "questions": [
     {
       "id": "2023-1",
@@ -1805,7 +1814,7 @@ window.OMS_EXAM_ARCHIVE.push({
     }
   ],
   "category": "past",
-  "date": "2023",
+  "date": "2023-12-01",
   "status": "历年卷"
 });
 window.OMS_EXAM_ARCHIVE.push({
@@ -1813,6 +1822,9 @@ window.OMS_EXAM_ARCHIVE.push({
   "title": "2022 计算机转专业机试",
   "duration": 120,
   "totalScore": 800,
+  "participants": 50,
+  "startAt": "2022-12-01T19:00",
+  "endAt": "2022-12-01T21:00",
   "questions": [
     {
       "id": "2022-1",
@@ -2261,7 +2273,7 @@ window.OMS_EXAM_ARCHIVE.push({
     }
   ],
   "category": "past",
-  "date": "2022",
+  "date": "2022-12-01",
   "status": "历年卷"
 });
 
