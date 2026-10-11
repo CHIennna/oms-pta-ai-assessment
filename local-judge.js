@@ -747,7 +747,10 @@ class LocalJudge {
           hint = test.checker ? '输出不满足题目要求或构造条件。' : '输出与预期不一致';
           detail = test.checker ? `你的输出：\n${execution.stdout || '(空)'}` : `你的输出：\n${execution.stdout || '(空)'}\n\n预期输出：\n${test.expected}`;
         }
-        testCases.push({ index, verdict, hint, score: test.score, memoryKb: null, timeMs: execution.durationMs, detail });
+        testCases.push({
+          index, verdict, hint, score: test.score, memoryKb: null, timeMs: execution.durationMs, detail,
+          ...(payload.mode === 'sample' ? { actualOutput: clipped(execution.stdout) } : {})
+        });
       }
       return this.result(testCases, tests, payload.mode);
     } finally {

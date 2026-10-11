@@ -6,6 +6,28 @@
   const text = value => String(value || '');
   const makeDefaultCases = question => Array.from({ length: Math.max(1, Number(question.tests) || 1) }, (_, index) => question.testCases && question.testCases[index] || { input:'', expected:'' });
   const calculateScore = (result, question) => window.OMS_JUDGE_SCORE.calculate(result, question);
+  const shownOutput = value => String(value ?? '').length ? String(value) : '(无输出)';
+  function formatJudgeOutput(result, mode, sample) {
+    const sections = [];
+    if (result.compilerOutput || result.message) sections.push(result.compilerOutput || result.message);
+    const cases = Array.isArray(result.testCases) ? result.testCases : [];
+    if (mode === 'sample') {
+      const test = cases[0];
+      sections.push([
+        '【样例输入】', shownOutput(sample.input),
+        '【预期输出】', shownOutput(sample.expected),
+        '【程序实际输出】', shownOutput(test?.actualOutput),
+        `【运行结果】${test?.hint || result.message || '未返回测试点结果'}${test?.timeMs == null ? '' : `（${test.timeMs} ms）`}`
+      ].join('\n'));
+    } else if (cases.length) {
+      sections.push(`【测试点结果】\n${cases.map((test, index) => {
+        const time = test.timeMs == null ? '' : ` · ${test.timeMs} ms`;
+        const hint = test.hint && test.verdict !== 'Accepted' ? ` · ${test.hint}` : '';
+        return `测试点 ${test.index == null ? index + 1 : Number(test.index) + 1}：${test.verdict || '未知'}${time}${hint}`;
+      }).join('\n')}`);
+    }
+    return sections.join('\n\n') || '评测服务未返回编译或运行结果。';
+  }
 
   function renderJudgeCases() {
     document.querySelector('#judge-cases')?.remove();
@@ -47,7 +69,7 @@
       const result = await response.json();
       if (!stillVisible()) return;
       if (!response.ok) throw Error(result.message || '自建评测机暂不可用。');
-      $('#compiler-output').textContent = result.compilerOutput || result.message || '评测完成。'; setTab('compiler');
+      $('#compiler-output').textContent = formatJudgeOutput(result, mode, sample); setTab('compiler');
       const label = { Accepted:'答案正确', WrongAnswer:'答案错误', CompilationError:'编译错误', RuntimeError:'运行时错误', TimeLimitExceeded:'运行超时', NotConfigured:'未配置测试点' }[result.verdict] || '评测失败';
       state.textContent = `${label} · ${result.passedTests ?? 0}/${result.totalTests ?? tests.length}`;
     } catch (error) { if (stillVisible()) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = '评测失败'; } }
@@ -145,7 +167,7 @@
       // Do not replace a newer draft typed while the submitted snapshot was running.
       if (activeQuestionId === question.id) loadedCode = source;
       if (stillVisible()) {
-        $('#compiler-output').textContent = `${result.message || ''}\n\n${result.compilerOutput || '评测完成。'}${result.progressSaved===false?'\n\n注意：本次成绩未能保存到服务器，请稍后重新提交。':''}`.trim();
+        $('#compiler-output').textContent = `${formatJudgeOutput(result, 'submit', {})}${result.progressSaved===false?'\n\n注意：本次成绩未能保存到服务器，请稍后重新提交。':''}`.trim();
         state.textContent = `自建评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
         $('#submit-state').textContent = `刚刚提交 · ${status.label} · ${scoring.score}/${maxScore} 分${result.progressSaved===false?' · 未保存':''}`;
         showSubmissionResult(result, question, { source, language });

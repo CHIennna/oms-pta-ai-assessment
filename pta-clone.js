@@ -95,7 +95,17 @@ function renderExamInfo(){
 }
 function portalExamStatus(exam){const now=Date.now(),start=Date.parse(exam.startAt),end=Date.parse(exam.endAt);if(exam.category==='past'||(Number.isFinite(end)&&now>=end))return '已结束';if(Number.isFinite(start)&&now<start)return '未开始';return '进行中';}
 function portalDuration(value){const minutes=Number(value)||0;if(!minutes)return '未记录';if(minutes%60===0)return `${minutes/60} 小时`;return `${minutes} 分钟`;}
-function examParticipantCount(exam){const value=Number(exam.registered??exam.participants);return Number.isFinite(value)&&value>=0?value:1;}
+const publishedWeeklyPracticeScores={
+  examVersion:'2026-10-11-second-stage-weekly-practice-2',
+  rows:[
+    {rank:1,userId:'032501999',userName:'雨姐',scores:[90,70,80,60,70,50,20,10]},
+    {rank:2,userId:'332501264',userName:'坏苹果',scores:[100,90,80,70,40,30,20,0]},
+    {rank:3,userId:'ZmjjKk',userName:'郑永康',scores:[100,80,60,50,20,30,0,10]},
+    {rank:4,userId:'152512345',userName:'肠粉',scores:[80,60,70,40,30,10,0,10]},
+    {rank:5,userId:'052512345',userName:'天妇罗',scores:[90,70,40,60,10,20,0,0]}
+  ]
+};
+function examParticipantCount(exam){if(exam.examVersion===publishedWeeklyPracticeScores.examVersion)return publishedWeeklyPracticeScores.rows.length+1;const value=Number(exam.registered??exam.participants);return Number.isFinite(value)&&value>=0?value:1;}
 const PORTAL_ICONS={home:'<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 9.8V20h13V9.8M9.5 20v-6h5v6"/>',problems:'<rect x="5" y="3.5" width="14" height="17" rx="1.8"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5"/>',training:'<path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h5"/>',contest:'<path d="M8 4h8v3.5a4 4 0 0 1-8 0zM12 11.5V16M8.5 20h7M9 16h6"/><path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11"/>',assignment:'<path d="M8 5h11v16H5V8z"/><path d="M8 5v3H5M9 12h6M9 16h6"/>',judge:'<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="m3.5 6.5 1.3 1.3 2.3-2.6M3.5 12l1.3 1.3 2.3-2.6M3.5 17.5l1.3 1.3 2.3-2.6"/>',advice:'<path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.1 14 18h-4c0-1.9-.5-2.7-1.5-3.5Z"/>',theme:'<path d="M20 15.2A8.4 8.4 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7.2h.01"/>',panel:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M8.5 3.5v17M11.5 8h5M11.5 12h5M11.5 16h3"/>',calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',users:'<path d="M8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6 6 0 0 1 12 0M16 12a3 3 0 1 0 0-6M16 14a5.5 5.5 0 0 1 5.5 5.5"/>',award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/>',arrow:'<path d="m9 5 7 7-7 7"/>',chevron:'<path d="m7 14 5-5 5 5"/>'};
 function portalIcon(name){return `<svg class="portal-icon" viewBox="0 0 24 24" aria-hidden="true">${PORTAL_ICONS[name]||''}</svg>`;}
 function renderPortalHome(){
@@ -186,6 +196,27 @@ function renderPtaHome(){
   </div>`;
 }
 function renderScoreboard(){
+  if(config.examVersion===publishedWeeklyPracticeScores.examVersion){
+    const heads=config.questions.map((question,index)=>`<th><b>${index+1}</b></th>`).join('');
+    const userId=String(portalUser?.username||config.studentId||config.candidateName||'当前用户');
+    const userName=String(portalUser?.nickname||config.candidateName||userId);
+    const ownScores=config.questions.map((question,index)=>scoreForQuestion(question,index));
+    const ownTotal=ownScores.reduce((sum,score)=>sum+score,0);
+    const scoreCell=(score,index,attempted=true)=>{
+      const maximum=Number(config.questions[index]?.score)||100;
+      const tone=!attempted?'unsubmitted':score>=maximum?'full':score>0?'partial':'zero';
+      return `<td class="score-problem score-${tone}"><b>${attempted?score:'—'}</b></td>`;
+    };
+    const ownCells=ownScores.map((score,index)=>scoreCell(score,index,Boolean(results[index]||submissions.some(item=>item.problemId===config.questions[index].id)))).join('');
+    const currentUser={userId,userName,scores:ownScores,total:ownTotal,cells:ownCells};
+    const participants=[...publishedWeeklyPracticeScores.rows.map(user=>({...user,total:user.scores.reduce((sum,score)=>sum+score,0),cells:user.scores.map((score,index)=>scoreCell(score,index)).join('')})),currentUser]
+      .filter((user,index,array)=>array.findIndex(candidate=>candidate.userId===user.userId)===index)
+      .sort((left,right)=>right.total-left.total);
+    const rows=participants.map((user,index)=>{
+      return `<tr><td class="score-rank">${index+1}</td><td class="score-participant"><b>${escape(user.userId)}</b><span>(${escape(user.userName)})</span></td>${user.cells}<td class="score-total"><b>${user.total}</b></td></tr>`;
+    }).join('');
+    return `<section class="scoreboard-page scoreboard-weekly"><header><h1>成绩表</h1></header><div class="scoreboard-scroll"><table class="scoreboard-table"><thead><tr><th>#</th><th>用户</th>${heads}<th>总分</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  }
   const imported=config.scoreboard;
   if(Array.isArray(imported?.rows)&&imported.rows.length){
     const ioi=imported.rule==='IOI';
@@ -203,7 +234,10 @@ function renderScoreboard(){
     const totalHead=ioi?'<th><b>总分数</b><span>&nbsp;</span></th>':'<th><b>Solved</b><span>总耗时</span></th>';
     return `<section class="scoreboard-page"><header><h1>成绩表</h1></header><div class="scoreboard-scroll"><table class="scoreboard-table"><thead><tr><th>#</th><th>用户</th>${totalHead}${heads}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
-  const solved=config.questions.filter((question,index)=>results[index]==='accepted').length,totalScore=config.questions.reduce((sum,question,index)=>sum+scoreForQuestion(question,index),0);const cells=config.questions.map((question,index)=>{const attempts=submissions.filter(item=>item.problemId===question.id).length,accepted=results[index]==='accepted',earned=scoreForQuestion(question,index),partial=earned>0&&!accepted;return `<td class="score-problem ${accepted?'accepted':partial?'attempted':''}"><b>${accepted?'✓':partial?earned:attempts?`−${attempts}`:'—'}</b><span>${accepted||partial?`${earned} / ${Number(question.score)||0} 分`:attempts?`${attempts} 次尝试`:'未提交'}</span></td>`;}).join('');const heads=config.questions.map((question,index)=>`<th><b>${escape(question.id)}</b><span>${escape(question.name)}</span></th>`).join('');return `<section class="scoreboard-page"><header><h1>成绩表</h1></header><div class="scoreboard-scroll"><table class="scoreboard-table"><thead><tr><th>#</th><th>用户</th><th><b>Solved</b><span>总得分</span></th>${heads}</tr></thead><tbody><tr><td>1</td><td class="score-user"><span>${escape(String(config.candidateName||'U').slice(0,1).toUpperCase())}</span><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></td><td class="score-total"><b>${solved}</b><span>${totalScore} 分</span></td>${cells}</tr></tbody></table></div></section>`;
+  const solved=config.questions.filter((question,index)=>results[index]==='accepted').length,totalScore=config.questions.reduce((sum,question,index)=>sum+scoreForQuestion(question,index),0);const cells=config.questions.map((question,index)=>{const attempts=submissions.filter(item=>item.problemId===question.id).length,accepted=results[index]==='accepted',earned=scoreForQuestion(question,index),partial=earned>0&&!accepted;return `<td class="score-problem ${accepted?'accepted':partial?'attempted':''}"><b>${accepted?'✓':partial?earned:attempts?`−${attempts}`:'—'}</b><span>${accepted||partial?`${earned} / ${Number(question.score)||0} 分`:attempts?`${attempts} 次尝试`:'未提交'}</span></td>`;}).join('');const heads=config.questions.map((question,index)=>`<th><b>${escape(question.id)}</b><span>${escape(question.name)}</span></th>`).join('');
+  const participants=[{userId:config.studentId||config.candidateName,userName:config.candidateName,rank:'1',solved,totalScore,cells}];
+  const rows=participants.map(user=>`<tr><td>${escape(user.rank)}</td><td class="score-user"><span>${escape(String(user.userName||user.userId||'U').slice(0,1).toUpperCase())}</span><b>${escape(user.userId)}</b><small>${escape(user.userName)}</small></td><td class="score-total"><b>${user.solved}</b><span>${user.totalScore} 分</span></td>${user.cells}</tr>`).join('');
+  return `<section class="scoreboard-page"><header><h1>成绩表</h1></header><div class="scoreboard-scroll"><table class="scoreboard-table"><thead><tr><th>#</th><th>用户</th><th><b>Solved</b><span>总得分</span></th>${heads}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 function examDate(exam){return exam.date||String(exam.title||'').match(/\d{4}-\d{2}-\d{2}/)?.[0]||'日期未记录';}
 function renderExamCards(exams){
