@@ -52,7 +52,7 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
   const examVersions = new Set();
   const globalIds = new Set();
   const pastExams = exams.filter(exam => exam.category === 'past')
-    .sort((a, b) => Number(a.date) - Number(b.date));
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
   const pastStarts = new Map();
   let nextPastId = 1;
   for (const exam of pastExams) {

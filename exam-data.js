@@ -2429,7 +2429,7 @@ if (day2Training) {
 
 const numberedExams = [];
 for (const exam of [...window.OMS_EXAM_ARCHIVE].filter(item => item.category === 'past')
-  .sort((a, b) => Number(a.date) - Number(b.date))) {
+  .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))) {
   Object.assign(exam, window.OMS_NUMBER_EXAM(exam, numberedExams));
   numberedExams.push(exam);
 }
