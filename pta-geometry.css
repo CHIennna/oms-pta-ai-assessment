@@ -815,7 +815,7 @@ body.statement-reading-mode{overflow:hidden}
 .problem-directory-row:hover { background: var(--bg-normal); }
 .problem-directory-id { overflow: hidden; color: var(--text-light); font: 500 16px/1.4 var(--font-mono); text-overflow: ellipsis; }
 .problem-directory-row>b { overflow: hidden; color: var(--text-dark); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.problem-directory-tags { box-sizing: border-box; display: inline-flex; height: 26px; align-items: center; justify-self: center; overflow: hidden; padding: 0 7px; border: 1px solid; border-radius: 3px; color: #fff; font: 400 16px/24px "Microsoft YaHei","PingFang SC",Arial,sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.problem-directory-tags { box-sizing: border-box; display: inline-flex; height: 24px; align-items: center; justify-self: center; overflow: hidden; padding: 0 7px; border: 1px solid; border-radius: 3px; color: #fff; font: 400 13px/22px "Microsoft YaHei","PingFang SC",Arial,sans-serif; text-overflow: ellipsis; white-space: nowrap; }
 .problem-directory-tags.difficulty-beginner { border-color: #e94054; background: #fe4c61; }
 .problem-directory-tags.difficulty-basic { border-color: #ca8920; background: #f39c11; }
 .problem-directory-tags.difficulty-popular { border-color: #e0ab19; background: #ffc116; }
