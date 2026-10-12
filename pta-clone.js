@@ -110,15 +110,12 @@ function contestRuleLabel(rule){const value=String(rule||'');return value.trim()
 function portalDuration(value){const minutes=Number(value)||0;if(!minutes)return '未记录';if(minutes%60===0)return `${minutes/60} 小时`;return `${minutes} 分钟`;}
 const publishedWeeklyPracticeScores={
   examVersion:'2026-10-11-second-stage-weekly-practice-2',
+  participantCount:6,
   rows:[
-    {rank:1,userId:'032501999',userName:'雨姐',scores:[90,70,80,60,70,50,20,10]},
-    {rank:2,userId:'332501264',userName:'坏苹果',scores:[100,90,80,70,40,30,20,0]},
-    {rank:3,userId:'ZmjjKk',userName:'郑永康',scores:[100,80,60,50,20,30,0,10]},
-    {rank:4,userId:'152512345',userName:'肠粉',scores:[80,60,70,40,30,10,0,10]},
-    {rank:5,userId:'052512345',userName:'天妇罗',scores:[90,70,40,60,10,20,0,0]}
+    {userId:'102500000',userName:'ciena',total:400,scores:null}
   ]
 };
-function examParticipantCount(exam){if(exam.examVersion===publishedWeeklyPracticeScores.examVersion)return publishedWeeklyPracticeScores.rows.length+1;const value=Number(exam.registered??exam.participants);return Number.isFinite(value)&&value>=0?value:1;}
+function examParticipantCount(exam){if(exam.examVersion===publishedWeeklyPracticeScores.examVersion)return publishedWeeklyPracticeScores.participantCount;const value=Number(exam.registered??exam.participants);return Number.isFinite(value)&&value>=0?value:1;}
 const PORTAL_ICONS={home:'<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 9.8V20h13V9.8M9.5 20v-6h5v6"/>',problems:'<rect x="5" y="3.5" width="14" height="17" rx="1.8"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5"/>',training:'<path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h5"/>',contest:'<path d="M8 4h8v3.5a4 4 0 0 1-8 0zM12 11.5V16M8.5 20h7M9 16h6"/><path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11"/>',assignment:'<path d="M8 5h11v16H5V8z"/><path d="M8 5v3H5M9 12h6M9 16h6"/>',judge:'<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="m3.5 6.5 1.3 1.3 2.3-2.6M3.5 12l1.3 1.3 2.3-2.6M3.5 17.5l1.3 1.3 2.3-2.6"/>',advice:'<path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.1 14 18h-4c0-1.9-.5-2.7-1.5-3.5Z"/>',theme:'<path d="M20 15.2A8.4 8.4 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7.2h.01"/>',panel:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M8.5 3.5v17M11.5 8h5M11.5 12h5M11.5 16h3"/>',calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',users:'<path d="M8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6 6 0 0 1 12 0M16 12a3 3 0 1 0 0-6M16 14a5.5 5.5 0 0 1 5.5 5.5"/>',award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/>',arrow:'<path d="m9 5 7 7-7 7"/>',chevron:'<path d="m7 14 5-5 5 5"/>'};
 PORTAL_ICONS.user='<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>';
 function portalIcon(name){return `<svg class="portal-icon" viewBox="0 0 24 24" aria-hidden="true">${PORTAL_ICONS[name]||''}</svg>`;}
@@ -220,14 +217,10 @@ function scoreboardScoreCell(score,maximum,attempted=true){
 function renderScoreboard(){
   if(config.examVersion===publishedWeeklyPracticeScores.examVersion){
     const heads=config.questions.map((question,index)=>`<th><b>${index+1}</b></th>`).join('');
-    const userId=String(portalUser?.username||config.studentId||config.candidateName||'当前用户');
-    const userName=String(portalUser?.nickname||config.candidateName||userId);
-    const ownScores=config.questions.map((question,index)=>scoreForQuestion(question,index));
-    const ownTotal=ownScores.reduce((sum,score)=>sum+score,0);
     const scoreCell=(score,index,attempted=true)=>scoreboardScoreCell(score,Number(config.questions[index]?.score)||100,attempted);
-    const ownCells=ownScores.map((score,index)=>scoreCell(score,index,Boolean(results[index]||submissions.some(item=>item.problemId===config.questions[index].id)))).join('');
-    const currentUser={userId,userName,scores:ownScores,total:ownTotal,cells:ownCells};
-    const participants=[...publishedWeeklyPracticeScores.rows.map(user=>({...user,total:user.scores.reduce((sum,score)=>sum+score,0),cells:user.scores.map((score,index)=>scoreCell(score,index)).join('')})),currentUser]
+    const unsyncedCell='<td class="score-problem score-unsubmitted" title="逐题成绩未同步"><b>—</b><span>未同步</span></td>';
+    const publishedRows=publishedWeeklyPracticeScores.rows.map(user=>{const scores=Array.isArray(user.scores)?user.scores:null;return {...user,total:Number.isFinite(Number(user.total))?Number(user.total):(scores||[]).reduce((sum,score)=>sum+Number(score||0),0),cells:config.questions.map((question,index)=>scores&&index<scores.length?scoreCell(scores[index],index):unsyncedCell).join('')}});
+    const participants=publishedRows
       .filter((user,index,array)=>array.findIndex(candidate=>candidate.userId===user.userId)===index)
       .sort((left,right)=>right.total-left.total);
     const rows=participants.map((user,index)=>`<tr><td class="score-rank">${index+1}</td>${scoreboardUserCell(user.userId,user.userName)}<td class="score-total"><b>${user.total}</b></td>${user.cells}</tr>`).join('');
