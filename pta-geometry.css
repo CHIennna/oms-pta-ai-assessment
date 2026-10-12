@@ -913,3 +913,9 @@ body{padding-top:var(--oms-client-chrome-height)}
   .workspace-middle.is-resizing,.workspace-middle.is-resizing *{cursor:col-resize!important}
 }
 @media (max-width:760px){.resize-handle{cursor:row-resize}}
+
+/* Fixed client chrome sits above the compact exam navigation. */
+@media (max-width:760px){
+  .rail,.overview{top:calc(var(--oms-client-chrome-height) + 54px)}
+  .workspace{min-height:calc(100dvh - var(--oms-client-chrome-height) - 54px)}
+}
