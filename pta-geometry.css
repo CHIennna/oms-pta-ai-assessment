@@ -815,16 +815,16 @@ body.statement-reading-mode{overflow:hidden}
 .problem-directory-row:hover { background: var(--bg-normal); }
 .problem-directory-id { overflow: hidden; color: var(--text-light); font: 500 16px/1.4 var(--font-mono); text-overflow: ellipsis; }
 .problem-directory-row>b { overflow: hidden; color: var(--text-dark); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.problem-directory-tags { overflow: hidden; color: var(--text-light); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.problem-directory-tags.difficulty-beginner { color: #f43f5e; }
-.problem-directory-tags.difficulty-basic { color: #f59e0b; }
-.problem-directory-tags.difficulty-popular { color: #eab308; }
-.problem-directory-tags.difficulty-improving { color: #22b825; }
-.problem-directory-tags.difficulty-advanced { color: #0eb9c2; }
-.problem-directory-tags.difficulty-provincial { color: #2f96d9; }
-.problem-directory-tags.difficulty-noi { color: #a33bcb; }
-.problem-directory-tags.difficulty-expert { color: #243b82; }
-.problem-directory-tags.difficulty-pending { color: var(--text-light); }
+.problem-directory-tags { display: inline-flex; min-height: 28px; align-items: center; justify-self: start; overflow: hidden; padding: 4px 10px; border: 1px solid rgb(0 0 0 / .18); border-radius: 4px; color: #fff; font-size: 13px; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08); }
+.problem-directory-tags.difficulty-beginner { background: #ff4961; }
+.problem-directory-tags.difficulty-basic { background: #ff9800; }
+.problem-directory-tags.difficulty-popular { background: #ffb817; }
+.problem-directory-tags.difficulty-improving { background: #39c914; }
+.problem-directory-tags.difficulty-advanced { background: #13bfc3; }
+.problem-directory-tags.difficulty-provincial { background: #3498d8; }
+.problem-directory-tags.difficulty-noi { background: #9c36d2; }
+.problem-directory-tags.difficulty-expert { background: #172a78; }
+.problem-directory-tags.difficulty-pending { background: #8c939d; }
 .problem-directory-row>em { color: var(--text-light); font: normal 12px var(--font-mono); text-align: right; }
 .problem-directory-status { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border-all); border-radius: 50%; color: var(--text-light); font-size: 13px; }
 .problem-directory-status.accepted { border-color: hsl(145 48% 48%/.5); background: hsl(145 48% 48%/.12); color: hsl(145 55% 54%); }
