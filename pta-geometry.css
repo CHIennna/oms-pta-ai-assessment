@@ -815,16 +815,16 @@ body.statement-reading-mode{overflow:hidden}
 .problem-directory-row:hover { background: var(--bg-normal); }
 .problem-directory-id { overflow: hidden; color: var(--text-light); font: 500 16px/1.4 var(--font-mono); text-overflow: ellipsis; }
 .problem-directory-row>b { overflow: hidden; color: var(--text-dark); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.problem-directory-tags { display: inline-flex; min-height: 28px; align-items: center; justify-self: start; overflow: hidden; padding: 4px 10px; border: 1px solid rgb(0 0 0 / .18); border-radius: 4px; color: #fff; font-size: 13px; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08); }
-.problem-directory-tags.difficulty-beginner { background: #ff4961; }
-.problem-directory-tags.difficulty-basic { background: #ff9800; }
-.problem-directory-tags.difficulty-popular { background: #ffb817; }
-.problem-directory-tags.difficulty-improving { background: #39c914; }
-.problem-directory-tags.difficulty-advanced { background: #13bfc3; }
-.problem-directory-tags.difficulty-provincial { background: #3498d8; }
-.problem-directory-tags.difficulty-noi { background: #9c36d2; }
-.problem-directory-tags.difficulty-expert { background: #172a78; }
-.problem-directory-tags.difficulty-pending { background: #8c939d; }
+.problem-directory-tags { box-sizing: border-box; display: inline-flex; height: 26px; align-items: center; justify-self: center; overflow: hidden; padding: 0 7px; border: 1px solid; border-radius: 3px; color: #fff; font: 400 16px/24px "Microsoft YaHei","PingFang SC",Arial,sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.problem-directory-tags.difficulty-beginner { border-color: #e94054; background: #fe4c61; }
+.problem-directory-tags.difficulty-basic { border-color: #ca8920; background: #f39c11; }
+.problem-directory-tags.difficulty-popular { border-color: #e0ab19; background: #ffc116; }
+.problem-directory-tags.difficulty-improving { border-color: #50a127; background: #53c41a; }
+.problem-directory-tags.difficulty-advanced { border-color: #219f9f; background: #13c2c2; }
+.problem-directory-tags.difficulty-provincial { border-color: #3688be; background: #3498db; }
+.problem-directory-tags.difficulty-noi { border-color: #8a3eb3; background: #9c3dcf; }
+.problem-directory-tags.difficulty-expert { border-color: #152056; background: #0e1d69; }
+.problem-directory-tags.difficulty-pending { border-color: #737982; background: #8c939d; }
 .problem-directory-row>em { color: var(--text-light); font: normal 12px var(--font-mono); text-align: right; }
 .problem-directory-status { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border-all); border-radius: 50%; color: var(--text-light); font-size: 13px; }
 .problem-directory-status.accepted { border-color: hsl(145 48% 48%/.5); background: hsl(145 48% 48%/.12); color: hsl(145 55% 54%); }
