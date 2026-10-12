@@ -141,8 +141,8 @@ function renderFzuOjHome(activePage='home'){
   const exams=[primaryConfig,...archive]
     .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
     .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
-  const activeNavRoute=activePage==='problemset'?'problems':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':activePage==='advice'?'advice':'home';
-  const navItems=[['home','首页','home'],['problems','题目','problemset'],['contest','考试','home-contests'],['judge','评测','home-submissions'],['advice','备考','advice']]
+  const activeNavRoute=activePage==='problemset'?'problems':activePage==='practice'?'practice':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':activePage==='advice'?'advice':'home';
+  const navItems=[['home','首页','home'],['problems','题目','problemset'],['training','练习','practice'],['contest','考试','home-contests'],['judge','评测','home-submissions'],['advice','备考','advice']]
     .map(([icon,label,route])=>`<button type="button" class="fzuoj-nav-item ${route===activeNavRoute?'active':''}" data-portal-route="${route}"><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
   const contestTime=exam=>formatExamTime(exam.startAt||exam.date);
   const contests=exams.slice(0,5).map(exam=>{
@@ -299,7 +299,7 @@ function renderExamCenter(){
   const pastExams=(window.OMS_EXAM_ARCHIVE||[]).filter(exam=>exam.category==='past').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}));
   const mockExams=[currentExam,...archive.filter(exam=>exam.category==='mock').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}))];
   const activeCategory=config.examVersion===primaryExamVersion?'mock':'past';
-  return `<div class="exam-center-head"><h1>考试中心</h1></div><div class="exam-center-tabs" role="tablist"><button type="button" class="${activeCategory==='past'?'active':''}" data-exam-center-tab="past" role="tab" aria-selected="${activeCategory==='past'}">历年卷</button><button type="button" class="${activeCategory==='mock'?'active':''}" data-exam-center-tab="mock" role="tab" aria-selected="${activeCategory==='mock'}">模拟卷</button></div><section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年卷</h2><span>历年考试试卷</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟卷</h2><span>周练与模拟考试</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
+  return `<div class="exam-center-head"><h1>练习</h1></div><div class="exam-center-tabs" role="tablist"><button type="button" class="${activeCategory==='past'?'active':''}" data-exam-center-tab="past" role="tab" aria-selected="${activeCategory==='past'}">历年题</button><button type="button" class="${activeCategory==='mock'?'active':''}" data-exam-center-tab="mock" role="tab" aria-selected="${activeCategory==='mock'}">模拟练习</button></div><section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年题</h2><span>历年考试题目练习</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟练习</h2><span>周练与模拟题目</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
 }
 const PROBLEM_DIFFICULTY_GROUPS=[
   [1,['普及-','普及','普及+/提高-','普及-','普及+/提高-','普及-','普及-','待定']],
@@ -550,7 +550,7 @@ async function route(name,allowGuest=false){
   }
   const previousRoute=activeRoute;activeRoute=name;renderOmsClientChrome(name);
   if(previousRoute==='exam'&&name!=='exam')persistActiveDraft();
-  const app=$('#pta-app'),isPortalPage=['home','problemset','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
+  const app=$('#pta-app'),isPortalPage=['home','problemset','practice','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
   const activeNavRoute=name==='problemset'?'exam':name==='home-submissions'?'submissions':name==='home-contests'?'center':name;
   document.querySelectorAll('.rail-button').forEach(button=>button.classList.toggle('active',button.dataset.route===activeNavRoute));
   $('.remain').hidden=name==='home-contests'||name==='problemset'||name==='home-submissions'||name==='advice'||isPortalPage;
@@ -610,6 +610,15 @@ async function route(name,allowGuest=false){
       portalContent.querySelectorAll('[data-problem-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.problemExam,Number(button.dataset.problemIndex)))route('exam');});
     };
     paint();
+  }
+  if(name==='practice'){
+    paintPortalPage(renderExamCenter());
+    const showPracticePanel=category=>{
+      secondary.querySelectorAll('[data-exam-center-tab]').forEach(button=>{const active=button.dataset.examCenterTab===category;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});
+      secondary.querySelectorAll('[data-exam-center-panel]').forEach(panel=>{const active=panel.dataset.examCenterPanel===category;panel.hidden=!active;panel.classList.toggle('active',active);});
+    };
+    secondary.querySelectorAll('[data-exam-center-tab]').forEach(button=>button.onclick=()=>showPracticePanel(button.dataset.examCenterTab));
+    secondary.querySelectorAll('[data-exam-version][data-question-open]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.examVersion,Number(button.dataset.questionOpen)))route('exam');});
   }
   if(name==='info'){
     secondary.innerHTML=renderExamInfo();
