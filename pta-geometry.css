@@ -815,7 +815,16 @@ body.statement-reading-mode{overflow:hidden}
 .problem-directory-row:hover { background: var(--bg-normal); }
 .problem-directory-id { overflow: hidden; color: var(--text-light); font: 500 16px/1.4 var(--font-mono); text-overflow: ellipsis; }
 .problem-directory-row>b { overflow: hidden; color: var(--text-dark); font-size: 14px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.problem-directory-tags { overflow: hidden; color: var(--text-light); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.problem-directory-tags { overflow: hidden; color: var(--text-light); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.problem-directory-tags.difficulty-beginner { color: #f43f5e; }
+.problem-directory-tags.difficulty-basic { color: #f59e0b; }
+.problem-directory-tags.difficulty-popular { color: #eab308; }
+.problem-directory-tags.difficulty-improving { color: #22b825; }
+.problem-directory-tags.difficulty-advanced { color: #0eb9c2; }
+.problem-directory-tags.difficulty-provincial { color: #2f96d9; }
+.problem-directory-tags.difficulty-noi { color: #a33bcb; }
+.problem-directory-tags.difficulty-expert { color: #243b82; }
+.problem-directory-tags.difficulty-pending { color: var(--text-light); }
 .problem-directory-row>em { color: var(--text-light); font: normal 12px var(--font-mono); text-align: right; }
 .problem-directory-status { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid var(--border-all); border-radius: 50%; color: var(--text-light); font-size: 13px; }
 .problem-directory-status.accepted { border-color: hsl(145 48% 48%/.5); background: hsl(145 48% 48%/.12); color: hsl(145 55% 54%); }

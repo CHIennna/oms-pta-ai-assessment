@@ -292,6 +292,26 @@ function renderExamCenter(){
   const activeCategory=config.examVersion===primaryExamVersion?'mock':'past';
   return `<div class="exam-center-head"><h1>考试中心</h1></div><div class="exam-center-tabs" role="tablist"><button type="button" class="${activeCategory==='past'?'active':''}" data-exam-center-tab="past" role="tab" aria-selected="${activeCategory==='past'}">历年卷</button><button type="button" class="${activeCategory==='mock'?'active':''}" data-exam-center-tab="mock" role="tab" aria-selected="${activeCategory==='mock'}">模拟卷</button></div><section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年卷</h2><span>历年考试试卷</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟卷</h2><span>周练与模拟考试</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
 }
+const PROBLEM_DIFFICULTY_GROUPS=[
+  [1,['普及-','普及','普及+/提高-','普及-','普及+/提高-','普及-','普及-','待定']],
+  [9,['普及','待定','普及','普及+/提高-','普及+/提高-','普及-','普及-','普及-']],
+  [17,['普及-','普及','普及','入门','普及','普及+/提高-','入门','入门','普及','普及-']],
+  [27,['提高','普及-','普及','普及','普及','普及','普及+/提高-','普及+/提高-']],
+  [1001,['普及-','普及-','普及-','普及','普及','普及','普及','普及']],
+  [1009,['普及','普及','普及-','普及+/提高-','普及+/提高-','普及-','普及','普及','普及+/提高-','提高','入门']],
+  [1020,['普及+/提高-','普及','普及+/提高-','提高','提高','普及','普及-','提高','提高+/省选-','普及+/提高-','入门']],
+  [1031,['提高','提高+/省选-','提高','省选/NOI-','普及+/提高-','提高+/省选-','提高','提高+/省选-','普及','提高','入门']],
+  [1042,['普及','普及','入门','入门','提高+/省选-','普及+/提高-','提高+/省选-','普及','普及','提高','普及-','普及+/提高-']],
+  [1054,['普及+/提高-','普及+/提高-','普及+/提高-','普及','提高','普及+/提高-','入门','提高','普及+/提高-','普及-','普及+/提高-']],
+  [1065,['普及','普及+/提高-','普及-','普及+/提高-','提高','普及','提高+/省选-','普及','提高','提高+/省选-','普及+/提高-']],
+  [1076,['普及-','入门','普及','普及+/提高-','提高+/省选-','普及','普及','普及']],
+  [1084,['普及-','普及','普及','普及+/提高-','普及','普及+/提高-','普及+/提高-','提高']]
+];
+const PROBLEM_DIFFICULTY=new Map(PROBLEM_DIFFICULTY_GROUPS.flatMap(([start,ratings])=>ratings.map((rating,index)=>[String(start+index),rating])));
+const difficultyTone=rating=>({
+  '入门':'beginner','普及-':'basic','普及':'popular','普及+/提高-':'improving',
+  '提高':'advanced','提高+/省选-':'provincial','省选/NOI-':'noi','NOI/NOI+/CTS':'expert','待定':'pending'
+}[rating]||'pending');
 function renderProblemDirectory(filters={status:'all',keyword:''},page=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exams=[primaryConfig,...archive]
@@ -311,16 +331,17 @@ function renderProblemDirectory(filters={status:'all',keyword:''},page=0){
     return latest?'未通过':'未提交';
   };
   const filtered=problems.filter(item=>{
-    const status=statusFor(item),text=`${item.question.id||''} ${item.question.name||''} ${(item.question.tags||[]).toString()}`.toLowerCase();
+    const difficulty=PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'';
+    const status=statusFor(item),text=`${item.question.id||''} ${item.question.name||''} ${difficulty}`.toLowerCase();
     return (filters.status==='all'||status===filters.status)&&(!filters.keyword||text.includes(filters.keyword.toLowerCase()));
   });
   const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1);
   const rows=filtered.slice(safePage*pageSize,(safePage+1)*pageSize).map(item=>{
     const status=statusFor(item),tone=status==='已通过'?'accepted':status==='未通过'?'wrong':status==='暂不可评测'?'unavailable':'pending';
-    const rawTags=item.question.tags||[],tags=(Array.isArray(rawTags)?rawTags:[rawTags]).filter(Boolean).map(escape).join(' · ')||'—';
+    const difficulty=PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'—';
     const ratio=item.question.passRate??item.question.acceptanceRate;
     const passRate=ratio===undefined||ratio===null?'—':`${escape(ratio)}${Number.isFinite(Number(ratio))?'%':''}`;
-    return `<button type="button" class="problem-directory-row" data-problem-exam="${escape(item.exam.examVersion)}" data-problem-index="${item.index}"><span class="problem-directory-status ${tone}" title="${status}">${status==='已通过'?'✓':status==='未通过'?'×':status==='暂不可评测'?'!':'—'}</span><span class="problem-directory-id">${escape(item.question.id||item.index+1)}</span><b>${escape(item.question.name||'未命名题目')}</b><span class="problem-directory-tags">${tags}</span><em>${passRate}</em></button>`;
+    return `<button type="button" class="problem-directory-row" data-problem-exam="${escape(item.exam.examVersion)}" data-problem-index="${item.index}"><span class="problem-directory-status ${tone}" title="${status}">${status==='已通过'?'✓':status==='未通过'?'×':status==='暂不可评测'?'!':'—'}</span><span class="problem-directory-id">${escape(item.question.id||item.index+1)}</span><b>${escape(item.question.name||'未命名题目')}</b><span class="problem-directory-tags difficulty-${difficultyTone(difficulty)}">${escape(difficulty)}</span><em>${passRate}</em></button>`;
   }).join('');
   const statuses=['all','未提交','已通过','未通过','暂不可评测'],labels={all:'全部',未提交:'未提交',已通过:'已通过',未通过:'未通过',暂不可评测:'暂不可评测'};
   return `<section class="problem-directory"><header class="problem-directory-head"><div><h1>题目</h1></div><span>${filtered.length} 道题</span></header><form class="problem-directory-filters" data-problem-filter-form><div class="problem-status-tabs" role="group" aria-label="题目状态">${statuses.map(status=>`<button type="button" data-problem-status="${status}" class="${filters.status===status?'active':''}">${labels[status]}</button>`).join('')}</div><div class="problem-directory-search"><input name="keyword" value="${escape(filters.keyword)}" placeholder="搜索题号或题目名称" aria-label="搜索题号或题目名称"><button type="submit">搜索</button><button type="button" data-problem-reset>重置</button></div></form><div class="problem-directory-table-wrap"><div class="problem-directory-table"><div class="problem-directory-columns"><span>状态</span><span>题号</span><span>题目名称</span><span>标签</span><span>通过率</span></div>${rows||`<div class="problem-directory-empty">${problems.length?'没有符合条件的题目':'暂无题目'}</div>`}</div></div><nav class="problem-directory-pagination" aria-label="题目列表分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-problem-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-problem-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
