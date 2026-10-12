@@ -321,7 +321,7 @@ const difficultyTone=rating=>({
   '入门':'beginner','普及-':'basic','普及':'popular','普及+/提高-':'improving',
   '提高':'advanced','提高+/省选-':'provincial','省选/NOI-':'noi','NOI/NOI+/CTS':'expert','待定':'pending'
 }[rating]||'pending');
-function renderProblemDirectory(filters={status:'all',keyword:''},page=0){
+function renderProblemDirectory(filters={status:'all',difficulty:'all',keyword:''},page=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exams=[primaryConfig,...archive]
     .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
@@ -342,7 +342,7 @@ function renderProblemDirectory(filters={status:'all',keyword:''},page=0){
   const filtered=problems.filter(item=>{
     const difficulty=PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'';
     const status=statusFor(item),text=`${item.question.id||''} ${item.question.name||''} ${difficulty}`.toLowerCase();
-    return (filters.status==='all'||status===filters.status)&&(!filters.keyword||text.includes(filters.keyword.toLowerCase()));
+    return (filters.status==='all'||status===filters.status)&&(filters.difficulty==='all'||difficulty===filters.difficulty)&&(!filters.keyword||text.includes(filters.keyword.trim().toLowerCase()));
   });
   const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1);
   const rows=filtered.slice(safePage*pageSize,(safePage+1)*pageSize).map(item=>{
@@ -353,7 +353,9 @@ function renderProblemDirectory(filters={status:'all',keyword:''},page=0){
     return `<button type="button" class="problem-directory-row" data-problem-exam="${escape(item.exam.examVersion)}" data-problem-index="${item.index}"><span class="problem-directory-status ${tone}" title="${status}">${status==='已通过'?'✓':status==='未通过'?'×':status==='暂不可评测'?'!':'—'}</span><span class="problem-directory-id">${escape(item.question.id||item.index+1)}</span><b>${escape(item.question.name||'未命名题目')}</b><span class="problem-directory-tags difficulty-${difficultyTone(difficulty)}">${escape(difficulty)}</span><em>${passRate}</em></button>`;
   }).join('');
   const statuses=['all','未提交','已通过','未通过','暂不可评测'],labels={all:'全部',未提交:'未提交',已通过:'已通过',未通过:'未通过',暂不可评测:'暂不可评测'};
-  return `<section class="problem-directory"><header class="problem-directory-head"><div><h1>题目</h1></div><span>${filtered.length} 道题</span></header><form class="problem-directory-filters" data-problem-filter-form><div class="problem-status-tabs" role="group" aria-label="题目状态">${statuses.map(status=>`<button type="button" data-problem-status="${status}" class="${filters.status===status?'active':''}">${labels[status]}</button>`).join('')}</div><div class="problem-directory-search"><input name="keyword" value="${escape(filters.keyword)}" placeholder="搜索题号或题目名称" aria-label="搜索题号或题目名称"><button type="submit">搜索</button><button type="button" data-problem-reset>重置</button></div></form><div class="problem-directory-table-wrap"><div class="problem-directory-table"><div class="problem-directory-columns"><span>状态</span><span>题号</span><span>题目名称</span><span>标签</span><span>通过率</span></div>${rows||`<div class="problem-directory-empty">${problems.length?'没有符合条件的题目':'暂无题目'}</div>`}</div></div><nav class="problem-directory-pagination" aria-label="题目列表分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-problem-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-problem-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
+  const difficulties=['入门','普及-','普及','普及+/提高-','提高','提高+/省选-','省选/NOI-','NOI/NOI+/CTS','待定'];
+  const difficultyOptions=[`<option value="all" ${filters.difficulty==='all'?'selected':''}>全部难度</option>`,...difficulties.map(difficulty=>`<option value="${escape(difficulty)}" ${filters.difficulty===difficulty?'selected':''}>${escape(difficulty)}</option>`)].join('');
+  return `<section class="problem-directory"><header class="problem-directory-head"><div><h1>题目</h1></div><span>${filtered.length} 道题</span></header><form class="problem-directory-filters" data-problem-filter-form><div class="problem-status-tabs" role="group" aria-label="题目状态">${statuses.map(status=>`<button type="button" data-problem-status="${status}" class="${filters.status===status?'active':''}">${labels[status]}</button>`).join('')}</div><div class="problem-directory-search"><select name="difficulty" aria-label="题目难度筛选">${difficultyOptions}</select><input name="keyword" value="${escape(filters.keyword)}" placeholder="输入题号、题目名称或关键词" aria-label="题目关键词筛选"><button type="submit">筛选</button><button type="button" data-problem-reset>重置</button></div></form><div class="problem-directory-table-wrap"><div class="problem-directory-table"><div class="problem-directory-columns"><span>状态</span><span>题号</span><span>题目名称</span><span>标签</span><span>通过率</span></div>${rows||`<div class="problem-directory-empty">${problems.length?'没有符合条件的题目':'暂无题目'}</div>`}</div></div><nav class="problem-directory-pagination" aria-label="题目列表分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-problem-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-problem-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
 }
 function renderAdviceQuestionRows(questions,emptyText){
   if(!questions.length)return `<div class="study-advice-empty"><b>${escape(emptyText)}</b><span>完成题目评测后，这里会自动更新。</span></div>`;
@@ -590,13 +592,14 @@ async function route(name,allowGuest=false){
     paint();
   }
   if(name==='problemset'){
-    let filters={status:'all',keyword:''},page=0;
+    let filters={status:'all',difficulty:'all',keyword:''},page=0;
     const paint=()=>{
       paintPortalPage(renderProblemDirectory(filters,page));
       const form=portalContent.querySelector('[data-problem-filter-form]');
       form.onsubmit=event=>{event.preventDefault();filters={...filters,...Object.fromEntries(new FormData(form))};page=0;paint();};
-      portalContent.querySelector('[data-problem-reset]').onclick=()=>{filters={status:'all',keyword:''};page=0;paint();};
-      portalContent.querySelectorAll('[data-problem-status]').forEach(button=>button.onclick=()=>{filters.status=button.dataset.problemStatus;page=0;paint();});
+      portalContent.querySelector('[data-problem-reset]').onclick=()=>{filters={status:'all',difficulty:'all',keyword:''};page=0;paint();};
+      portalContent.querySelectorAll('[data-problem-status]').forEach(button=>button.onclick=()=>{filters={...filters,...Object.fromEntries(new FormData(form)),status:button.dataset.problemStatus};page=0;paint();});
+      form.elements.difficulty.onchange=()=>{filters={...filters,...Object.fromEntries(new FormData(form))};page=0;paint();};
       portalContent.querySelectorAll('[data-problem-page]').forEach(button=>button.onclick=()=>{page=Number(button.dataset.problemPage);paint();});
       portalContent.querySelectorAll('[data-problem-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.problemExam,Number(button.dataset.problemIndex)))route('exam');});
     };

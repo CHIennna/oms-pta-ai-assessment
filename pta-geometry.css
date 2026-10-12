@@ -798,9 +798,9 @@ body.statement-reading-mode{overflow:hidden}
 .problem-status-tabs button { min-height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-light); font-size: 13px; cursor: pointer; }
 .problem-status-tabs button:hover { background: var(--bg-normal); color: var(--text-dark); }
 .problem-status-tabs button.active { border-color: hsl(211 90% 55%/.25); background: hsl(211 90% 55%/.13); color: var(--color-primary); }
-.problem-directory-search { display: flex; min-width: min(100%,400px); gap: 7px; }
-.problem-directory-search input { flex: 1; min-width: 120px; height: 35px; padding: 0 10px; border: 1px solid var(--border-all); border-radius: 5px; outline: none; background: var(--bg-base); color: var(--text-dark); font: inherit; font-size: 13px; }
-.problem-directory-search input:focus { border-color: var(--color-primary); }
+.problem-directory-search { display: grid; width: min(100%,650px); min-width: min(100%,520px); grid-template-columns: 170px minmax(180px,1fr) auto auto; gap: 7px; }
+.problem-directory-search input,.problem-directory-search select { min-width: 0; height: 35px; padding: 0 10px; border: 1px solid var(--border-all); border-radius: 5px; outline: none; background: var(--bg-base); color: var(--text-dark); font: inherit; font-size: 13px; }
+.problem-directory-search input:focus,.problem-directory-search select:focus { border-color: var(--color-primary); }
 .problem-directory-search button { flex: none; min-height: 35px; padding: 0 12px; border: 1px solid var(--border-all); border-radius: 5px; background: var(--bg-base); color: var(--text-normal); font-size: 13px; cursor: pointer; }
 .problem-directory-search button[type="submit"] { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
 .problem-directory-search button:hover { border-color: var(--color-primary); color: var(--color-primary); }
@@ -840,7 +840,8 @@ body.statement-reading-mode{overflow:hidden}
   .secondary[data-page="problems"] { padding: 19px 13px; }
   .problem-directory-head h1 { font-size: 24px; }
   .problem-directory-filters { align-items: stretch; flex-direction: column; }
-  .problem-directory-search { width: 100%; min-width: 0; }
+  .problem-directory-search { width: 100%; min-width: 0; grid-template-columns: minmax(0,1fr) auto auto; }
+  .problem-directory-search select { grid-column: 1/-1; }
   .problem-directory-row { grid-template-columns: 40px 72px minmax(180px,1fr) 90px; }
   .problem-directory-columns { grid-template-columns: 40px 72px minmax(180px,1fr) 90px; }
   .problem-directory-row .problem-directory-tags,.problem-directory-columns span:nth-child(4) { display: none; }
