@@ -77,32 +77,79 @@
   run.addEventListener('click', () => { tester.classList.remove('collapsed'); tester.classList.add('expanded'); sync(); });
   if (middle && statement && handle) {
     let resizing = false;
+    let activePointerId = null;
+    let splitRatio = Number.NaN;
+    try { splitRatio = Number(localStorage.getItem('oms-workspace-split-ratio-v2')); } catch {}
+    handle.tabIndex = 0;
+    handle.setAttribute('role', 'separator');
+    handle.setAttribute('aria-orientation', 'vertical');
+    handle.setAttribute('aria-label', '调整题目描述与代码区宽度');
+    const applyLeftWidth = (requestedWidth, persist = false) => {
+      if (compact.matches) return;
+      const bounds = middle.getBoundingClientRect();
+      const handleWidth = 9;
+      const available = Math.max(0, bounds.width - handleWidth);
+      if (!available) return;
+      const minimumPane = Math.min(300, Math.max(220, available * .26));
+      const maximum = Math.max(minimumPane, available - minimumPane);
+      const leftWidth = Math.max(minimumPane, Math.min(maximum, requestedWidth));
+      splitRatio = leftWidth / available;
+      middle.style.gridTemplateColumns = `${Math.round(leftWidth)}px ${handleWidth}px minmax(0, 1fr)`;
+      handle.setAttribute('aria-valuemin', String(Math.round(minimumPane)));
+      handle.setAttribute('aria-valuemax', String(Math.round(maximum)));
+      handle.setAttribute('aria-valuenow', String(Math.round(leftWidth)));
+      if (persist) {
+        try { localStorage.setItem('oms-workspace-split-ratio-v2', String(splitRatio)); } catch {}
+      }
+    };
+    const restoreSplit = () => {
+      if (compact.matches) return;
+      const bounds = middle.getBoundingClientRect();
+      const handleWidth = 9;
+      const available = Math.max(0, bounds.width - handleWidth);
+      applyLeftWidth(Number.isFinite(splitRatio) && splitRatio > 0 && splitRatio < 1 ? available * splitRatio : available * .43);
+    };
     const resize = event => {
       if (!resizing) return;
       const bounds = middle.getBoundingClientRect();
-      const minimum = 300;
-      const maximum = Math.max(minimum, bounds.width - 400);
-      const leftWidth = Math.max(minimum, Math.min(maximum, event.clientX - bounds.left));
-      middle.style.gridTemplateColumns = `${Math.round(leftWidth)}px 9px minmax(400px, 1fr)`;
+      applyLeftWidth(event.clientX - bounds.left);
+    };
+    const stopResize = event => {
+      if (!resizing) return;
+      resizing = false;
+      middle.classList.remove('is-resizing');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (activePointerId !== null && handle.hasPointerCapture?.(activePointerId)) handle.releasePointerCapture(activePointerId);
+      activePointerId = null;
+      if (Number.isFinite(splitRatio)) {
+        try { localStorage.setItem('oms-workspace-split-ratio-v2', String(splitRatio)); } catch {}
+      }
+      event?.preventDefault?.();
     };
     handle.addEventListener('pointerdown', event => {
+      if (compact.matches || event.button !== 0) return;
+      event.preventDefault();
       resizing = true;
+      activePointerId = event.pointerId;
       handle.setPointerCapture(event.pointerId);
+      middle.classList.add('is-resizing');
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
       resize(event);
     });
     handle.addEventListener('pointermove', resize);
-    handle.addEventListener('pointerup', () => {
-      resizing = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+    handle.addEventListener('pointerup', stopResize);
+    handle.addEventListener('pointercancel', stopResize);
+    handle.addEventListener('keydown', event => {
+      if (compact.matches || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      const current = Number(handle.getAttribute('aria-valuenow')) || middle.getBoundingClientRect().width * .43;
+      applyLeftWidth(current + (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 40 : 16), true);
     });
-    handle.addEventListener('pointercancel', () => {
-      resizing = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    });
+    window.addEventListener('blur', stopResize);
+    window.addEventListener('resize', () => requestAnimationFrame(restoreSplit));
+    requestAnimationFrame(restoreSplit);
   }
   sync();
   syncOverview();

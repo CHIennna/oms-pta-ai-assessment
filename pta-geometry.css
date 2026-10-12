@@ -904,3 +904,12 @@ body{padding-top:var(--oms-client-chrome-height)}
 .solution-copy{max-width:none;padding:18px}
 .solution-empty{margin:0;padding:24px 18px;color:var(--text-light);font-size:14px;text-align:center}
 @media(max-width:560px){.secondary[data-page="solutions"]{padding:20px 14px}.solution-heading{align-items:flex-start}.solution-card>header{padding:13px 14px}.solution-copy{padding:14px}}
+
+/* Keep both workspace panes genuinely resizable on compact desktop windows. */
+@media (min-width:761px){
+  .workspace-middle,.workspace-middle.code-first{grid-template-columns:minmax(220px,43%) 9px minmax(220px,1fr)}
+  .resize-handle{z-index:4;width:9px;min-width:9px;max-width:9px;touch-action:none;user-select:none}
+  .resize-handle:focus-visible{outline:2px solid var(--color-primary);outline-offset:-2px}
+  .workspace-middle.is-resizing,.workspace-middle.is-resizing *{cursor:col-resize!important}
+}
+@media (max-width:760px){.resize-handle{cursor:row-resize}}
