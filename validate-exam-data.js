@@ -167,7 +167,8 @@ if (require.main === module) {
       ? process.argv.slice(3).map(value => path.resolve(value))
       : (process.argv[2] ? [] : [
           path.join(__dirname, 'zixun-contest-data.js'),
-          path.join(__dirname, 'weekly-practice-2.js')
+          path.join(__dirname, 'weekly-practice-2.js'),
+          path.join(__dirname, 'fuzhou-quality-check-20261018.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
