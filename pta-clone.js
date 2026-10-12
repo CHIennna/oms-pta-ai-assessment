@@ -5,6 +5,7 @@ const defaultStart = defaultExam.startAt?new Date(defaultExam.startAt):new Date(
 const fallback={...defaultExam,startAt:defaultExam.startAt||toLocalDateTime(defaultStart),endAt:defaultExam.endAt||toLocalDateTime(defaultEnd),seat:'PC-08',candidateName:'admin',studentId:'102500000',registered:48};
 let config,saved={};try{saved=JSON.parse(localStorage.getItem(STORAGE)||'{}');config=saved.examVersion===fallback.examVersion?{...fallback,...saved}:{...fallback,seat:saved.seat||fallback.seat,candidateName:saved.candidateName||fallback.candidateName,studentId:saved.studentId||fallback.studentId,registered:saved.registered||fallback.registered};}catch{config={...fallback};}if(defaultExam.scheduleVersion&&saved.scheduleVersion!==defaultExam.scheduleVersion){config.startAt=fallback.startAt;config.endAt=fallback.endAt;config.duration=defaultExam.duration;config.scheduleVersion=defaultExam.scheduleVersion;localStorage.setItem(STORAGE,JSON.stringify(config));}if(config.candidateName==='陈小雅')config.candidateName=fallback.candidateName;if(config.studentId==='202401050128')config.studentId=fallback.studentId;if(!config.startAt)config.startAt=fallback.startAt;if(!config.endAt)config.endAt=fallback.endAt;if(!Array.isArray(config.questions)||!config.questions.length)config.questions=fallback.questions;const primaryExamVersion=fallback.examVersion;let primaryConfig=config;let current=0,examExpired=false,activeRoute='info',submissionPending=false;const results={},scores={};const submissions=[],progressByExam=new Map();let progressOwner='';const code=document.querySelector('#code');
 config.title=fallback.title;
+config.questions=fallback.questions;primaryConfig=config;
 if(config.studentId==='102505201')config.studentId=fallback.studentId;
 if(window.OMS_NUMBER_EXAM){config=window.OMS_NUMBER_EXAM(config,[config,...(window.OMS_EXAM_ARCHIVE||[])]);primaryConfig=config;}
 let portalUser=null,portalAuthenticated=false,portalCsrf='',pendingLoginRoute='home',portalAuthAvailable=false,portalRegistrationEnabled=true,portalAuthMessage='',routeRevision=0,portalSessionRevision=0,portalIdentityRevision=0,loadingCode=false;
@@ -31,12 +32,92 @@ function loadCodeStores(examVersion){
 loadCodeStores(config.examVersion);function submittedCodeForQuestion(questionId){return Object.prototype.hasOwnProperty.call(submittedCodes,questionId)?submittedCodes[questionId]:'';}function codeForQuestion(questionId){return Object.prototype.hasOwnProperty.call(draftCodes,questionId)?draftCodes[questionId]:submittedCodeForQuestion(questionId);}let activeQuestionId=config.questions[current].id;let loadedCode=submittedCodeForQuestion(activeQuestionId);code.value=codeForQuestion(activeQuestionId);
 const $=s=>document.querySelector(s);const escape=s=>String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 function lines(){ $('#lines').textContent=Array.from({length:Math.max(18,code.value.split('\n').length)},(_,i)=>i+1).join('\n'); }
-function renderTexFragment(value){let rendered=value.replace(/\\(?:texttt|mathtt)\{([^{}]*)\}/g,'<code>$1</code>').replace(/\\mathrm\{([^{}]*)\}/g,'$1').replace(/\\boldsymbol\{([^{}]*)\}/g,'<strong>$1</strong>').replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g,'<span style="white-space:nowrap"><sup>$1</sup>&frasl;<sub>$2</sub></span>').replace(/\^\{([^{}]+)\}/g,'<sup>$1</sup>').replace(/_\{([^{}]+)\}/g,'<sub>$1</sub>').replace(/\^([a-zA-Z0-9])/g,'<sup>$1</sup>').replace(/_([a-zA-Z0-9])/g,'<sub>$1</sub>');const symbols={cdots:'⋯',dots:'…',dagger:'†',sim:'∼',leq:'≤',le:'≤',geq:'≥',neq:'≠',times:'×',to:'→',leftarrow:'←',pm:'±',land:'∧',oplus:'⊕',lceil:'⌈',rceil:'⌉',sum:'∑',infty:'∞',max:'max',min:'min',left:'',right:'',quad:'  '};rendered=rendered.replace(/\\([a-zA-Z]+)\b/g,(_,command)=>symbols[command]??command).replace(/[{}]/g,'');return rendered;}
-function inlineMarkdown(text){return escape(text).replace(/\$([^$\n]+)\$/g,(_,formula)=>{const color=formula.match(/^\s*\{?\s*\\color\{(green|red|purple|orange|blue)\}\s*([\s\S]*?)\s*\}?\s*$/i);if(color){const palette={green:'#4ade80',red:'#f87171',purple:'#c084fc',orange:'#fb923c',blue:'#60a5fa'};return `<span style="color:${palette[color[1].toLowerCase()]}">${renderTexFragment(color[2])}</span>`;}return `<span class="inline-math">${renderTexFragment(formula)}</span>`;}).replace(/&lt;span\s+style\s*=\s*(?:&quot;\s*color\s*:\s*#039ced\s*;?\s*&quot;|&#39;\s*color\s*:\s*#039ced\s*;?\s*&#39;)\s*&gt;([\s\S]*?)&lt;\/span\s*&gt;/gi,'<span style="color:#039CED">$1</span>').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/_([^_]+)_/g,'<em>$1</em>');}
-function markdownToHtml(source){const lines=String(source).replace(/\r\n?/g,'\n').split('\n');let html='',inCode=false,list='',paragraph=[];const closeParagraph=()=>{if(paragraph.length){html+=`<p>${paragraph.join('<br>')}</p>`;paragraph=[];}};const closeList=()=>{if(list){html+=`</${list}>`;list='';}};const cells=line=>line.trim().replace(/^\||\|$/g,'').split('|').map(cell=>cell.trim());const divider=line=>/^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);for(let index=0;index<lines.length;index++){const raw=lines[index],line=raw.trimEnd();if(/^```/.test(line)){closeParagraph();closeList();if(inCode){html+='</code></pre>';inCode=false;}else{html+='<pre><code>';inCode=true;}continue;}if(inCode){html+=escape(raw)+'\n';continue;}if(line.includes('|')&&index+1<lines.length&&divider(lines[index+1])){closeParagraph();closeList();const header=cells(line);html+='<table><thead><tr>'+header.map(cell=>`<th>${inlineMarkdown(cell)}</th>`).join('')+'</tr></thead><tbody>';index+=2;while(index<lines.length&&lines[index].trim()&&lines[index].includes('|')&&!divider(lines[index])){html+='<tr>'+cells(lines[index]).map(cell=>`<td>${inlineMarkdown(cell)}</td>`).join('')+'</tr>';index++;}html+='</tbody></table>';index--;continue;}if(!line.trim()){closeParagraph();closeList();continue;}if(/^([-*_])\1\1+\s*$/.test(line)){closeParagraph();closeList();html+='<hr>';continue;}const heading=line.match(/^(#{1,6})\s+(.+)$/);if(heading){closeParagraph();closeList();const level=Math.min(3,heading[1].length+1);html+=`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`;continue;}const item=line.match(/^[-*+]\s+(.+)$/),ordered=line.match(/^\d+[.)]\s+(.+)$/);if(item||ordered){closeParagraph();const type=item?'ul':'ol';if(list&&list!==type){closeList();}if(!list){html+=`<${type}>`;list=type;}html+=`<li>${inlineMarkdown((item||ordered)[1])}</li>`;continue;}if(/^>\s?/.test(line)){closeParagraph();closeList();html+=`<blockquote><p>${inlineMarkdown(line.replace(/^>\s?/,''))}</p></blockquote>`;continue;}closeList();paragraph.push(inlineMarkdown(line));}closeParagraph();closeList();if(inCode)html+='</code></pre>';return html;}
+function renderTexFragment(value){let rendered=value.replace(/\\sum\s*_\{([^{}]*)\}\s*\^\{([^{}]*)\}/g,(_,lower,upper)=>`<span class="math-sum"><span class="math-upper">${renderTexFragment(upper)}</span><span class="math-symbol">∑</span><span class="math-lower">${renderTexFragment(lower)}</span></span>`).replace(/\\(?:texttt|mathtt)\{([^{}]*)\}/g,'<code>$1</code>').replace(/\\mathrm\{([^{}]*)\}/g,'$1').replace(/\\boldsymbol\{([^{}]*)\}/g,'<strong>$1</strong>').replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g,'<span style="white-space:nowrap"><sup>$1</sup>&frasl;<sub>$2</sub></span>').replace(/\^\{([^{}]+)\}/g,'<sup>$1</sup>').replace(/_\{([^{}]+)\}/g,'<sub>$1</sub>').replace(/\^([a-zA-Z0-9])/g,'<sup>$1</sup>').replace(/_([a-zA-Z0-9])/g,'<sub>$1</sub>');const symbols={cdots:'⋯',dots:'…',dagger:'†',sim:'∼',leq:'≤',le:'≤',geq:'≥',neq:'≠',times:'×',to:'→',leftarrow:'←',pm:'±',land:'∧',oplus:'⊕',lceil:'⌈',rceil:'⌉',sum:'∑',infty:'∞',max:'max',min:'min',left:'',right:'',quad:'  '};rendered=rendered.replace(/\\([a-zA-Z]+)\b/g,(_,command)=>symbols[command]??command).replace(/[{}]/g,'');return rendered;}
+function inlineMarkdown(text){
+  const fragments=[];
+  const hold=html=>{const key=`OMSINLINE${fragments.length}TOKEN`;fragments.push(html);return key;};
+  let html=escape(text).replace(/`([^`]+)`/g,(_,code)=>hold(`<code>${code}</code>`));
+  html=html.replace(/\$([^$\n]+)\$|\\\(([^\n]*?)\\\)/g,(_,dollar,paren)=>{
+    const formula=dollar??paren;
+    const color=formula.match(/^\s*\{?\s*\\color\{(green|red|purple|orange|blue)\}\s*([\s\S]*?)\s*\}?\s*$/i);
+    if(color){const palette={green:'#4ade80',red:'#f87171',purple:'#c084fc',orange:'#fb923c',blue:'#60a5fa'};return hold(`<span style="color:${palette[color[1].toLowerCase()]}">${renderTexFragment(color[2])}</span>`);}
+    return hold(`<span class="inline-math">${renderTexFragment(formula)}</span>`);
+  });
+  html=html.replace(/&lt;span\s+style\s*=\s*(?:&quot;\s*color\s*:\s*#039ced\s*;?\s*&quot;|&#39;\s*color\s*:\s*#039ced\s*;?\s*&#39;)\s*&gt;([\s\S]*?)&lt;\/span\s*&gt;/gi,'<span style="color:#039CED">$1</span>').replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>').replace(/\*([^*]+)\*/g,'<em>$1</em>').replace(/_([^_]+)_/g,'<em>$1</em>');
+  return html.replace(/OMSINLINE(\d+)TOKEN/g,(_,index)=>fragments[index]??_);
+}
+function highlightCpp(source){
+  source=String(source);
+  const keywords=new Set('using namespace return for while if else switch case break continue struct class public private protected const auto typedef template typename static inline new delete try catch throw sizeof true false nullptr do enum virtual override'.split(' '));
+  const types=new Set('int long double float char bool void short unsigned signed string vector map unordered_map unordered_set set pair queue deque stack size_t'.split(' '));
+  const tokens=/\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|^\s*#\s*[a-zA-Z_]+|\b(?:0[xX][\da-fA-F]+|\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)[uUlLfF]*\b|\b[a-zA-Z_]\w*\b/gm;
+  let html='',offset=0;
+  for(const match of source.matchAll(tokens)){
+    const token=match[0];
+    let kind='';
+    if(token.startsWith('//')||token.startsWith('/*'))kind='comment';
+    else if(/^["']/.test(token))kind='str';
+    else if(/^\s*#/.test(token))kind='pp';
+    else if(/^\d/.test(token))kind='num';
+    else if(keywords.has(token))kind='key';
+    else if(types.has(token))kind='type';
+    else if(/^\s*\(/.test(source.slice(match.index+token.length)))kind='fn';
+    html+=escape(source.slice(offset,match.index));
+    html+=kind?`<span class="${kind}">${escape(token)}</span>`:escape(token);
+    offset=match.index+token.length;
+  }
+  return html+escape(source.slice(offset));
+}
+function markdownToHtml(source){
+  const lines=String(source).replace(/\r\n?/g,'\n').split('\n');
+  let html='',inCode=false,codeLanguage='',codeLines=[],list='',paragraph=[];
+  const closeParagraph=()=>{if(paragraph.length){html+=`<p>${paragraph.join('<br>')}</p>`;paragraph=[];}};
+  const closeList=()=>{if(list){html+=`</${list}>`;list='';}};
+  const closeCode=()=>{
+    const source=codeLines.join('\n')+(codeLines.length?'\n':'');
+    const cpp=/^(cpp|c\+\+|c|cc|cxx)$/i.test(codeLanguage);
+    const highlighted=cpp;
+    const attributes=codeLanguage?` class="language-${escape(codeLanguage)}${highlighted?' rendered-code':''}"`:'';
+    html+=`<pre><code${attributes}>${highlighted?highlightCpp(source):escape(source)}</code></pre>`;
+    inCode=false;codeLines=[];
+  };
+  const cells=line=>line.trim().replace(/^\||\|$/g,'').split('|').map(cell=>cell.trim());
+  const divider=line=>/^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+  for(let index=0;index<lines.length;index++){
+    const raw=lines[index],line=raw.trimEnd();
+    if(/^```/.test(line)){
+      closeParagraph();closeList();
+      if(inCode)closeCode();else{inCode=true;codeLanguage=line.slice(3).trim().split(/\s+/)[0];}
+      continue;
+    }
+    if(inCode){codeLines.push(raw);continue;}
+    const display=line.trim().match(/^(\\\[|\$\$)(.*)$/);
+    if(display){
+      closeParagraph();closeList();
+      const delimiter=display[1]==='$$'?'$$':'\\]';
+      let formula=display[2],end=formula.indexOf(delimiter);
+      while(end<0&&index+1<lines.length){formula+='\n'+lines[++index];end=formula.indexOf(delimiter);}
+      const tail=end>=0?formula.slice(end+delimiter.length):'';
+      if(end>=0)formula=formula.slice(0,end);
+      html+=`<div class="math-display" role="math"><span class="math-expression">${renderTexFragment(escape(formula.trim()))}</span></div>`;
+      if(tail.trim())paragraph.push(inlineMarkdown(tail));
+      continue;
+    }
+    if(line.includes('|')&&index+1<lines.length&&divider(lines[index+1])){closeParagraph();closeList();const header=cells(line);html+='<table><thead><tr>'+header.map(cell=>`<th>${inlineMarkdown(cell)}</th>`).join('')+'</tr></thead><tbody>';index+=2;while(index<lines.length&&lines[index].trim()&&lines[index].includes('|')&&!divider(lines[index])){html+='<tr>'+cells(lines[index]).map(cell=>`<td>${inlineMarkdown(cell)}</td>`).join('')+'</tr>';index++;}html+='</tbody></table>';index--;continue;}
+    if(!line.trim()){closeParagraph();closeList();continue;}
+    if(/^([-*_])\1\1+\s*$/.test(line)){closeParagraph();closeList();html+='<hr>';continue;}
+    const heading=line.match(/^(#{1,6})\s+(.+)$/);
+    if(heading){closeParagraph();closeList();const level=Math.min(3,heading[1].length+1);html+=`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`;continue;}
+    const item=line.match(/^[-*+]\s+(.+)$/),ordered=line.match(/^\d+[.)]\s+(.+)$/);
+    if(item||ordered){closeParagraph();const type=item?'ul':'ol';if(list&&list!==type)closeList();if(!list){html+=`<${type}>`;list=type;}html+=`<li>${inlineMarkdown((item||ordered)[1])}</li>`;continue;}
+    if(/^>\s?/.test(line)){closeParagraph();closeList();html+=`<blockquote><p>${inlineMarkdown(line.replace(/^>\s?/,''))}</p></blockquote>`;continue;}
+    closeList();paragraph.push(inlineMarkdown(line));
+  }
+  closeParagraph();closeList();if(inCode)closeCode();return html;
+}
 function sampleBlock(kind,value){const rows=String(value||'').split('\n');return `<div class="sample-block"><div class="sample-toolbar"><span>[ ${kind} ]</span><div><button type="button">复制内容</button><button type="button">格式</button><button type="button">全屏</button></div></div><div class="sample-rows">${rows.map((row,index)=>`<div><span>${index+1}</span><code>${escape(row)||' '}</code></div>`).join('')}</div></div>`;}
 function resourceLimits(){return `<section class="problem-limits" aria-label="资源限制"><div><span>代码长度限制</span><b>16 KB</b></div><div><span>时间限制</span><b>250 ms</b></div><div><span>内存限制</span><b>64 MB</b></div><div><span>栈限制</span><b>8192 KB</b></div></section>`;}
-function enhanceStatementSamples(text,q){let html=markdownToHtml(text);const replaceSample=(label,kind,value)=>{if(!value)return;const heading=`(<h[2-4]>${label}[：:]?</h[2-4]>)`,block='<pre><code>[\\s\\S]*?</code></pre>';html=html.replace(new RegExp(`${heading}\\s*${block}`),`$1${sampleBlock(kind,value)}`);};replaceSample('样例输入','in',q.sampleInput||markdownSample(text,'样例输入'));replaceSample('样例输出','out',q.sampleOutput||markdownSample(text,'样例输出'));return html;}
+function enhanceStatementSamples(text,q){let html=markdownToHtml(text);const replaceSample=(label,kind,value)=>{if(!value)return;const heading=`(<h[2-4]>${label}[：:]?</h[2-4]>)`,block='<pre><code(?:\\s[^>]*)?>[\\s\\S]*?</code></pre>';html=html.replace(new RegExp(`${heading}\\s*${block}`),`$1${sampleBlock(kind,value)}`);};replaceSample('样例输入','in',q.sampleInput||markdownSample(text,'样例输入'));replaceSample('样例输出','out',q.sampleOutput||markdownSample(text,'样例输出'));return html;}
 function cleanStatementDecoration(text){return String(text||'').replace(/^[ \t]*\[【原题配图 photo1\.png：HTML 未附图像文件，点此查看原题】\]\([^)]+\)[ \t]*(?:\r?\n|$)/gmi,'FZUTRIANGLEFIGUREMARKER\n').replace(/^[ \t]*(?:\*\*原题\*\*|原题)\s*[:：]\s*\[FZU Online Judge\]\([^)]+\)(?=[^\r\n]*(?:时间|time))(?=[^\r\n]*(?:内存|memory))[^\r\n]*(?:\r?\n|$)/gmi,'').replace(/(^|\r?\n)[ \t]*(?:\*\*)?(?:原题链接|题型|题目类型|时间限制|内存限制)[：:](?:\*\*)?[\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/gi,'$1').replace(/^[ \t]*\[?【原题配图[^\r\n]*HTML 未附图像文件[^\r\n]*】\]?(?:\([^)]+\))?[ \t]*(?:\r?\n|$)/gmi,'').replace(/\n{3,}/g,'\n\n').trim();}
 function formatStatement(text,q){const limits=resourceLimits();if(!text)return `<div class="rendered-markdown problem-copy"><p>请根据题目要求完成程序。提交后，AI 助教将检查程序逻辑、边界条件和代码风格。</p><h3>输入格式：</h3><p>输入数据由题目给定。</p><h3>输出格式：</h3><p>按题目要求输出计算结果。</p><h3>输入样例：</h3>${sampleBlock('in',q.sampleInput||'100311')}<h3>输出样例：</h3>${sampleBlock('out',q.sampleOutput||'0:2\n1:3\n3:1')}${limits}</div>`;const statementHtml=enhanceStatementSamples(cleanStatementDecoration(text),q).replaceAll('FZUTRIANGLEFIGUREMARKER','<img src="./fzu-triangle-lattice.svg" alt="n = 4 时的三角形网格示意图" style="display:block;max-width:100%;height:auto;margin:12px auto">');return `<div class="rendered-markdown problem-copy">${statementHtml}${limits}</div>`;}
 function statusGlyph(status,label){if(status==='accepted')return '<svg viewBox="0 0 24 24" aria-label="答案正确"><path d="m5.5 12.5 4.1 4.1L18.5 7.5"/></svg>';if(status==='wrong')return '<svg viewBox="0 0 24 24" aria-label="答案错误"><path d="m8 8 8 8M16 8l-8 8"/></svg>';return label;}
