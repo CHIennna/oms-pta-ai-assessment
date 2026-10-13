@@ -9,6 +9,7 @@ logs
 *.log
 *.zip
 !weekly-practice-2-tests.zip
+!fuzhou-quality-check-20261018-tests.zip
 *.rar
 *.7z
 *.png
