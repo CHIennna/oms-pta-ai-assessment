@@ -98,12 +98,15 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
 
       if (question.judgeable === false) {
         const legacyKey = `${examVersion}:${id}`;
-        if (!LEGACY_UNJUDGEABLE.has(legacyKey)) {
+        const pendingSpecialJudge = examVersion === 'fzu-2026-09-shenzhuo-round3-practice'
+          && question.letter === 'K' && question.name === 'FZU 子串（Hard Version）'
+          && question.requiresSpecialJudge === true;
+        if (!LEGACY_UNJUDGEABLE.has(legacyKey) && !pendingSpecialJudge) {
           errors.push(`${questionLabel} 不允许新增为不可评测题，必须补齐正式测试点`);
           continue;
         }
         unjudgeableProblems += 1;
-        warnings.push(`${questionLabel} 是保留的历史资料缺失题`);
+        warnings.push(pendingSpecialJudge ? `${questionLabel} 需要特殊判题器，暂不开放本站评测` : `${questionLabel} 是保留的历史资料缺失题`);
         continue;
       }
 
@@ -186,6 +189,7 @@ if (require.main === module) {
           path.join(__dirname, 'zixun-contest-data.js'),
           path.join(__dirname, 'weekly-practice-2.js'),
           path.join(__dirname, 'fuzhou-quality-check-20261018.js'),
+          path.join(__dirname, 'shenzhuo-round3-20260920.js'),
           path.join(__dirname, 'fzu-practice-homework.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);

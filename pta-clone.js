@@ -391,9 +391,9 @@ function renderHomeworkCards(exams){
 }
 function renderExamCenter(){
   const currentExam={...primaryConfig,date:examDate(primaryConfig),status:'模拟卷',current:config.examVersion===primaryExamVersion,selectable:true,category:'mock'};
-  const archive=(window.OMS_EXAM_ARCHIVE||[]).filter(exam=>exam.examVersion!==config.examVersion);
+  const archive=(window.OMS_EXAM_ARCHIVE||[]).filter(exam=>exam.examVersion!==primaryExamVersion);
   const pastExams=(window.OMS_EXAM_ARCHIVE||[]).filter(exam=>exam.category==='past').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}));
-  const mockExams=[currentExam,...archive.filter(exam=>exam.category==='mock').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}))];
+  const mockExams=[currentExam,...archive.filter(exam=>exam.category==='mock'||exam.category==='practice').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}))];
   const homework=window.OMS_PRACTICE_EXAMS||[];
   const activeCategory=homework.length?'homework':config.examVersion===primaryExamVersion?'mock':'past';
   const tabs=[...(homework.length?[['homework','专项作业']]:[]),['past','历年题'],['mock','模拟练习']];

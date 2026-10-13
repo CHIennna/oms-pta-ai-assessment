@@ -15,12 +15,13 @@ const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(root, 'exam-data.js'),
-  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js'), path.join(root, 'fuzhou-quality-check-20261018.js'), path.join(root, 'fzu-practice-homework.js')]
+  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js'), path.join(root, 'fuzhou-quality-check-20261018.js'), path.join(root, 'shenzhuo-round3-20260920.js'), path.join(root, 'fzu-practice-homework.js')]
 );
 const judgeExams = [...exams, ...practiceExams];
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
 const examsByVersion = new Map(judgeExams.map(exam => [String(exam.examVersion), exam]));
 const publicFiles = new Map([
+  ['/shenzhuo-round3-20260920.js', 'shenzhuo-round3-20260920.js'],
   ['/fzu-practice-homework.js', 'fzu-practice-homework.js'],
   ['/fuzhou-quality-check-20261018.js', 'fuzhou-quality-check-20261018.js'],
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
