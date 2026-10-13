@@ -47,6 +47,8 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
 
   const exams = [current, ...archives];
   attachPrivateTestData(exams, testDataPaths);
+  const practiceExams = typeof context.window.OMS_BUILD_PRACTICE_EXAMS === 'function'
+    ? context.window.OMS_BUILD_PRACTICE_EXAMS(exams) : [];
   const errors = [];
   const warnings = [];
   const examVersions = new Set();
@@ -152,12 +154,27 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
   }
 
   const report = { exams: exams.length, judgeableProblems, unjudgeableProblems, testCases, warnings };
+  const practiceVersions = new Set(examVersions);
+  for (const practice of practiceExams) {
+    if (practice.category !== 'practice' || !practice.examVersion || practiceVersions.has(practice.examVersion)) {
+      errors.push('作业类别或标识无效：' + practice.title);
+    }
+    practiceVersions.add(practice.examVersion);
+    if (!Array.isArray(practice.questions) || practice.questions.length !== 5) errors.push('每次作业必须包含 5 道题：' + practice.title);
+    for (const question of practice.questions || []) {
+      if (question.externalOnly) {
+        if (question.judgeable !== false || !/^https:\/\/oj\.fzu\.edu\.cn\/p\/\d+(?:\?[^\s]*)?$/.test(question.sourceUrl)) errors.push('作业原题入口无效：' + question.name);
+      } else if (!exams.some(exam => exam.examVersion === question.sourceExamVersion && exam.questions.some(source => source.id === question.id && source.judgeable !== false))) {
+        errors.push('作业题目来源无效：' + question.name);
+      }
+    }
+  }
   if (errors.length) {
     const error = new Error(`题库正式评测校验失败：\n- ${errors.join('\n- ')}`);
     error.report = report;
     throw error;
   }
-  return { exams, report, numberExam: context.window.OMS_NUMBER_EXAM };
+  return { exams, practiceExams, report, numberExam: context.window.OMS_NUMBER_EXAM };
 }
 
 if (require.main === module) {
@@ -168,7 +185,8 @@ if (require.main === module) {
       : (process.argv[2] ? [] : [
           path.join(__dirname, 'zixun-contest-data.js'),
           path.join(__dirname, 'weekly-practice-2.js'),
-          path.join(__dirname, 'fuzhou-quality-check-20261018.js')
+          path.join(__dirname, 'fuzhou-quality-check-20261018.js'),
+          path.join(__dirname, 'fzu-practice-homework.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);

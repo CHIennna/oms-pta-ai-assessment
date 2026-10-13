@@ -13,13 +13,15 @@ const root = __dirname;
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
 const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
-const { exams, report: examValidation } = loadAndValidateExamData(
+const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(root, 'exam-data.js'),
-  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js'), path.join(root, 'fuzhou-quality-check-20261018.js')]
+  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js'), path.join(root, 'fuzhou-quality-check-20261018.js'), path.join(root, 'fzu-practice-homework.js')]
 );
-const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(exams);
-const examsByVersion = new Map(exams.map(exam => [String(exam.examVersion), exam]));
+const judgeExams = [...exams, ...practiceExams];
+const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
+const examsByVersion = new Map(judgeExams.map(exam => [String(exam.examVersion), exam]));
 const publicFiles = new Map([
+  ['/fzu-practice-homework.js', 'fzu-practice-homework.js'],
   ['/fuzhou-quality-check-20261018.js', 'fuzhou-quality-check-20261018.js'],
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/zixun-contest-data.js', 'zixun-contest-data.js'], ['/weekly-practice-2.js', 'weekly-practice-2.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-score.js', 'judge-score.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
@@ -229,7 +231,7 @@ function assertExamOpen(examVersion, now = Date.now()) {
   const exam = examsByVersion.get(String(examVersion || ''));
   const reject = (statusCode, verdict, message) => { throw Object.assign(new Error(message), { statusCode, verdict }); };
   if (!exam) reject(400, 'InvalidProblem', '请选择有效的考试后再运行或提交。');
-  if (exam.category === 'past') return;
+  if (exam.category === 'past' || exam.category === 'practice') return;
   const start = examTimestamp(exam.startAt), end = examTimestamp(exam.endAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) reject(503, 'InvalidSchedule', '考试时间配置无效，请联系管理员。');
   if (now < start) reject(403, 'ExamNotStarted', '考试尚未开始，暂不能运行或提交。');
