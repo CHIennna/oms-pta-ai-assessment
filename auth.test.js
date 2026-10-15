@@ -10,7 +10,7 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
-const { createAuth } = require('./auth');
+const { createAuth } = require('./src/server/auth/auth');
 
 async function fixture(t, options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'oms-auth-test-'));
@@ -413,10 +413,10 @@ test('regression: server enforces campus schedule at API boundary and permits ar
     require(name) {
       if(name==='http')return {createServer:handler=>({handler})};
       if(name==='fs')return {existsSync:()=>false};
-      if(name==='./local-judge')return {LocalJudge:class {async judge(){judgeCalls++;return {verdict:'Accepted'};}}};
-      if(name==='./validate-exam-data')return {loadAndValidateExamData:()=>({exams:[exam,{...exam,examVersion:'archive',category:'past'},{...exam,examVersion:'broken',endAt:'invalid'}],report:{}})};
-      if(name==='./auth')return {createAuth:()=>({available:false,dataDir:os.tmpdir(),handle:async()=>false,authorize:()=>({user:{id:'synthetic'}})})};
-      if(name==='./judge-score')return {calculate:()=>({score:100})};
+      if(name==='./src/server/judge/local-judge')return {LocalJudge:class {async judge(){judgeCalls++;return {verdict:'Accepted'};}}};
+      if(name==='./validate-exam-data')return {loadAndValidateExamData:()=>({exams:[exam,{...exam,examVersion:'archive',category:'past'},{...exam,examVersion:'broken',endAt:'invalid'}],practiceExams:[],report:{}})};
+      if(name==='./src/server/auth/auth')return {createAuth:()=>({available:false,dataDir:os.tmpdir(),handle:async()=>false,authorize:()=>({user:{id:'synthetic'}})})};
+      if(name==='./src/client/judge/judge-score')return {calculate:()=>({score:100})};
       assert.ok(['crypto','os','path','zlib'].includes(name));return require(name);
     }
   };
@@ -444,12 +444,12 @@ function submissionFixture() {
     document:{querySelector:()=>null},editorCode:()=>'submitted snapshot',updateCountdown(){},render(){},formatExamTime:value=>value,
     localStorage:{setItem:(key,value)=>storage.set(key,value)},readCodeMap:key=>JSON.parse(storage.get(key)||'{}'),
     fetch:()=>new Promise((resolve,fail)=>{release=resolve;reject=fail;}),
-    calculateScore:result=>({score:result.verdict==='Accepted'?100:0,status:result.verdict==='Accepted'?'accepted':'wrong'}),
+    calculateScore:result=>({score:result.verdict==='Accepted'?100:0,status:result.verdict==='Accepted'?'accepted':'wrong'}),formatJudgeOutput:()=>'',
     aiVerdict:verdict=>({label:verdict}),showSubmissionResult(){context.modalShown=true;}
   };
   vm.createContext(context);
-  vm.runInContext(sourceBetween('pta-clone.js','function storedVerdictLabel(', 'async function refreshPersistedProgress('),context);
-  vm.runInContext(sourceBetween('judge-machine.js','  async function aiJudgeSubmit()',"  document.querySelector('#copy-submission-code')"),context);
+  vm.runInContext(sourceBetween('src/client/core/pta-clone.js','function storedVerdictLabel(', 'async function refreshPersistedProgress('),context);
+  vm.runInContext(sourceBetween('src/client/judge/judge-machine.js','  async function aiJudgeSubmit()',"  document.querySelector('#copy-submission-code')"),context);
   return {context,storage,elements,finish:result=>release({ok:true,json:async()=>result}),fail:()=>reject(Error('synthetic network failure'))};
 }
 
@@ -508,7 +508,7 @@ test('regression: countdown disables early/closed submissions but not archived p
   const f=submissionFixture(),ctx=f.context;
   const now=Date.parse('2030-01-01T10:00:00+08:00');
   ctx.Date=class extends Date {static now(){return now;}};
-  vm.runInContext(sourceBetween('pta-clone.js','function updateCountdown()', 'function editorCode()'),ctx);
+  vm.runInContext(sourceBetween('src/client/core/pta-clone.js','function updateCountdown()', 'function editorCode()'),ctx);
   Object.assign(ctx.config,{startAt:'2030-01-01T10:01',endAt:'2030-01-01T11:00'});
   ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,true);assert.equal(ctx.$('#run-test').disabled,true);
   ctx.config.startAt='2030-01-01T10:00';ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,false);
@@ -523,7 +523,7 @@ test('regression: judge fetch keeps explicit exam identity and ignores stale una
     requirePortalSession:async()=>true,setPortalSession(){throw Error('stale response cleared session');},openLogin(){throw Error('stale response opened login');},
     window:{fetch:(input,options)=>{calls.push(JSON.parse(options.body));return new Promise(resolve=>release=resolve);}}
   };
-  vm.createContext(context);vm.runInContext(sourceBetween('pta-clone.js','const portalNativeFetch=', 'let fullscreenHintTimer='),context);
+  vm.createContext(context);vm.runInContext(sourceBetween('src/client/core/pta-clone.js','const portalNativeFetch=', 'let fullscreenHintTimer='),context);
   const pending=context.window.fetch('/api/judge',{body:JSON.stringify({examVersion:'submitted-exam',problemId:'submitted-question'})});
   await new Promise(setImmediate);assert.equal(calls[0].examVersion,'submitted-exam');assert.equal(calls[0].problemId,'submitted-question');
   context.portalUser={id:'user-b'};context.portalIdentityRevision++;

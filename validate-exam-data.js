@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const zlib = require('zlib');
+const projectRoot = path.resolve(__dirname);
+const examDataRoot = path.join(__dirname, 'src', 'data', 'exams');
 
 const LEGACY_UNJUDGEABLE = new Set([
   '2024-transfer-major-exam:20',
@@ -31,7 +33,7 @@ function attachPrivateTestData(exams, testDataPaths) {
   }
 }
 
-function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js'), supplementalPaths = [], testDataPaths = []) {
+function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.js'), supplementalPaths = [], testDataPaths = []) {
   const context = { window: {} };
   vm.createContext(context);
   for (const sourcePath of [filePath, ...supplementalPaths]) {
@@ -119,8 +121,8 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
           errors.push(`${questionLabel} 没有正式测试点`);
           continue;
         }
-        const archivePath = path.resolve(path.dirname(filePath), archive.file);
-        const archiveRoot = `${path.resolve(path.dirname(filePath))}${path.sep}`;
+        const archivePath = path.resolve(projectRoot, archive.file);
+        const archiveRoot = `${projectRoot}${path.sep}`;
         if (!archivePath.startsWith(archiveRoot) || !fs.existsSync(archivePath)) {
           errors.push(`${questionLabel} 的测试库文件不存在或路径无效`);
           continue;
@@ -182,16 +184,16 @@ function loadAndValidateExamData(filePath = path.join(__dirname, 'exam-data.js')
 
 if (require.main === module) {
   try {
-    const primaryPath = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, 'exam-data.js');
+    const primaryPath = process.argv[2] ? path.resolve(process.argv[2]) : path.join(examDataRoot, 'exam-data.js');
     const supplementalPaths = process.argv.length > 3
       ? process.argv.slice(3).map(value => path.resolve(value))
       : (process.argv[2] ? [] : [
-          path.join(__dirname, 'zixun-contest-data.js'),
-          path.join(__dirname, 'weekly-practice-2.js'),
-          path.join(__dirname, 'fuzhou-quality-check-20261018.js'),
-          path.join(__dirname, 'shenzhuo-round3-20260920.js'),
-          path.join(__dirname, 'gplt-homework-2024-2026.js'),
-          path.join(__dirname, 'fzu-practice-homework.js')
+          path.join(examDataRoot, 'zixun-contest-data.js'),
+          path.join(examDataRoot, 'weekly-practice-2.js'),
+          path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'),
+          path.join(examDataRoot, 'shenzhuo-round3-20260920.js'),
+          path.join(examDataRoot, 'gplt-homework-2024-2026.js'),
+          path.join(examDataRoot, 'fzu-practice-homework.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);

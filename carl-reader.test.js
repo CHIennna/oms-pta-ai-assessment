@@ -6,7 +6,7 @@ const { Readable } = require('node:stream');
 
 // Evaluate the reader helpers without starting the judge or touching user data.
 const serverSource = fs.readFileSync(require.resolve('./server.js'), 'utf8');
-const clientSource = fs.readFileSync(require.resolve('./pta-clone.js'), 'utf8');
+const clientSource = fs.readFileSync(require.resolve('./src/client/core/pta-clone.js'), 'utf8');
 function backend(fetch) {
   const context = vm.createContext({ URL, Buffer, AbortController, setTimeout, clearTimeout, fetch });
   vm.runInContext(serverSource.slice(serverSource.indexOf('const carlPages ='), serverSource.indexOf('const server = http.createServer')), context);

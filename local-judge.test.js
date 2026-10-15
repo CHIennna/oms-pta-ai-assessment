@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { LocalJudge, DEFAULT_TOOLCHAINS } = require('./local-judge');
+const { LocalJudge, DEFAULT_TOOLCHAINS } = require('./src/server/judge/local-judge');
 
 test('native C and C++ compilers avoid pipe mode to reduce peak memory', () => {
   const workDir = path.resolve('temporary-judge-test');

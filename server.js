@@ -4,31 +4,37 @@ const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const zlib = require('zlib');
-const { LocalJudge } = require('./local-judge');
+const { LocalJudge } = require('./src/server/judge/local-judge');
 const { loadAndValidateExamData } = require('./validate-exam-data');
-const { createAuth } = require('./auth');
-const { calculate: calculateScore } = require('./judge-score');
+const { createAuth } = require('./src/server/auth/auth');
+const { calculate: calculateScore } = require('./src/client/judge/judge-score');
 
 const root = __dirname;
+const examDataRoot = path.join(root, 'src', 'data', 'exams');
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
 const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
-  path.join(root, 'exam-data.js'),
-  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js'), path.join(root, 'fuzhou-quality-check-20261018.js'), path.join(root, 'shenzhuo-round3-20260920.js'), path.join(root, 'gplt-homework-2024-2026.js'), path.join(root, 'fzu-practice-homework.js')]
+  path.join(examDataRoot, 'exam-data.js'),
+  [path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fzu-practice-homework.js')]
 );
 const judgeExams = [...exams, ...practiceExams];
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
 const examsByVersion = new Map(judgeExams.map(exam => [String(exam.examVersion), exam]));
 const publicFiles = new Map([
-  ['/gplt-homework-2024-2026.js', 'gplt-homework-2024-2026.js'],
-  ['/shenzhuo-round3-20260920.js', 'shenzhuo-round3-20260920.js'],
-  ['/fzu-practice-homework.js', 'fzu-practice-homework.js'],
-  ['/fuzhou-quality-check-20261018.js', 'fuzhou-quality-check-20261018.js'],
+  ['/src/data/exams/gplt-homework-2024-2026.js', 'src/data/exams/gplt-homework-2024-2026.js'],
+  ['/src/data/exams/shenzhuo-round3-20260920.js', 'src/data/exams/shenzhuo-round3-20260920.js'],
+  ['/src/data/exams/fzu-practice-homework.js', 'src/data/exams/fzu-practice-homework.js'],
+  ['/src/data/exams/fuzhou-quality-check-20261018.js', 'src/data/exams/fuzhou-quality-check-20261018.js'],
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
-  ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'], ['/pta-clone.css', 'pta-clone.css'], ['/pta-clone-fix.css', 'pta-clone-fix.css'], ['/pta-clone-interactions.css', 'pta-clone-interactions.css'], ['/codemirror.css', 'codemirror.css'], ['/pta-icons.css', 'pta-icons.css'], ['/pta-theme.css', 'pta-theme.css'], ['/judge-machine.css', 'judge-machine.css'], ['/pta-geometry.css', 'pta-geometry.css'], ['/exam-data.js', 'exam-data.js'], ['/zixun-contest-data.js', 'zixun-contest-data.js'], ['/weekly-practice-2.js', 'weekly-practice-2.js'], ['/pta-clone.js', 'pta-clone.js'], ['/pta-clone-interactions.js', 'pta-clone-interactions.js'], ['/codemirror-editor.js', 'codemirror-editor.js'], ['/judge-score.js', 'judge-score.js'], ['/judge-machine.js', 'judge-machine.js'], ['/pta-geometry.js', 'pta-geometry.js']
+  ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'],
+  ['/src/client/assets/fzu-triangle-lattice.svg', 'src/client/assets/fzu-triangle-lattice.svg'],
+  ['/src/client/styles/pta-clone.css', 'src/client/styles/pta-clone.css'], ['/src/client/styles/pta-clone-fix.css', 'src/client/styles/pta-clone-fix.css'], ['/src/client/styles/pta-clone-interactions.css', 'src/client/styles/pta-clone-interactions.css'],
+  ['/src/client/editor/codemirror.css', 'src/client/editor/codemirror.css'], ['/src/client/styles/pta-icons.css', 'src/client/styles/pta-icons.css'], ['/src/client/styles/pta-theme.css', 'src/client/styles/pta-theme.css'], ['/src/client/judge/judge-machine.css', 'src/client/judge/judge-machine.css'], ['/src/client/styles/pta-geometry.css', 'src/client/styles/pta-geometry.css'],
+  ['/src/data/exams/exam-data.js', 'src/data/exams/exam-data.js'], ['/src/data/exams/zixun-contest-data.js', 'src/data/exams/zixun-contest-data.js'], ['/src/data/exams/weekly-practice-2.js', 'src/data/exams/weekly-practice-2.js'],
+  ['/src/client/core/pta-clone.js', 'src/client/core/pta-clone.js'], ['/src/client/core/pta-clone-interactions.js', 'src/client/core/pta-clone-interactions.js'], ['/src/client/editor/codemirror-editor.js', 'src/client/editor/codemirror-editor.js'], ['/src/client/judge/judge-score.js', 'src/client/judge/judge-score.js'], ['/src/client/judge/judge-machine.js', 'src/client/judge/judge-machine.js'], ['/src/client/core/pta-geometry.js', 'src/client/core/pta-geometry.js']
 ]);
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg' };
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const rateBuckets = new Map();
 const auth = createAuth();
 const progressFile = path.join(auth.dataDir, 'progress.json');
@@ -276,6 +282,9 @@ function permitsRequest(req) {
 // Public lessons only: never forward credentials or proxy arbitrary hosts.
 const carlPages = new Map();
 let carlRequests = 0;
+const patBasicProblemSetId = '994805260223102976';
+let patBasicCache = null;
+const patBasicProblemCache = new Map();
 function carlPageUrl(value) {
   const url = new URL(value, 'https://programmercarl.com');
   if (url.origin !== 'https://programmercarl.com' || url.username || url.password ||
@@ -324,6 +333,65 @@ async function fetchCarlPage(value) {
     throw new Error('Too many redirects');
   } finally { clearTimeout(timeout); carlRequests--; }
 }
+async function fetchPatBasicProblems() {
+  if (patBasicCache && Date.now() - patBasicCache.time < 300000) return patBasicCache.data;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const pages = await Promise.all([0, 1].map(async page => {
+      const url = `https://pintia.cn/api/problem-sets/${patBasicProblemSetId}/exam-problem-list?problem_type=PROGRAMMING&page=${page}&limit=100`;
+      const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('PAT list unavailable');
+      return response.json();
+    }));
+    const problems = pages.flatMap(page => Array.isArray(page.problemSetProblems) ? page.problemSetProblems : []).map(problem => ({
+      id: String(problem.id || ''), label: String(problem.label || ''), title: String(problem.title || '').slice(0, 200),
+      score: Number(problem.score) || 0, acceptCount: Number(problem.acceptCount) || 0, submitCount: Number(problem.submitCount) || 0
+    })).filter(problem => /^\d+$/.test(problem.id) && /^\d+$/.test(problem.label) && problem.title).sort((a, b) => Number(a.label) - Number(b.label));
+    if (!problems.length || problems.length !== Number(pages[0]?.total)) throw new Error('Incomplete PAT list');
+    const data = { problemSetId: patBasicProblemSetId, total: problems.length, problems };
+    patBasicCache = { time: Date.now(), data };
+    return data;
+  } finally { clearTimeout(timeout); }
+}
+async function fetchPatBasicProblem(problemSetProblemId) {
+  const id = String(problemSetProblemId || '');
+  if (!/^\d+$/.test(id)) throw Object.assign(new Error('PAT 题号无效。'), { statusCode: 400 });
+  const cached = patBasicProblemCache.get(id);
+  if (cached && Date.now() - cached.time < 300000) return cached.data;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const url = `https://pintia.cn/api/problem-sets/${patBasicProblemSetId}/exam-problems/${id}`;
+    const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
+    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new Error('PAT problem unavailable');
+    const payload = await response.json();
+    const problem = payload?.problemSetProblem;
+    if (String(problem?.id || '') !== id || String(problem?.problemSetId || '') !== patBasicProblemSetId) {
+      throw Object.assign(new Error('该题目不属于 PAT 乙级题库。'), { statusCode: 404 });
+    }
+    const limits = problem.problemConfig?.programmingProblemConfig || {};
+    const data = {
+      id,
+      label: String(payload.examLabel || problem.label || ''),
+      title: String(problem.title || '').slice(0, 200),
+      score: Number(problem.score) || 0,
+      author: String(problem.author || '').slice(0, 200),
+      organization: String(payload.organization?.name || '').slice(0, 200),
+      content: String(problem.content || problem.description || '').slice(0, 1024 * 1024),
+      limits: {
+        time: Number(limits.timeLimit) || 0,
+        memory: Number(limits.memoryLimit) || 0,
+        code: Number(limits.codeSizeLimit) || 0,
+        stack: Number(limits.stackSizeLimit) || 0
+      }
+    };
+    if (!data.label || !data.title || !data.content) throw new Error('Incomplete PAT problem');
+    if (patBasicProblemCache.size >= 50) patBasicProblemCache.delete(patBasicProblemCache.keys().next().value);
+    patBasicProblemCache.set(id, { time: Date.now(), data });
+    return data;
+  } finally { clearTimeout(timeout); }
+}
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -331,6 +399,15 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/learning/carl') {
     try { return reply(res, 200, await fetchCarlPage(url.searchParams.get('url') || '/algo/')); }
     catch (error) { return reply(res, error.statusCode || 502, { message: error.statusCode ? error.message : '讲解暂时加载失败，请重试或打开原文。' }); }
+  }
+  if (req.method === 'GET' && url.pathname === '/api/learning/pat-basic') {
+    try { return reply(res, 200, await fetchPatBasicProblems()); }
+    catch { return reply(res, 502, { message: 'PAT 乙级题单暂时加载失败，请稍后重试或打开官方题库。' }); }
+  }
+  const patBasicProblemMatch = url.pathname.match(/^\/api\/learning\/pat-basic\/(\d+)$/);
+  if (req.method === 'GET' && patBasicProblemMatch) {
+    try { return reply(res, 200, await fetchPatBasicProblem(patBasicProblemMatch[1])); }
+    catch (error) { return reply(res, error.statusCode || 502, { message: error.statusCode ? error.message : 'PAT 乙级题面暂时加载失败，请稍后重试。' }); }
   }
   if (req.method === 'GET' && url.pathname === '/api/progress') {
     const current = auth.authorize(req, res);

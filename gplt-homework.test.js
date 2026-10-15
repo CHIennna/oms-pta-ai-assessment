@@ -5,19 +5,20 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { loadAndValidateExamData } = require('./validate-exam-data');
 
+const examDataRoot = path.join(__dirname, 'src', 'data', 'exams');
 const supplemental = [
   'zixun-contest-data.js', 'weekly-practice-2.js', 'fuzhou-quality-check-20261018.js',
   'shenzhuo-round3-20260920.js', 'gplt-homework-2024-2026.js', 'fzu-practice-homework.js'
-].map(file => path.join(__dirname, file));
-const loaded = loadAndValidateExamData(path.join(__dirname, 'exam-data.js'), supplemental);
+].map(file => path.join(examDataRoot, file));
+const loaded = loadAndValidateExamData(path.join(examDataRoot, 'exam-data.js'), supplemental);
 const gplt = loaded.exams.filter(exam => exam.homeworkGroup === 'gplt');
 
 function serverFixture() {
   const context = {
     __dirname, process, Buffer, console, module: { exports: {} },
     require(name) {
-      if (name === './auth') return { createAuth: () => ({ available: false, dataDir: __dirname }) };
-      if (name === './local-judge') return { LocalJudge: class {} };
+      if (name === './src/server/auth/auth') return { createAuth: () => ({ available: false, dataDir: __dirname }) };
+      if (name === './src/server/judge/local-judge') return { LocalJudge: class {} };
       return require(name);
     }
   };
@@ -75,7 +76,7 @@ test('all 180 archive pairs load through the real submission guard and preserve 
 });
 
 test('practice page separates GPLT from mock papers and retains all 36 clickable questions', () => {
-  const ui = fs.readFileSync(path.join(__dirname, 'pta-clone.js'), 'utf8');
+  const ui = fs.readFileSync(path.join(__dirname, 'src', 'client', 'core', 'pta-clone.js'), 'utf8');
   const functions = ['formatDuration', 'examDate', 'renderExamCards', 'renderHomeworkCards', 'renderExamCenter'];
   const definitions = functions.map(name => {
     const start = ui.indexOf('function ' + name + '(');

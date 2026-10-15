@@ -8,14 +8,14 @@
   <meta name="description" content="OMS 内嵌 PTA 程序评测工作台" />
   <title>赛场</title>
   <link rel="icon" type="image/png" href="fzu-logo.png?v=20261008" />
-  <link rel="stylesheet" href="pta-clone.css" />
-  <link rel="stylesheet" href="pta-clone-fix.css" />
-  <link rel="stylesheet" href="pta-clone-interactions.css?v=20261010-account-menu" />
-  <link rel="stylesheet" href="codemirror.css?v=20261012-horizontal-scroll" />
-  <link rel="stylesheet" href="pta-icons.css" />
-  <link rel="stylesheet" href="pta-theme.css" />
-  <link rel="stylesheet" href="judge-machine.css" />
-  <link rel="stylesheet" href="pta-geometry.css?v=20261012-mobile-layout-v2" />
+  <link rel="stylesheet" href="src/client/styles/pta-clone.css" />
+  <link rel="stylesheet" href="src/client/styles/pta-clone-fix.css" />
+  <link rel="stylesheet" href="src/client/styles/pta-clone-interactions.css?v=20261010-account-menu" />
+  <link rel="stylesheet" href="src/client/editor/codemirror.css?v=20261012-horizontal-scroll" />
+  <link rel="stylesheet" href="src/client/styles/pta-icons.css" />
+  <link rel="stylesheet" href="src/client/styles/pta-theme.css" />
+  <link rel="stylesheet" href="src/client/judge/judge-machine.css" />
+  <link rel="stylesheet" href="src/client/styles/pta-geometry.css?v=20261012-mobile-layout-v2" />
   <style id="rendered-code-math-style">
     .rendered-code .pp,.rendered-code .type{color:#7fb9ff}
     .rendered-code .key{color:#fc7185}.rendered-code .str{color:#b7d778}
@@ -71,6 +71,28 @@
     .carl-lesson .token.string,.carl-lesson .token.char,.carl-lesson .token.attr-value{color:#46a17a}
     .carl-lesson .token.number,.carl-lesson .token.constant{color:#b78643}
     .carl-lesson .token.function,.carl-lesson .token.class-name,.carl-lesson .token.builtin{color:#3299d9}
+    .key-question-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    .key-question-link{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;min-width:0;padding:18px;border:1px solid rgba(128,140,156,.32);border-radius:8px;background:rgba(128,140,156,.055);color:inherit;text-align:left;font:inherit;cursor:pointer;transition:border-color .18s,background .18s,transform .18s}
+    .key-question-link:hover{border-color:#258bff;background:rgba(37,139,255,.08);transform:translateY(-1px)}
+    .key-question-link:focus-visible{outline:2px solid #258bff;outline-offset:2px}
+    .key-question-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:9px;background:#258bff;color:#fff;font-size:13px;font-weight:700}
+    .key-question-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+    .key-question-copy b{font-size:16px;line-height:1.5}
+    .key-question-copy small{color:#778596;font-size:12px;line-height:1.5}
+    .key-question-arrow{color:#258bff;font-size:18px}
+    .key-question-viewer{min-width:0;border:1px solid rgba(128,140,156,.3);border-radius:8px;overflow:hidden}
+    .key-question-toolbar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(128,140,156,.3)}
+    .key-question-toolbar>div{display:flex;gap:8px}.key-question-toolbar strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .key-question-toolbar button,.key-question-toolbar a,.key-question-blocked a{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:6px 12px;border:1px solid rgba(128,140,156,.4);border-radius:5px;background:transparent;color:inherit;font:inherit;font-size:13px;text-decoration:none;cursor:pointer}
+    .key-question-toolbar button:hover,.key-question-toolbar a:hover,.key-question-blocked a:hover{color:#258bff;border-color:#258bff}
+    .key-question-frame{display:block;width:100%;height:70vh;min-height:480px;border:0;background:#fff}
+    .pat-basic-viewer{height:70vh;min-height:480px;overflow:auto;background:rgba(128,140,156,.025)}
+    .pat-basic-filter{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:12px;padding:12px 14px;background:inherit;border-bottom:1px solid rgba(128,140,156,.25)}
+    .pat-basic-filter input{flex:1;min-width:0;padding:9px 12px;border:1px solid rgba(128,140,156,.35);border-radius:5px;background:transparent;color:inherit;font:inherit}.pat-basic-filter span{white-space:nowrap;color:#778596;font-size:13px}
+    .pat-basic-list{min-width:560px}.pat-basic-row{display:grid;width:100%;grid-template-columns:70px minmax(240px,1fr) 60px 80px;align-items:center;gap:12px;padding:11px 16px;border:0;border-bottom:1px solid rgba(128,140,156,.2);background:transparent;color:inherit;text-align:left;text-decoration:none;font:inherit;cursor:pointer}.pat-basic-row:not(.pat-basic-head):hover{background:rgba(37,139,255,.08);color:#258bff}.pat-basic-head{position:sticky;top:59px;background:var(--panel,#fff);font-size:13px;color:#778596;cursor:default}.pat-basic-state{padding:40px 18px;text-align:center;color:#778596}.pat-basic-state button{margin-left:8px}
+    .pat-basic-detail{height:70vh;min-height:480px;overflow:auto}.pat-basic-detail-nav{position:sticky;top:0;z-index:2;padding:10px 16px;border-bottom:1px solid rgba(128,140,156,.25);background:var(--panel,#fff)}.pat-basic-detail-nav button{padding:7px 12px;border:1px solid rgba(128,140,156,.4);border-radius:5px;background:transparent;color:inherit;font:inherit;cursor:pointer}.pat-basic-detail-nav button:hover{color:#258bff;border-color:#258bff}.pat-basic-problem-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:14px;padding:22px 24px 16px;border-bottom:1px solid rgba(128,140,156,.2)}.pat-basic-problem-head>span{display:grid;place-items:center;min-width:54px;height:34px;border-radius:17px;background:#258bff;color:#fff;font-weight:700}.pat-basic-problem-head h3{margin:0 0 5px;font-size:24px}.pat-basic-problem-head p{margin:0;color:#778596}.pat-basic-problem-head>b{white-space:nowrap;color:#778596}.pat-basic-problem-meta{display:flex;flex-wrap:wrap;gap:8px;padding:12px 24px}.pat-basic-problem-meta span{padding:4px 9px;border-radius:4px;background:rgba(128,140,156,.12);font-size:12px;color:#778596}.pat-basic-problem-copy{padding:8px 24px 32px}.pat-basic-problem-copy pre{overflow:auto}.pat-basic-problem-copy table{display:block;max-width:100%;overflow:auto}
+    @media(max-width:900px){.key-question-links{grid-template-columns:1fr}.key-question-link{padding:15px}}
+    @media(max-width:600px){.key-question-toolbar{grid-template-columns:1fr}.key-question-toolbar>div{flex-wrap:wrap}.key-question-frame,.pat-basic-viewer,.pat-basic-detail{height:68vh;min-height:420px}.pat-basic-problem-head{grid-template-columns:auto minmax(0,1fr);padding:16px}.pat-basic-problem-head>b{grid-column:2}.pat-basic-problem-copy{padding:6px 16px 24px}}
     @media(max-width:600px){.carl-lesson{padding:14px;height:70vh;font-size:15px}.carl-lesson h1{font-size:24px}}
     @media(max-width:600px){.carl-reader-toolbar{padding:12px}.carl-reader-frame{height:70vh;min-height:420px}}
   </style>
@@ -142,18 +164,18 @@
       <section class="submission-section submission-code"><h3>提交代码</h3><div class="submission-code-toolbar"><span id="submission-code-language">[ C++ ]</span><div><button type="button" id="copy-submission-code">复制内容</button><button type="button" id="format-submission-code">格式</button><button type="button" id="fullscreen-submission-code">全屏</button></div></div><pre id="submission-code"></pre></section>
     </section>
   </dialog>
-  <script src="exam-data.js"></script>
-  <script src="zixun-contest-data.js"></script>
-<script src="weekly-practice-2.js?v=20261012-solutions-3"></script>
-  <script src="fuzhou-quality-check-20261018.js?v=20261013-difficulty-1"></script>
-  <script src="shenzhuo-round3-20260920.js?v=20261013-import-1"></script>
-  <script src="gplt-homework-2024-2026.js?v=20261014-import-1"></script>
-  <script src="fzu-practice-homework.js?v=20261013-round3-1"></script>
-<script src="pta-clone.js?v=20261015-carl-3"></script>
-  <script src="pta-clone-interactions.js"></script>
-  <script type="module" src="codemirror-editor.js"></script>
-  <script src="judge-score.js"></script>
-  <script src="judge-machine.js"></script>
-  <script src="pta-geometry.js?v=20261012-workspace-resize-v2"></script>
+  <script src="src/data/exams/exam-data.js"></script>
+  <script src="src/data/exams/zixun-contest-data.js"></script>
+  <script src="src/data/exams/weekly-practice-2.js?v=20261012-solutions-3"></script>
+  <script src="src/data/exams/fuzhou-quality-check-20261018.js?v=20261013-difficulty-1"></script>
+  <script src="src/data/exams/shenzhuo-round3-20260920.js?v=20261013-import-1"></script>
+  <script src="src/data/exams/gplt-homework-2024-2026.js?v=20261014-import-1"></script>
+  <script src="src/data/exams/fzu-practice-homework.js?v=20261013-round3-1"></script>
+  <script src="src/client/core/pta-clone.js?v=20261015-key-links-4"></script>
+  <script src="src/client/core/pta-clone-interactions.js"></script>
+  <script type="module" src="src/client/editor/codemirror-editor.js"></script>
+  <script src="src/client/judge/judge-score.js"></script>
+  <script src="src/client/judge/judge-machine.js"></script>
+  <script src="src/client/core/pta-geometry.js?v=20261012-workspace-resize-v2"></script>
 </body>
 </html>

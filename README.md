@@ -2,6 +2,20 @@
 
 直接双击 `index.html` 即可预览。页面包含 OMS 考生顶栏、PTA 风格的题目导航和代码工作区、教师考试管理页，以及创建/参加考试的交互。
 
+## 代码与文档
+
+- `src/client/core/`：主界面、路由、账号交互和工作区尺寸控制。
+- `src/client/editor/`：CodeMirror 编辑器入口、构建产物和样式。
+- `src/client/judge/`：浏览器端运行、提交、计分和结果展示。
+- `src/client/styles/`：当前页面实际加载的公共样式。
+- `src/data/exams/`：正式考试、练习和作业题库。
+- `server.js`：服务启动入口；认证和评测实现位于 `src/server/`。
+- `src/client/admin/`：旧独立管理工具，当前不在主页面加载链中。
+- `src/client/legacy/`：已确认不在当前入口加载链中的旧版前端文件，仅作兼容参考。
+- `docs/`：架构说明和各功能区维护文档，从 [文档索引](docs/README.md) 开始阅读。
+
+浏览器脚本仍按 `index.html` 中的顺序加载。调整路径或拆分 `src/client/core/pta-clone.js` 时，必须同时更新 `server.js` 的静态文件白名单并运行 `npm test`。
+
 ## 自建评测机
 
 提交代码时，浏览器只访问本站的 `POST /api/judge`。服务器在随机临时目录中完成一次编译，再逐个运行题库中的固定测试点并比较输出，不再调用 OneCompiler、DeepSeek 或其他外部判题 API。
