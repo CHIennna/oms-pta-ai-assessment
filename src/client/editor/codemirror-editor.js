@@ -1,5 +1,10 @@
 (() => {
+  var __create = Object.create;
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
   var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __getProtoOf = Object.getPrototypeOf;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
   var __esm = (fn, res, err) => function __init() {
     if (err) throw err[0];
     try {
@@ -15,6 +20,22 @@
       throw mod = 0, e;
     }
   };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+    // If the importer is in node compatibility mode or this is not an ESM
+    // file that has been converted to a CommonJS file using a Babel-
+    // compatible transform (i.e. "__esModule" has not been set), then set
+    // "default" to the CommonJS "module.exports" for node compatibility.
+    isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+    mod
+  ));
 
   // node_modules/@marijn/find-cluster-break/src/index.js
   function isExtendingChar(code2) {
@@ -19852,9 +19873,22 @@
     }
   });
 
-  // codemirror-entry.js
+  // src/client/editor/indentation-backspace.js
+  var require_indentation_backspace = __commonJS({
+    "src/client/editor/indentation-backspace.js"(exports, module) {
+      "use strict";
+      function indentationDeleteSize(spaceCount, indentationWidth = 4) {
+        if (!Number.isInteger(spaceCount) || spaceCount <= 0) return 0;
+        if (!Number.isInteger(indentationWidth) || indentationWidth <= 0) return 1;
+        return spaceCount % indentationWidth === 0 ? Math.min(spaceCount, indentationWidth) : 1;
+      }
+      module.exports = { indentationDeleteSize };
+    }
+  });
+
+  // src/client/editor/codemirror-entry.js
   var require_codemirror_entry = __commonJS({
-    "codemirror-entry.js"() {
+    "src/client/editor/codemirror-entry.js"() {
       init_dist();
       init_dist2();
       init_dist5();
@@ -19862,6 +19896,7 @@
       init_dist11();
       init_dist13();
       init_dist4();
+      var import_indentation_backspace = __toESM(require_indentation_backspace());
       var input = document.querySelector("#code");
       var legacyGutter = document.querySelector("#lines");
       var languageSelect = document.querySelector("#language");
@@ -20110,6 +20145,28 @@ ${firstIndent}`;
         event.preventDefault();
         return true;
       }
+      function deleteIndentation(event, editor) {
+        if (event.key !== "Backspace" || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return false;
+        const ranges = editor.state.selection.ranges;
+        if (ranges.some((range) => {
+          if (!range.empty) return true;
+          const line = editor.state.doc.lineAt(range.from);
+          const before = line.text.slice(0, range.from - line.from);
+          return !/^ +$/.test(before);
+        })) return false;
+        const transaction = editor.state.changeByRange((range) => {
+          const line = editor.state.doc.lineAt(range.from);
+          const spaceCount = range.from - line.from;
+          const deleteSize = (0, import_indentation_backspace.indentationDeleteSize)(spaceCount, indentation2.length);
+          return {
+            changes: { from: range.from - deleteSize, to: range.from },
+            range: EditorSelection.cursor(range.from - deleteSize)
+          };
+        });
+        editor.dispatch(transaction);
+        event.preventDefault();
+        return true;
+      }
       var commonShortcuts = EditorView.domEventHandlers({ keydown: handleShortcut });
       var view = new EditorView({
         state: EditorState.create({
@@ -20142,7 +20199,7 @@ ${firstIndent}`;
         parent: input.parentElement
       });
       view.contentDOM.addEventListener("keydown", (event) => {
-        if (insertIndentation(event, view) || insertSmartNewline(event, view) || insertMatchingBracket(event, view) || deleteEmptyBracketPair(event, view) || handleShortcut(event, view)) event.stopImmediatePropagation();
+        if (insertIndentation(event, view) || insertSmartNewline(event, view) || insertMatchingBracket(event, view) || deleteIndentation(event, view) || deleteEmptyBracketPair(event, view) || handleShortcut(event, view)) event.stopImmediatePropagation();
       }, true);
       var mouseSelection = null;
       var selectionPosition = (event) => view.posAtCoords({ x: event.clientX, y: event.clientY }, true) ?? view.posAtCoords({ x: event.clientX, y: event.clientY }, false);

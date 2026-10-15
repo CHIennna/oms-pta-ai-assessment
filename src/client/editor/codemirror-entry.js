@@ -5,6 +5,7 @@ import {cpp} from '@codemirror/lang-cpp';
 import {python} from '@codemirror/lang-python';
 import {java} from '@codemirror/lang-java';
 import {tags} from '@lezer/highlight';
+import {indentationDeleteSize} from './indentation-backspace.js';
 
 const input = document.querySelector('#code');
 const legacyGutter = document.querySelector('#lines');
@@ -229,6 +230,28 @@ function deleteEmptyBracketPair(event, editor) {
   event.preventDefault();
   return true;
 }
+function deleteIndentation(event, editor) {
+  if (event.key !== 'Backspace' || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return false;
+  const ranges = editor.state.selection.ranges;
+  if (ranges.some(range => {
+    if (!range.empty) return true;
+    const line = editor.state.doc.lineAt(range.from);
+    const before = line.text.slice(0, range.from - line.from);
+    return !/^ +$/.test(before);
+  })) return false;
+  const transaction = editor.state.changeByRange(range => {
+    const line = editor.state.doc.lineAt(range.from);
+    const spaceCount = range.from - line.from;
+    const deleteSize = indentationDeleteSize(spaceCount, indentation.length);
+    return {
+      changes: {from: range.from - deleteSize, to: range.from},
+      range: EditorSelection.cursor(range.from - deleteSize)
+    };
+  });
+  editor.dispatch(transaction);
+  event.preventDefault();
+  return true;
+}
 const commonShortcuts = EditorView.domEventHandlers({keydown: handleShortcut});
 const view = new EditorView({
   state: EditorState.create({
@@ -253,6 +276,7 @@ view.contentDOM.addEventListener('keydown', event => {
   if (insertIndentation(event, view)
     || insertSmartNewline(event, view)
     || insertMatchingBracket(event, view)
+    || deleteIndentation(event, view)
     || deleteEmptyBracketPair(event, view)
     || handleShortcut(event, view)) event.stopImmediatePropagation();
 }, true);
