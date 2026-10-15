@@ -8,7 +8,8 @@ RUN apt-get update \
   && useradd --system --gid fzupta --home-dir /tmp/fzupta --create-home fzupta
 
 WORKDIR /app
-COPY --chown=fzupta:fzupta *.js *.css *.html package*.json .nojekyll /app/
+COPY --chown=fzupta:fzupta *.js *.html package*.json .nojekyll /app/
+COPY --chown=fzupta:fzupta src /app/src
 COPY --chown=fzupta:fzupta fzu-logo.png fzu-wordmark-official.jpg fzu-brand-lockup-red.jpg /app/
 COPY --chown=fzupta:fzupta weekly-practice-2-tests.zip fuzhou-quality-check-20261018-tests.zip shenzhuo-round3-20260920-tests.zip gplt-2024-2026-tests.zip /app/
 
