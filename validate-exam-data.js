@@ -190,6 +190,7 @@ if (require.main === module) {
           path.join(__dirname, 'weekly-practice-2.js'),
           path.join(__dirname, 'fuzhou-quality-check-20261018.js'),
           path.join(__dirname, 'shenzhuo-round3-20260920.js'),
+          path.join(__dirname, 'gplt-homework-2024-2026.js'),
           path.join(__dirname, 'fzu-practice-homework.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);

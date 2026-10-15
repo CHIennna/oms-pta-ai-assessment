@@ -15,12 +15,13 @@ const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(root, 'exam-data.js'),
-  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js'), path.join(root, 'fuzhou-quality-check-20261018.js'), path.join(root, 'shenzhuo-round3-20260920.js'), path.join(root, 'fzu-practice-homework.js')]
+  [path.join(root, 'zixun-contest-data.js'), path.join(root, 'weekly-practice-2.js'), path.join(root, 'fuzhou-quality-check-20261018.js'), path.join(root, 'shenzhuo-round3-20260920.js'), path.join(root, 'gplt-homework-2024-2026.js'), path.join(root, 'fzu-practice-homework.js')]
 );
 const judgeExams = [...exams, ...practiceExams];
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
 const examsByVersion = new Map(judgeExams.map(exam => [String(exam.examVersion), exam]));
 const publicFiles = new Map([
+  ['/gplt-homework-2024-2026.js', 'gplt-homework-2024-2026.js'],
   ['/shenzhuo-round3-20260920.js', 'shenzhuo-round3-20260920.js'],
   ['/fzu-practice-homework.js', 'fzu-practice-homework.js'],
   ['/fuzhou-quality-check-20261018.js', 'fuzhou-quality-check-20261018.js'],
@@ -272,10 +273,65 @@ function permitsRequest(req) {
   if (bucket.length >= 20) return false;
   bucket.push(now); rateBuckets.set(ip, bucket); return true;
 }
+// Public lessons only: never forward credentials or proxy arbitrary hosts.
+const carlPages = new Map();
+let carlRequests = 0;
+function carlPageUrl(value) {
+  const url = new URL(value, 'https://programmercarl.com');
+  if (url.origin !== 'https://programmercarl.com' || url.username || url.password ||
+      url.search || !(/\/$|\.html$/.test(url.pathname))) {
+    throw Object.assign(new Error('只支持代码随想录的公开讲解页面。'), { statusCode: 400 });
+  }
+  url.hash = '';
+  return url;
+}
+async function fetchCarlPage(value) {
+  let url = carlPageUrl(value);
+  const key = url.href;
+  const cached = carlPages.get(key);
+  if (cached && Date.now() - cached.time < 300000) return cached.page;
+  if (carlRequests >= 4) throw Object.assign(new Error('讲解加载繁忙，请稍后重试。'), { statusCode: 429 });
+  carlRequests++;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    for (let redirects = 0; redirects <= 3; redirects++) {
+      const response = await fetch(url, { redirect: 'manual', signal: controller.signal, headers: { Accept: 'text/html' } });
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        await response.body?.cancel();
+        const location = response.headers.get('location');
+        if (!location) throw new Error('Missing redirect');
+        url = carlPageUrl(new URL(location, url).href);
+        continue;
+      }
+      if (!response.ok || !response.headers.get('content-type')?.includes('text/html')) {
+        await response.body?.cancel();
+        throw new Error('Lesson unavailable');
+      }
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of response.body) {
+        size += chunk.length;
+        if (size > 4 * 1024 * 1024) { controller.abort(); throw new Error('Lesson too large'); }
+        chunks.push(chunk);
+      }
+      const page = { url: url.href, html: Buffer.concat(chunks).toString('utf8') };
+      carlPages.delete(key);
+      if (carlPages.size >= 8) carlPages.delete(carlPages.keys().next().value);
+      carlPages.set(key, { time: Date.now(), page });
+      return page;
+    }
+    throw new Error('Too many redirects');
+  } finally { clearTimeout(timeout); carlRequests--; }
+}
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (await auth.handle(req, res, url)) return;
+  if (req.method === 'GET' && url.pathname === '/api/learning/carl') {
+    try { return reply(res, 200, await fetchCarlPage(url.searchParams.get('url') || '/algo/')); }
+    catch (error) { return reply(res, error.statusCode || 502, { message: error.statusCode ? error.message : '讲解暂时加载失败，请重试或打开原文。' }); }
+  }
   if (req.method === 'GET' && url.pathname === '/api/progress') {
     const current = auth.authorize(req, res);
     if (!current) return;

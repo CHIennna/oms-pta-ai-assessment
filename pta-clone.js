@@ -346,10 +346,11 @@ function renderExamCards(exams){
   if(!exams.length)return '<div class="exam-center-empty"><b>暂无试卷</b><span>该分区暂时没有可查看的试卷。</span></div>';
   return exams.map((exam,index)=>{
     const total=exam.questions.reduce((sum,question)=>sum+(Number(question.score)||0),0);
+    const isGplt=exam.homeworkGroup==='gplt';
     const questions=exam.questions.map((question,questionIndex)=>exam.selectable
-      ?`<button type="button" class="archive-question-row" data-exam-version="${escape(exam.examVersion)}" data-question-open="${questionIndex}"><span>${escape(question.id)}</span><div><b>${escape(question.name)}</b><small>编程题</small></div><strong>${Number(question.score)||0} 分</strong><em>进入作答 ›</em></button>`
+      ?`<button type="button" class="archive-question-row" data-exam-version="${escape(exam.examVersion)}" data-question-open="${questionIndex}"><span>${escape(question.id)}</span><div><b>${escape(question.name)}</b><small>${isGplt?`${escape(question.originalId)} · ${escape(question.difficulty)}`:'编程题'}</small></div><strong>${Number(question.score)||0} 分</strong><em>进入作答 ›</em></button>`
       :`<div class="archive-question-row"><span>${escape(question.id)}</span><div><b>${escape(question.name)}</b><small>编程题</small></div><strong>${Number(question.score)||0} 分</strong></div>`).join('');
-    return `<details class="exam-archive-card" ${index===0||exam.current?'open':''}><summary><div class="archive-card-title"><span class="archive-status ${exam.current?'current':''}">${escape(exam.current?'正在作答':exam.status||'可作答')}</span><div><h2>${escape(exam.title)}</h2></div></div><div class="archive-metrics"><span><small>题目</small><b>${exam.questions.length} 题</b></span><span><small>时长</small><b>${formatDuration(exam.duration)}</b></span><span><small>总分</small><b>${total} 分</b></span></div><i>⌄</i></summary><div class="archive-question-list"><header><span>题目清单</span><span>满分</span></header>${questions}</div></details>`;
+    return `<details class="exam-archive-card" ${index===0||exam.current?'open':''}><summary><div class="archive-card-title"><span class="archive-status ${exam.current?'current':''}">${escape(exam.current?'正在作答':exam.status||'可作答')}</span><div><h2>${escape(exam.title)}</h2></div></div><div class="archive-metrics"><span><small>题目</small><b>${exam.questions.length} 题</b></span><span><small>时长</small><b>${exam.category==='practice'?'不限时':formatDuration(exam.duration)}</b></span><span><small>总分</small><b>${total} 分</b></span></div><i>⌄</i></summary><div class="archive-question-list"><header><span>${isGplt?'8 道 L1＋4 道 L2 · 每题 5 个自建测试点':'题目清单'}</span><span>满分</span></header>${questions}</div></details>`;
   }).join('');
 }
 function renderPortalContests(filters={status:'all',rule:'',keyword:''},page=0){
@@ -393,13 +394,15 @@ function renderExamCenter(){
   const currentExam={...primaryConfig,date:examDate(primaryConfig),status:'模拟卷',current:config.examVersion===primaryExamVersion,selectable:true,category:'mock'};
   const archive=(window.OMS_EXAM_ARCHIVE||[]).filter(exam=>exam.examVersion!==primaryExamVersion);
   const pastExams=(window.OMS_EXAM_ARCHIVE||[]).filter(exam=>exam.category==='past').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}));
-  const mockExams=[currentExam,...archive.filter(exam=>exam.category==='mock'||exam.category==='practice').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}))];
+  const gplt=archive.filter(exam=>exam.homeworkGroup==='gplt').sort((a,b)=>a.practiceYear-b.practiceYear).map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true,status:'真题作业'}));
+  const mockExams=[currentExam,...archive.filter(exam=>(exam.category==='mock'||exam.category==='practice')&&exam.homeworkGroup!=='gplt').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}))];
   const homework=window.OMS_PRACTICE_EXAMS||[];
-  const activeCategory=homework.length?'homework':config.examVersion===primaryExamVersion?'mock':'past';
-  const tabs=[...(homework.length?[['homework','专项作业']]:[]),['past','历年题'],['mock','模拟练习']];
+  const activeCategory=config.homeworkGroup==='gplt'?'gplt':homework.length?'homework':gplt.length?'gplt':config.examVersion===primaryExamVersion?'mock':'past';
+  const tabs=[...(homework.length?[['homework','专项作业']]:[]),...(gplt.length?[['gplt','天梯赛 L1/L2']]:[]),['past','历年题'],['mock','模拟练习']];
   const tabHtml=tabs.map(([key,label])=>`<button type="button" class="${activeCategory===key?'active':''}" data-exam-center-tab="${key}" role="tab" aria-selected="${activeCategory===key}">${label}</button>`).join('');
-  const homeworkHtml=homework.length?`<section class="exam-center-panel active" data-exam-center-panel="homework"><header><h2>FZU 竞赛精选 · 五次专项作业</h2><span>每次 4 道核心＋1 道选做，不限时</span></header><p>可以每天完成 1～2 题。原站练习题打开 FZU 页面，不计入本站通过记录。</p><div class="exam-archive-list">${renderHomeworkCards(homework)}</div></section>`:'';
-  return `<div class="exam-center-head"><h1>练习</h1></div><div class="exam-center-tabs" role="tablist">${tabHtml}</div>${homeworkHtml}<section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年题</h2><span>历年考试题目练习</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟练习</h2><span>周练与模拟题目</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
+  const homeworkHtml=homework.length?`<section class="exam-center-panel ${activeCategory==='homework'?'active':''}" data-exam-center-panel="homework" ${activeCategory==='homework'?'':'hidden'}><header><h2>FZU 竞赛精选 · 五次专项作业</h2><span>每次 4 道核心＋1 道选做，不限时</span></header><p>可以每天完成 1～2 题。原站练习题打开 FZU 页面，不计入本站通过记录。</p><div class="exam-archive-list">${renderHomeworkCards(homework)}</div></section>`:'';
+  const gpltHtml=gplt.length?`<section class="exam-center-panel ${activeCategory==='gplt'?'active':''}" data-exam-center-panel="gplt" ${activeCategory==='gplt'?'':'hidden'}><header><h2>历年真题作业 · 天梯赛 L1/L2</h2><span>2024、2025、2026 · 三套独立练习</span></header><p>每年 8 道 L1＋4 道 L2，200 分，不限时；作答记录按年份独立保存。</p><p>题面为非官方重述，测试点为自建练习数据，不是官方隐藏测试。部分题目有练习版规则差异，请阅读题面中的勘误提示。难度标签沿用包内参考评级。</p><div class="exam-archive-list">${renderExamCards(gplt)}</div></section>`:'';
+  return `<div class="exam-center-head"><h1>练习</h1></div><div class="exam-center-tabs" role="tablist">${tabHtml}</div>${homeworkHtml}${gpltHtml}<section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年题</h2><span>历年考试题目练习</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟练习</h2><span>周练与模拟题目</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
 }
 const PROBLEM_DIFFICULTY_GROUPS=[
   [1,['普及-','普及','普及+/提高-','普及-','普及+/提高-','普及-','普及-','待定']],
@@ -499,10 +502,121 @@ function renderExperienceReader(){
   const outlines=experiencePosts.map((post,index)=>`<nav class="${index===0?'active':''}" data-experience-outline="${index}" ${index===0?'':'hidden'}>${post.sections.map(section=>`<a href="#experience-${index}-${section.key}">${escape(section.title)}</a>`).join('')}</nav>`).join('');
   return `<div class="experience-reader ${experienceLibraryCollapsed?'library-collapsed':''}" data-experience-font-size="${experienceFontSize}"><aside class="experience-library"><div class="experience-library-head"><h3>经验文章</h3><button type="button" class="experience-library-toggle" data-experience-library-toggle aria-expanded="${!experienceLibraryCollapsed}" aria-label="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}" title="${experienceLibraryCollapsed?'展开经验文章列表':'折叠经验文章列表'}">${experienceLibraryCollapsed?'›':'‹'}</button></div><div class="experience-library-list">${list}</div></aside><main class="experience-main">${articles}</main><aside class="experience-outline"><h3>目录</h3>${outlines}</aside></div>`;
 }
+function renderKnowledgeReader(){
+  return `<div class="carl-reader"><div class="carl-reader-toolbar"><div class="carl-reader-title"><strong>代码随想录</strong><span>程序员 Carl · 图文讲解与算法学习路线</span></div><div class="carl-reader-actions"><button type="button" data-carl-back disabled>返回讲解</button><button type="button" data-carl-home>讲解首页</button><a data-carl-source href="https://programmercarl.com/algo/" target="_blank" rel="noopener noreferrer">打开原文 ↗</a></div></div><div class="carl-reader-tabs" role="tablist" aria-label="学习阅读器"><button type="button" role="tab" aria-selected="true" aria-controls="carl-lesson-panel" id="carl-lesson-tab" data-carl-tab="lesson">讲解</button><button type="button" role="tab" aria-selected="false" aria-controls="carl-leetcode-panel" id="carl-leetcode-tab" data-carl-tab="leetcode" disabled>力扣</button></div><section id="carl-lesson-panel" role="tabpanel" aria-labelledby="carl-lesson-tab"><div class="carl-reader-notice" role="status" data-carl-notice></div><div class="carl-lesson" data-carl-lesson tabindex="0" aria-label="讲解正文"></div></section><section id="carl-leetcode-panel" role="tabpanel" aria-labelledby="carl-leetcode-tab" hidden><div class="carl-reader-help">正在 OMS 内打开力扣；登录与提交由力扣处理。若页面被浏览器限制，<a data-carl-leetcode-source target="_blank" rel="noopener noreferrer">打开力扣原页 ↗</a></div><iframe class="carl-reader-frame" data-carl-leetcode title="力扣题目" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" allowfullscreen></iframe></section><p class="carl-reader-help">点击专题阅读讲解；力扣题目链接将在上方“力扣”页签打开，切回“讲解”可继续阅读。</p></div>`;
+}
+function carlLinkUrl(value, base){
+  if(!value)return null;
+  try { const url=new URL(value,base);return url.protocol==='https:'&&!url.username&&!url.password?url:null; } catch { return null; }
+}
+function carlLinkKind(url){
+  if(url.origin==='https://programmercarl.com'&&!url.search&&/\/$|\.html$/.test(url.pathname))return 'lesson';
+  if(['https://leetcode.cn','https://leetcode.com'].includes(url.origin)&&/^\/problems\/[a-z0-9-]+(?:\/|$)/i.test(url.pathname))return 'leetcode';
+  return 'external';
+}
+function safeCarlContent(html,base){
+  const parsed=new DOMParser().parseFromString(html,'text/html');
+  const source=parsed.querySelector('.theme-default-content, .content__default');
+  if(!source)throw new Error('暂时无法识别讲解正文，请打开原文阅读。');
+  const allowed=new Set('DIV ARTICLE SECTION P H1 H2 H3 H4 H5 H6 UL OL LI BLOCKQUOTE PRE CODE SPAN STRONG EM B I S DEL BR HR A IMG TABLE THEAD TBODY TR TH TD DETAILS SUMMARY SUP SUB KBD'.split(' '));
+  const dropped=new Set('SCRIPT STYLE IFRAME OBJECT EMBED FORM INPUT BUTTON TEXTAREA SELECT SVG MATH LINK META TEMPLATE NOSCRIPT'.split(' '));
+  const copy=node=>{
+    if(node.nodeType===Node.TEXT_NODE)return document.createTextNode(node.textContent);
+    if(node.nodeType!==Node.ELEMENT_NODE||dropped.has(node.tagName))return document.createDocumentFragment();
+    // The source site's line-number gutters depend on its CSS; omit their entire subtree.
+    if(node.classList.contains('line-numbers-wrapper')||node.classList.contains('line-numbers-rows'))return document.createDocumentFragment();
+    if(node.classList.contains('header-anchor')||(node.classList.contains('sr-only')&&node.textContent.trim()==='(opens new window)'))return document.createDocumentFragment();
+    const result=allowed.has(node.tagName)?document.createElement(node.tagName.toLowerCase()):document.createDocumentFragment();
+    if(result.nodeType===Node.ELEMENT_NODE){
+      // Rebuild a small attribute allowlist; never copy styles or event handlers.
+      if(node.id)result.id='carl-content-'+node.id;
+      if(node.title)result.title=node.title;
+      if(['SPAN','CODE','PRE'].includes(node.tagName))result.className=[...node.classList].filter(c=>/^(token|comment|prolog|doctype|cdata|punctuation|keyword|string|char|number|boolean|function|class-name|operator|builtin|constant|property|tag|attr-name|attr-value|namespace|language-[\w-]+)$/.test(c)).join(' ');
+      if(node.tagName==='A'){
+        const url=carlLinkUrl(node.getAttribute('href'),base);
+        if(url){result.href=url.href;result.target='_blank';result.rel='noopener noreferrer';}
+      }
+      if(node.tagName==='IMG'){
+        const url=carlLinkUrl(node.getAttribute('src'),base);
+        if(url){result.src=url.href;result.loading='lazy';result.referrerPolicy='no-referrer';}
+        result.alt=node.getAttribute('alt')||'';
+      }
+      for(const attr of ['colspan','rowspan'])if(['TD','TH'].includes(node.tagName)&&/^\d{1,2}$/.test(node.getAttribute(attr)||''))result.setAttribute(attr,node.getAttribute(attr));
+    }
+    for(const child of node.childNodes)result.appendChild(copy(child));
+    return result;
+  };
+  return copy(source);
+}
+function setupKnowledgeReader(root){
+  const lesson=root.querySelector('[data-carl-lesson]');
+  const notice=root.querySelector('[data-carl-notice]');
+  const back=root.querySelector('[data-carl-back]');
+  const source=root.querySelector('[data-carl-source]');
+  const frame=root.querySelector('[data-carl-leetcode]');
+  const history=[];
+  let current='https://programmercarl.com/algo/',requestId=0,controller;
+  function selectTab(name){
+    root.querySelectorAll('[data-carl-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.carlTab===name)));
+    root.querySelector('#carl-lesson-panel').hidden=name!=='lesson';
+    root.querySelector('#carl-leetcode-panel').hidden=name!=='leetcode';
+  }
+  function scrollToHash(hash){
+    if(!hash)return;
+    let id;try{id='carl-content-'+decodeURIComponent(hash.slice(1));}catch{return;}
+    const target=[...lesson.querySelectorAll('[id]')].find(el=>el.id===id);
+    if(target)lesson.scrollTop+=target.getBoundingClientRect().top-lesson.getBoundingClientRect().top;
+  }
+  async function load(url,push=true){
+    const id=++requestId;
+    controller?.abort();controller=new AbortController();
+    selectTab('lesson');notice.textContent='正在加载讲解…';lesson.setAttribute('aria-busy','true');
+    try{
+      const response=await fetch('/api/learning/carl?url='+encodeURIComponent(url),{signal:controller.signal});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.message||'加载失败，请重试。');
+      const content=safeCarlContent(data.html,data.url);
+      if(id!==requestId||!root.isConnected)return;
+      if(push&&lesson.firstChild){history.push({url:current,scroll:lesson.scrollTop,content:lesson.firstChild});if(history.length>12)history.shift();}
+      lesson.replaceChildren(content);current=data.url+new URL(url).hash;source.href=data.url;lesson.scrollTop=0;
+      scrollToHash(new URL(url).hash);notice.replaceChildren();back.disabled=!history.length;
+    }catch(error){
+      if(id!==requestId||error.name==='AbortError')return;
+      notice.textContent=error.message+' ';
+      const retry=document.createElement('button');retry.type='button';retry.textContent='重试';retry.onclick=()=>load(url,push);notice.appendChild(retry);
+    }finally{if(id===requestId)lesson.removeAttribute('aria-busy');}
+  }
+  root.querySelectorAll('[data-carl-tab]').forEach(button=>button.onclick=()=>selectTab(button.dataset.carlTab));
+  root.querySelector('[data-carl-home]').onclick=()=>load('https://programmercarl.com/algo/');
+  back.onclick=()=>{
+    const previous=history.pop();if(!previous)return;
+    requestId++;controller?.abort();selectTab('lesson');notice.replaceChildren();lesson.removeAttribute('aria-busy');
+    current=previous.url;source.href=current;lesson.replaceChildren(previous.content);lesson.scrollTop=previous.scroll;back.disabled=!history.length;
+  };
+  lesson.addEventListener('click',event=>{
+    const link=event.target.closest('a[href]');if(!link)return;
+    const url=carlLinkUrl(link.href,current);if(!url)return;
+    const kind=carlLinkKind(url);
+    if(kind==='external')return;
+    event.preventDefault();
+    if(kind==='leetcode'){
+      // Chinese LeetCode supports the embedded reader; no OMS credentials are passed.
+      url.hostname='leetcode.cn';
+      if(frame.getAttribute('src')!==url.href)frame.src=url.href;
+      root.querySelector('[data-carl-leetcode-source]').href=url.href;
+      root.querySelector('[data-carl-tab="leetcode"]').disabled=false;selectTab('leetcode');
+    }else{
+      const here=new URL(current);
+      if(url.pathname===here.pathname&&url.hash){scrollToHash(url.hash);return;}
+      load(url.href);
+    }
+  });
+  load(current,false);
+}
 function renderStudyAdvice(){
   const wrongQuestions=config.questions.map((question,index)=>({question,index})).filter(item=>results[item.index]==='wrong');
   const fontOptions=[['small','小'],['medium','中'],['large','大']].map(([value,label])=>`<button type="button" class="${experienceFontSize===value?'active':''}" data-experience-font="${value}" aria-pressed="${experienceFontSize===value}">${label}</button>`).join('');
-  return `<div class="study-advice-head"><h1>备考</h1></div><div class="study-advice-tabs" role="tablist"><button type="button" class="active" data-study-tab="knowledge" role="tab" aria-selected="true">知识讲解</button><button type="button" data-study-tab="mistakes" role="tab" aria-selected="false">错题集</button><button type="button" data-study-tab="key" role="tab" aria-selected="false">关键题目</button><button type="button" data-study-tab="experience" role="tab" aria-selected="false">经验贴</button></div><section class="study-advice-panel active" data-study-panel="knowledge"><header><h2>知识讲解</h2></header><div class="study-advice-empty"><b>暂无</b></div></section><section class="study-advice-panel" data-study-panel="mistakes" hidden><header><h2>错题集</h2></header>${renderAdviceQuestionRows(wrongQuestions,'暂无错题记录')}</section><section class="study-advice-panel" data-study-panel="key" hidden><header><h2>关键题目</h2></header><div class="study-advice-empty"><b>暂无</b></div></section><section class="study-advice-panel" data-study-panel="experience" hidden><header><h2>经验贴</h2><div class="experience-header-tools"><div class="experience-font-controls" role="group" aria-label="经验贴字号"><span>字号</span>${fontOptions}</div></div></header>${renderExperienceReader()}</section>`;
+  return `<div class="study-advice-head"><h1>备考</h1></div><div class="study-advice-tabs" role="tablist"><button type="button" class="active" data-study-tab="knowledge" role="tab" aria-selected="true">知识讲解</button><button type="button" data-study-tab="mistakes" role="tab" aria-selected="false">错题集</button><button type="button" data-study-tab="key" role="tab" aria-selected="false">关键题目</button><button type="button" data-study-tab="experience" role="tab" aria-selected="false">经验贴</button></div><section class="study-advice-panel active" data-study-panel="knowledge"><header><h2>知识讲解</h2></header>${renderKnowledgeReader()}</section><section class="study-advice-panel" data-study-panel="mistakes" hidden><header><h2>错题集</h2></header>${renderAdviceQuestionRows(wrongQuestions,'暂无错题记录')}</section><section class="study-advice-panel" data-study-panel="key" hidden><header><h2>关键题目</h2></header><div class="study-advice-empty"><b>暂无</b></div></section><section class="study-advice-panel" data-study-panel="experience" hidden><header><h2>经验贴</h2><div class="experience-header-tools"><div class="experience-font-controls" role="group" aria-label="经验贴字号"><span>字号</span>${fontOptions}</div></div></header>${renderExperienceReader()}</section>`;
 }
 function storedVerdictLabel(item){
   if(item.status==='partial')return '部分正确';
@@ -741,6 +855,7 @@ async function route(name,allowGuest=false){
   }
   if(name==='advice'){
     paintPortalPage(renderStudyAdvice());
+    setupKnowledgeReader(secondary.querySelector('.carl-reader'));
     const showAdvicePanel=category=>{
       secondary.querySelectorAll('[data-study-tab]').forEach(button=>{const active=button.dataset.studyTab===category;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});
       secondary.querySelectorAll('[data-study-panel]').forEach(panel=>{const active=panel.dataset.studyPanel===category;panel.hidden=!active;panel.classList.toggle('active',active);});

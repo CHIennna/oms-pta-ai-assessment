@@ -39,6 +39,41 @@
     @keyframes app-boot-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .app-boot-screen::before { animation: none; } }
   </style>
+  <style id="carl-knowledge-reader-style">
+    .study-advice-panel[data-study-panel="knowledge"]{min-width:0}
+    .carl-reader{min-width:0;max-width:100%;border:1px solid rgba(128,140,156,.3);border-radius:8px;overflow:hidden}
+    .carl-reader-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px 16px}
+    .carl-reader-title{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .carl-reader-title strong{font-size:16px;line-height:1.5}
+    .carl-reader-title span,.carl-reader-help{font-size:13px;line-height:1.6;opacity:.75}
+    .carl-reader-actions{display:flex;flex-wrap:wrap;gap:8px}
+    .carl-reader-actions button,.carl-reader-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:6px 12px;border:1px solid rgba(128,140,156,.4);border-radius:5px;background:transparent;color:inherit;font:inherit;font-size:13px;line-height:1.4;text-decoration:none;cursor:pointer}
+    .carl-reader-actions button:hover,.carl-reader-actions a:hover{color:#258bff;border-color:#258bff}
+    .carl-reader-actions button:focus-visible,.carl-reader-actions a:focus-visible{outline:2px solid #258bff;outline-offset:2px}
+    .carl-reader-frame{display:block;width:100%;height:72vh;min-height:480px;max-height:1000px;border:0;border-top:1px solid rgba(128,140,156,.3);background:#fff}
+    .carl-reader-help{margin:0;padding:10px 16px}
+    .carl-reader [hidden]{display:none!important}
+    .carl-reader-tabs{display:flex;gap:8px;padding:0 16px;border-bottom:1px solid rgba(128,140,156,.3)}
+    .carl-reader-tabs button{padding:12px 22px;background:transparent;border:0;border-bottom:3px solid transparent;color:inherit;font:inherit;cursor:pointer}
+    .carl-reader-tabs button[aria-selected="true"]{color:#258bff;border-bottom-color:#258bff}
+    .carl-reader button:disabled{opacity:.45;cursor:default}
+    .carl-reader-notice:not(:empty){padding:12px 16px;font-size:14px}
+    .carl-lesson{min-width:0;height:72vh;min-height:420px;max-height:1000px;overflow:auto;overscroll-behavior:contain;padding:20px;box-sizing:border-box;font-size:16px;line-height:1.8;overflow-wrap:anywhere}
+    .carl-lesson h1{font-size:28px}.carl-lesson h2{font-size:23px}.carl-lesson h3{font-size:19px}
+    .carl-lesson a,.carl-reader-help a{color:#258bff}
+    .carl-lesson img{max-width:100%;height:auto}
+    .carl-lesson pre{max-width:100%;overflow:auto;padding:16px;background:rgba(128,140,156,.12);border-radius:6px;font-size:14px;line-height:1.6;white-space:pre;overflow-wrap:normal}
+    .carl-lesson code{font-family:Consolas,monospace}
+    .carl-lesson table{display:block;overflow:auto;max-width:100%;border-collapse:collapse}
+    .carl-lesson th,.carl-lesson td{padding:8px;border:1px solid rgba(128,140,156,.3)}
+    .carl-lesson .token.comment,.carl-lesson .token.prolog{color:#80939e}
+    .carl-lesson .token.keyword,.carl-lesson .token.boolean{color:#c65aa8}
+    .carl-lesson .token.string,.carl-lesson .token.char,.carl-lesson .token.attr-value{color:#46a17a}
+    .carl-lesson .token.number,.carl-lesson .token.constant{color:#b78643}
+    .carl-lesson .token.function,.carl-lesson .token.class-name,.carl-lesson .token.builtin{color:#3299d9}
+    @media(max-width:600px){.carl-lesson{padding:14px;height:70vh;font-size:15px}.carl-lesson h1{font-size:24px}}
+    @media(max-width:600px){.carl-reader-toolbar{padding:12px}.carl-reader-frame{height:70vh;min-height:420px}}
+  </style>
 </head>
 <body>
   <header class="oms-client-chrome" aria-label="OMS 监考客户端">
@@ -112,8 +147,9 @@
 <script src="weekly-practice-2.js?v=20261012-solutions-3"></script>
   <script src="fuzhou-quality-check-20261018.js?v=20261013-difficulty-1"></script>
   <script src="shenzhuo-round3-20260920.js?v=20261013-import-1"></script>
+  <script src="gplt-homework-2024-2026.js?v=20261014-import-1"></script>
   <script src="fzu-practice-homework.js?v=20261013-round3-1"></script>
-  <script src="pta-clone.js?v=20261013-round3-1"></script>
+<script src="pta-clone.js?v=20261015-carl-3"></script>
   <script src="pta-clone-interactions.js"></script>
   <script type="module" src="codemirror-editor.js"></script>
   <script src="judge-score.js"></script>
