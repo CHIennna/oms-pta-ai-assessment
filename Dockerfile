@@ -11,7 +11,7 @@ WORKDIR /app
 COPY --chown=fzupta:fzupta *.js *.html package*.json .nojekyll /app/
 COPY --chown=fzupta:fzupta src /app/src
 COPY --chown=fzupta:fzupta fzu-logo.png fzu-wordmark-official.jpg fzu-brand-lockup-red.jpg /app/
-COPY --chown=fzupta:fzupta weekly-practice-2-tests.zip fuzhou-quality-check-20261018-tests.zip shenzhuo-round3-20260920-tests.zip gplt-2024-2026-tests.zip /app/
+COPY --chown=fzupta:fzupta weekly-practice-2-tests.zip fuzhou-quality-check-20261018-tests.zip fuzhou-quality-check-b-20261018-tests.zip shenzhuo-round3-20260920-tests.zip gplt-2024-2026-tests.zip /app/
 
 ENV NODE_ENV=production \
     PORT=10000 \
