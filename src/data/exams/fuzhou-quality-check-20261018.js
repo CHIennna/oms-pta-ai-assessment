@@ -1,7 +1,7 @@
 (() => {
   const data = {
   "examVersion": "2026-10-18-quality-check-2025grade-01",
-  "title": "福州市2025级第一次质检（2026-10-18）",
+  "title": "福州大学2025级第一次质量检测（A）",
   "type": "IOI",
   "rule": "IOI",
   "category": "mock",
@@ -158,6 +158,9 @@
     }
   ]
 };
+  data.questions.forEach(question => {
+    question.statement = String(question.statement || '').replace(/^##\s+1-[1-8][^\n]*（100\s*分）\s*\n+/u, '');
+  });
   const archive = window.OMS_EXAM_ARCHIVE || (window.OMS_EXAM_ARCHIVE = []);
   const existing = archive.findIndex(exam => exam.examVersion === data.examVersion);
   const others = [window.OMS_EXAM_DATA, ...archive].filter(exam => exam && exam.examVersion !== data.examVersion);

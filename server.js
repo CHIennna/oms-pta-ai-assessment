@@ -16,7 +16,7 @@ const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(examDataRoot, 'exam-data.js'),
-  [path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fzu-practice-homework.js')]
+  [path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fzu-practice-homework.js')]
 );
 const judgeExams = [...exams, ...practiceExams];
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
@@ -26,6 +26,7 @@ const publicFiles = new Map([
   ['/src/data/exams/shenzhuo-round3-20260920.js', 'src/data/exams/shenzhuo-round3-20260920.js'],
   ['/src/data/exams/fzu-practice-homework.js', 'src/data/exams/fzu-practice-homework.js'],
   ['/src/data/exams/fuzhou-quality-check-20261018.js', 'src/data/exams/fuzhou-quality-check-20261018.js'],
+  ['/src/data/exams/fuzhou-quality-check-b-20261018.js', 'src/data/exams/fuzhou-quality-check-b-20261018.js'],
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'],
   ['/src/client/assets/fzu-triangle-lattice.svg', 'src/client/assets/fzu-triangle-lattice.svg'],

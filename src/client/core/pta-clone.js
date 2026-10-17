@@ -444,16 +444,18 @@ function renderProblemDirectory(filters={status:'all',difficulty:'all',keyword:'
   };
   const filtered=problems.filter(item=>{
     const difficulty=item.question.difficulty||PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'';
-    const status=statusFor(item),text=`${item.question.id||''} ${item.question.name||''} ${difficulty}`.toLowerCase();
+    const tags=Array.isArray(item.question.tags)?item.question.tags.join(' '):String(item.question.tags||'');
+    const status=statusFor(item),text=`${item.question.id||''} ${item.question.name||''} ${difficulty} ${tags}`.toLowerCase();
     return (filters.status==='all'||status===filters.status)&&(filters.difficulty==='all'||difficulty===filters.difficulty)&&(!filters.keyword||text.includes(filters.keyword.trim().toLowerCase()));
   });
   const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1);
   const rows=filtered.slice(safePage*pageSize,(safePage+1)*pageSize).map(item=>{
     const status=statusFor(item),tone=status==='已通过'?'accepted':status==='未通过'?'wrong':status==='暂不可评测'?'unavailable':'pending';
     const difficulty=item.question.difficulty||PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'—';
+    const tags=Array.isArray(item.question.tags)?item.question.tags.join('、'):String(item.question.tags||'');
     const ratio=item.question.passRate??item.question.acceptanceRate;
     const passRate=ratio===undefined||ratio===null?'—':`${escape(ratio)}${Number.isFinite(Number(ratio))?'%':''}`;
-    return `<button type="button" class="problem-directory-row" data-problem-exam="${escape(item.exam.examVersion)}" data-problem-index="${item.index}"><span class="problem-directory-status ${tone}" title="${status}">${status==='已通过'?'✓':status==='未通过'?'×':status==='暂不可评测'?'!':'—'}</span><span class="problem-directory-id">${escape(item.question.id||item.index+1)}</span><b>${escape(item.question.name||'未命名题目')}</b><span class="problem-directory-tags difficulty-${difficultyTone(difficulty)}">${escape(difficulty)}</span><em>${passRate}</em></button>`;
+    return `<button type="button" class="problem-directory-row" data-problem-exam="${escape(item.exam.examVersion)}" data-problem-index="${item.index}"><span class="problem-directory-status ${tone}" title="${status}">${status==='已通过'?'✓':status==='未通过'?'×':status==='暂不可评测'?'!':'—'}</span><span class="problem-directory-id">${escape(item.question.id||item.index+1)}</span><b>${escape(item.question.name||'未命名题目')}</b><span class="problem-directory-tags difficulty-${difficultyTone(difficulty)}" title="${escape(tags||difficulty)}">${escape(difficulty)}</span><em>${passRate}</em></button>`;
   }).join('');
   const statuses=['all','未提交','已通过','未通过','暂不可评测'],labels={all:'全部',未提交:'未提交',已通过:'已通过',未通过:'未通过',暂不可评测:'暂不可评测'};
   const difficulties=['入门','普及-','普及','普及+/提高-','提高','提高+/省选-','省选/NOI-','NOI/NOI+/CTS','待定'];
@@ -463,7 +465,7 @@ function renderProblemDirectory(filters={status:'all',difficulty:'all',keyword:'
   return `<section class="problem-directory"><header class="problem-directory-head"><div><h1>题目</h1></div><span>${filtered.length} 道题</span></header><form class="problem-directory-filters" data-problem-filter-form><div class="problem-status-tabs" role="group" aria-label="题目状态">${statuses.map(status=>`<button type="button" data-problem-status="${status}" class="${filters.status===status?'active':''}">${labels[status]}</button>`).join('')}</div><div class="problem-directory-search">${difficultyPicker}<input name="keyword" value="${escape(filters.keyword)}" placeholder="输入题号、题目名称或关键词" aria-label="题目关键词筛选"><button type="submit">筛选</button><button type="button" data-problem-reset>重置</button></div></form><div class="problem-directory-table-wrap"><div class="problem-directory-table"><div class="problem-directory-columns"><span>状态</span><span>题号</span><span>题目名称</span><span>标签</span><span>通过率</span></div>${rows||`<div class="problem-directory-empty">${problems.length?'没有符合条件的题目':'暂无题目'}</div>`}</div></div><nav class="problem-directory-pagination" aria-label="题目列表分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-problem-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-problem-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
 }
 function renderAdviceQuestionRows(questions,emptyText){
-  if(!questions.length)return `<div class="study-advice-empty"><b>${escape(emptyText)}</b><span>完成题目评测后，这里会自动更新。</span></div>`;
+  if(!questions.length)return `<div class="study-advice-empty"><b>${escape(emptyText)}</b><span>完成题目评测后，这里会自动更新。</span><button type="button" data-study-go-problems>去题目列表</button></div>`;
   return `<div class="study-advice-question-list">${questions.map(({question,index},order)=>`<button type="button" data-question-open="${index}"><span>${escape(question.id)}</span><div><b>${escape(question.name)}</b><small>${Number(question.score)||0} 分 · 编程题</small></div><em>进入作答 ›</em></button>`).join('')}</div>`;
 }
 const fallbackExperiencePosts=[
@@ -492,10 +494,14 @@ const experiencePosts=(Array.isArray(window.OMS_EXPERIENCE_POSTS)&&window.OMS_EX
   .sort((left,right)=>experienceYear(right)-experienceYear(left)||Array.from(String(left.title||'')).length-Array.from(String(right.title||'')).length||String(left.title||'').localeCompare(String(right.title||''),'zh-CN'));
 const EXPERIENCE_FONT_STORAGE='oms-pta-experience-font-size';
 const EXPERIENCE_LIBRARY_STORAGE='oms-pta-experience-library-collapsed';
+const STUDY_TAB_STORAGE='oms-pta-study-tab';
+const STUDY_TABS=['knowledge','mistakes','key','experience'];
 let experienceFontSize='medium';
 let experienceLibraryCollapsed=false;
+let studyActiveTab='knowledge';
 try{const storedFontSize=localStorage.getItem(EXPERIENCE_FONT_STORAGE);if(['small','medium','large'].includes(storedFontSize))experienceFontSize=storedFontSize;}catch{}
 try{experienceLibraryCollapsed=localStorage.getItem(EXPERIENCE_LIBRARY_STORAGE)==='true';}catch{}
+try{const storedStudyTab=localStorage.getItem(STUDY_TAB_STORAGE);if(STUDY_TABS.includes(storedStudyTab))studyActiveTab=storedStudyTab;}catch{}
 function renderExperienceReader(){
   const list=experiencePosts.map((post,index)=>`<button type="button" class="${index===0?'active':''}" data-experience-post="${index}" aria-selected="${index===0}"><small>${escape(post.label)}</small><b>${escape(post.title)}</b></button>`).join('');
   const articles=experiencePosts.map((post,index)=>`<article class="experience-article ${index===0?'active':''}" data-experience-article="${index}" ${index===0?'':'hidden'}><header><small>${escape(post.label)}</small><h2>${escape(post.title)}</h2></header>${post.sections.map(section=>`<section id="experience-${index}-${section.key}"><h3>${escape(section.title)}</h3>${section.markdown?`<div class="experience-markdown">${markdownToHtml(section.markdown)}</div>`:`<p>${escape(section.body)}</p>${section.items?`<ul>${section.items.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>`:''}`}</section>`).join('')}</article>`).join('');
@@ -699,7 +705,17 @@ function setupKnowledgeReader(root){
 function renderStudyAdvice(){
   const wrongQuestions=config.questions.map((question,index)=>({question,index})).filter(item=>results[item.index]==='wrong');
   const fontOptions=[['small','小'],['medium','中'],['large','大']].map(([value,label])=>`<button type="button" class="${experienceFontSize===value?'active':''}" data-experience-font="${value}" aria-pressed="${experienceFontSize===value}">${label}</button>`).join('');
-  return `<div class="study-advice-head"><h1>备考</h1></div><div class="study-advice-tabs" role="tablist"><button type="button" class="active" data-study-tab="knowledge" role="tab" aria-selected="true">知识讲解</button><button type="button" data-study-tab="mistakes" role="tab" aria-selected="false">错题集</button><button type="button" data-study-tab="key" role="tab" aria-selected="false">关键题目</button><button type="button" data-study-tab="experience" role="tab" aria-selected="false">经验贴</button></div><section class="study-advice-panel active" data-study-panel="knowledge"><header><h2>知识讲解</h2></header>${renderKnowledgeReader()}</section><section class="study-advice-panel" data-study-panel="mistakes" hidden><header><h2>错题集</h2></header>${renderAdviceQuestionRows(wrongQuestions,'暂无错题记录')}</section><section class="study-advice-panel" data-study-panel="key" hidden><header><h2>关键题目</h2></header>${renderKeyQuestionLinks()}</section><section class="study-advice-panel" data-study-panel="experience" hidden><header><h2>经验贴</h2><div class="experience-header-tools"><div class="experience-font-controls" role="group" aria-label="经验贴字号"><span>字号</span>${fontOptions}</div></div></header>${renderExperienceReader()}</section>`;
+  const isActive=category=>studyActiveTab===category;
+  const tab=(category,label,badge)=>`<button type="button" class="${isActive(category)?'active':''}" data-study-tab="${category}" role="tab" aria-selected="${isActive(category)}"><span>${label}</span><em>${badge}</em></button>`;
+  const panel=(category,title,description,content,tools='')=>`<section class="study-advice-panel ${isActive(category)?'active':''}" data-study-panel="${category}" ${isActive(category)?'':'hidden'}><header><div><h2>${title}</h2><p>${description}</p></div>${tools}</header>${content}</section>`;
+  const summary=[
+    ['knowledge','知识路线','代码随想录','按专题学习与查看力扣题面'],
+    ['mistakes','待复盘',`${wrongQuestions.length} 道`,'从错误提交返回重新作答'],
+    ['key','重点题单','3 组','PAT、代码随想录与洛谷'],
+    ['experience','经验文章',`${experiencePosts.length} 篇`,'复盘方法与考场策略']
+  ].map(([category,label,value,description])=>`<button type="button" data-study-jump="${category}" class="${isActive(category)?'active':''}"><span>${label}</span><strong>${value}</strong><small>${description}</small></button>`).join('');
+  const experienceTools=`<div class="experience-header-tools"><div class="experience-font-controls" role="group" aria-label="经验贴字号"><span>字号</span>${fontOptions}</div></div>`;
+  return `<div class="study-advice-head"><div class="study-advice-title"><h1>备考</h1><p>讲解、练习、复盘与经验集中在一个学习工作台。</p></div><div class="study-advice-summary" aria-label="备考概览">${summary}</div></div><div class="study-advice-tabs" role="tablist">${tab('knowledge','知识讲解','路线')}${tab('mistakes','错题集',wrongQuestions.length)}${tab('key','关键题目','3')}${tab('experience','经验贴',experiencePosts.length)}</div>${panel('knowledge','知识讲解','按专题阅读讲解，并在 OMS 内查看对应力扣题面。',renderKnowledgeReader())}${panel('mistakes','错题集','优先重做本场错误题，完成后列表会自动更新。',renderAdviceQuestionRows(wrongQuestions,'暂无错题记录'))}${panel('key','关键题目','在 OMS 内打开常用题单和题库入口。',renderKeyQuestionLinks())}${panel('experience','经验贴','将复盘方法、备考节奏和考场策略沉淀为可查阅文章。',renderExperienceReader(),experienceTools)}`;
 }
 function storedVerdictLabel(item){
   if(item.status==='partial')return '部分正确';
@@ -938,13 +954,25 @@ async function route(name,allowGuest=false){
   }
   if(name==='advice'){
     paintPortalPage(renderStudyAdvice());
-    setupKnowledgeReader(secondary.querySelector('.carl-reader'));
-    setupKeyQuestionLinks(secondary.querySelector('.key-question-browser'));
+    const initializedAdvicePanels=new Set();
+    const initializeAdvicePanel=category=>{
+      if(initializedAdvicePanels.has(category))return;
+      if(category==='knowledge')setupKnowledgeReader(secondary.querySelector('.carl-reader'));
+      if(category==='key')setupKeyQuestionLinks(secondary.querySelector('.key-question-browser'));
+      initializedAdvicePanels.add(category);
+    };
     const showAdvicePanel=category=>{
+      if(!STUDY_TABS.includes(category))category='knowledge';
+      studyActiveTab=category;
       secondary.querySelectorAll('[data-study-tab]').forEach(button=>{const active=button.dataset.studyTab===category;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});
       secondary.querySelectorAll('[data-study-panel]').forEach(panel=>{const active=panel.dataset.studyPanel===category;panel.hidden=!active;panel.classList.toggle('active',active);});
+      secondary.querySelectorAll('[data-study-jump]').forEach(button=>button.classList.toggle('active',button.dataset.studyJump===category));
+      try{localStorage.setItem(STUDY_TAB_STORAGE,category);}catch{}
+      initializeAdvicePanel(category);
     };
     secondary.querySelectorAll('[data-study-tab]').forEach(button=>button.onclick=()=>showAdvicePanel(button.dataset.studyTab));
+    secondary.querySelectorAll('[data-study-jump]').forEach(button=>button.onclick=()=>showAdvicePanel(button.dataset.studyJump));
+    secondary.querySelector('[data-study-go-problems]')?.addEventListener('click',()=>route('problemset'));
     const setExperienceFontSize=size=>{
       if(!['small','medium','large'].includes(size))return;
       experienceFontSize=size;
@@ -970,6 +998,7 @@ async function route(name,allowGuest=false){
     };
     secondary.querySelectorAll('[data-experience-post]').forEach(button=>button.onclick=()=>showExperiencePost(button.dataset.experiencePost));
     secondary.querySelectorAll('[data-question-open]').forEach(button=>button.onclick=()=>{const target=Number(button.dataset.questionOpen);if(activateExam(config.examVersion,target))route('exam');});
+    showAdvicePanel(studyActiveTab);
   }
 }
 function syncTesterToggle(){const tester=$('#tester'),collapsed=tester.classList.contains('collapsed'),toggle=$('#tester-toggle');toggle.setAttribute('aria-label',collapsed?'展开测试用例':'收起测试用例');toggle.title=toggle.getAttribute('aria-label');}

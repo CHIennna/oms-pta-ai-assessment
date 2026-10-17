@@ -367,6 +367,20 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   await evaluate(`(() => { const data=${JSON.stringify(credentials)}, form=document.querySelector('#portal-login-form'); for(const key of ['account','nickname','password'])form.elements[key].value=data[key]; form.elements.passwordConfirm.value=data.password; form.requestSubmit(); })()`);
   await until('Boolean(window.omsAuth.user && document.querySelector("#login-screen").hidden && document.querySelector(".problem-directory"))');
   assert.equal(await evaluate('window.omsAuth.user.schoolVerified'), false);
+  phase = 'study advice overview and remembered section';
+  await evaluate('document.querySelector("[data-portal-route=advice]").click()');
+  await until('document.querySelectorAll(".study-advice-summary [data-study-jump]").length === 4');
+  assert.equal(await evaluate('document.querySelector("[data-study-tab=knowledge]").getAttribute("aria-selected")'), 'true');
+  await evaluate('document.querySelector("[data-study-tab=mistakes]").click()');
+  assert.deepEqual(await evaluate(`({
+    selected:document.querySelector('[data-study-tab=mistakes]').getAttribute('aria-selected'),
+    visible:!document.querySelector('[data-study-panel=mistakes]').hidden,
+    stored:localStorage.getItem('oms-pta-study-tab')
+  })`), { selected: 'true', visible: true, stored: 'mistakes' });
+  await evaluate('document.querySelector("[data-study-go-problems]").click()');
+  await until('Boolean(document.querySelector(".problem-directory"))');
+  await evaluate('document.querySelector("[data-portal-route=advice]").click()');
+  await until('document.querySelector("[data-study-tab=mistakes]")?.getAttribute("aria-selected") === "true"');
   phase = 'edit profile';
   await evaluate('loadCode("first-account-private-draft"); persistActiveDraft(); document.querySelector("[data-profile-open]").click()');
   await until('document.querySelector("#profile-dialog").open');

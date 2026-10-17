@@ -191,6 +191,7 @@ if (require.main === module) {
           path.join(examDataRoot, 'zixun-contest-data.js'),
           path.join(examDataRoot, 'weekly-practice-2.js'),
           path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'),
+          path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'),
           path.join(examDataRoot, 'shenzhuo-round3-20260920.js'),
           path.join(examDataRoot, 'gplt-homework-2024-2026.js'),
           path.join(examDataRoot, 'fzu-practice-homework.js')
