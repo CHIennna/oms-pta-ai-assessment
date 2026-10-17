@@ -341,6 +341,22 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   };
   await command('Page.navigate', { url: origin }, sessionId);
   await until('Boolean(window.omsAuth && document.querySelector("[data-portal-route=problemset]"))');
+  await until('typeof document.querySelector("#oms-client-zoom-in").onclick === "function"');
+  const zoomFallback = await evaluate(`(() => {
+    const target = document.querySelector('#pta-app');
+    const originalBounds = target.getBoundingClientRect.bind(target);
+    target.getBoundingClientRect = () => ({ width: originalBounds().width - 80 });
+    document.querySelector('#oms-client-zoom-in').click();
+    target.getBoundingClientRect = originalBounds;
+    const bounds = originalBounds();
+    return {
+      transform: target.style.transform,
+      gap: Math.abs(window.innerWidth - bounds.width),
+      allowance: Math.max(20, Math.abs(window.innerWidth - document.documentElement.clientWidth) + 2)
+    };
+  })()`);
+  assert.match(zoomFallback.transform, /^scale\(/);
+  assert.ok(zoomFallback.gap <= zoomFallback.allowance, `zoom fallback leaves a ${zoomFallback.gap}px viewport gap`);
   phase = 'open login';
   await evaluate('document.querySelector("[data-portal-route=problemset]").click()');
   await until('!document.querySelector("#login-screen").hidden');
