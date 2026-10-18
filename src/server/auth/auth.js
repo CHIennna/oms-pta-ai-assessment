@@ -1,12 +1,12 @@
 'use strict';
 
 // Local: accounts live outside the source tree in ../fzupta-runtime/auth-data.
-// Production registration stays disabled until an operator attaches persistent storage and sets:
-// OMS_AUTH_DATA_DIR=/var/data/oms-auth
-// OMS_AUTH_PERSISTENT_STORAGE=1
+// Production uses DATABASE_URL for durable accounts, recovery codes and learning progress.
+// File storage remains a local-development fallback outside the source tree.
+// OMS_REGISTRATION_ENABLED=1 (when OMS_FIXED_USERS_JSON is also used as an initial seed)
 // OMS_PUBLIC_ORIGIN=https://<your-domain>
 // A small deployment can instead provide OMS_FIXED_USERS_JSON as a secret env var.
-// This file store supports ONE Node process only. Back up users.json securely.
+// The fallback file store supports ONE Node process only. Back up users.json securely.
 // Sessions deliberately expire on server restart; registered accounts do not.
 const fs = require('node:fs');
 const path = require('node:path');
@@ -20,6 +20,9 @@ const error = (status, message) => Object.assign(new Error(message), { status })
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 const passwordValid = value => typeof value === 'string' && value.length >= 10 && value.length <= 128;
 const usernameValid = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{3,32}$/.test(value);
+const recoveryValue = value => typeof value === 'string' ? value.trim().toUpperCase().replace(/[\s-]/g, '') : '';
+const recoveryValid = value => /^[A-F0-9]{20}$/.test(recoveryValue(value));
+const newRecoveryCode = () => crypto.randomBytes(10).toString('hex').toUpperCase().match(/.{1,4}/g).join('-');
 const localHost = value => ['localhost', '127.0.0.1', '[::1]'].includes(value);
 const projectRoot = path.resolve(__dirname, '..', '..', '..');
 
@@ -30,12 +33,15 @@ function createAuth(options = {}) {
     ? options.publicOrigin
     : process.env.OMS_PUBLIC_ORIGIN || (process.env.RENDER_EXTERNAL_HOSTNAME ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}` : undefined);
   const persistent = options.persistent ?? (process.env.OMS_AUTH_PERSISTENT_STORAGE === '1');
+  const stateStore = options.stateStore || null;
   const fixedUsersSetting = options.fixedUsers ?? process.env.OMS_FIXED_USERS_JSON;
   const fixedMode = options.fixedUsers !== undefined || typeof fixedUsersSetting === 'string' && fixedUsersSetting.trim() !== '';
+  const registrationEnabled = !fixedMode || Boolean(options.registrationEnabled ?? (process.env.OMS_REGISTRATION_ENABLED === '1'));
+  const fileBackedMode = !fixedMode || registrationEnabled;
   const now = options.now || Date.now;
   const cookieName = production ? '__Host-oms_session' : 'oms_local_session';
   const sessions = new Map(), buckets = new Map();
-  let users = [], origin = '', available = false, hashJobs = 0;
+  let users = [], origin = '', available = false, hashJobs = 0, ready = Promise.resolve();
   let unavailableMessage = '账号服务暂不可用，请联系管理员。';
   const file = path.join(dataDir, 'users.json');
 
@@ -78,7 +84,7 @@ function createAuth(options = {}) {
     });
   }
 
-  function save(next) {
+  function saveFile(next) {
     const temporary = `${file}.${crypto.randomBytes(8).toString('hex')}.tmp`;
     let descriptor;
     try {
@@ -100,6 +106,29 @@ function createAuth(options = {}) {
     }
   }
 
+  async function save(next) {
+    if (stateStore) {
+      await stateStore.save('auth-users', { version: 1, users: next });
+      users = next;
+      return;
+    }
+    saveFile(next);
+  }
+
+  function loadRecord(record) {
+    if (record?.version !== 1 || !Array.isArray(record.users) || record.users.length > 5000) throw Error('Invalid account store');
+    const names = new Set(), ids = new Set();
+    for (const user of record.users) {
+      if (!usernameValid(user.username) || !/^[a-f0-9]{64}$/.test(user.passwordHash) || !/^[a-f0-9]{32}$/.test(user.passwordSalt) || user.recoveryHash !== undefined && !/^[a-f0-9]{64}$/.test(user.recoveryHash) || typeof user.id !== 'string' || !Number.isSafeInteger(user.authVersion) || names.has(user.username) || ids.has(user.id)) throw Error('Invalid account record');
+      names.add(user.username); ids.add(user.id);
+    }
+    users = record.users;
+  }
+
+  function seedUsers() {
+    return fixedMode ? fixedUserRecords(fixedUsersSetting).map(({ fixed, ...user }) => user) : [];
+  }
+
   try {
     if (originSetting) {
       const parsed = new URL(originSetting);
@@ -107,34 +136,42 @@ function createAuth(options = {}) {
       if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && !production && localHost(parsed.hostname))) throw Error('HTTPS required');
       origin = parsed.origin;
     }
-    if (fixedMode && (!production || origin)) {
+    if (stateStore) {
+      if (production && !origin) {
+        unavailableMessage = '数据库账号登录需要配置本站 HTTPS 地址。';
+      } else {
+        ready = (async () => {
+          await stateStore.initialize();
+          const record = await stateStore.load('auth-users', null);
+          if (record) loadRecord(record);
+          else await save(seedUsers());
+          available = true;
+        })().catch(cause => {
+          available = false;
+          unavailableMessage = cause?.safeMessage || '账号数据库暂不可用，请稍后重试。';
+        });
+      }
+    } else if (fixedMode && !fileBackedMode && (!production || origin)) {
       users = fixedUserRecords(fixedUsersSetting);
       available = true;
-    } else if (fixedMode) {
+    } else if (fixedMode && !fileBackedMode) {
       unavailableMessage = '固定账号登录需要配置本站 HTTPS 地址。';
     } else if (production && (!process.env.OMS_AUTH_DATA_DIR && !options.dataDir || !persistent || !origin)) {
-      unavailableMessage = '线上账号暂未开放：管理员需先配置持久存储和本站 HTTPS 地址。';
+      unavailableMessage = '线上账号暂未开放：管理员需先配置 DATABASE_URL 和本站 HTTPS 地址。';
     } else {
       fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
       const realDir = fs.realpathSync(dataDir), sourceRoot = fs.realpathSync(projectRoot);
       const relative = path.relative(sourceRoot, realDir);
       if (!relative || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) throw Error('Store must be outside source tree');
       if (fs.existsSync(file)) {
-        const record = JSON.parse(fs.readFileSync(file, 'utf8'));
-        if (record.version !== 1 || !Array.isArray(record.users) || record.users.length > 5000) throw Error('Invalid account store');
-        const names = new Set(), ids = new Set();
-        for (const user of record.users) {
-          if (!usernameValid(user.username) || !/^[a-f0-9]{64}$/.test(user.passwordHash) || !/^[a-f0-9]{32}$/.test(user.passwordSalt) || typeof user.id !== 'string' || !Number.isSafeInteger(user.authVersion) || names.has(user.username) || ids.has(user.id)) throw Error('Invalid account record');
-          names.add(user.username); ids.add(user.id);
-        }
-        users = record.users;
-      } else save([]);
+        loadRecord(JSON.parse(fs.readFileSync(file, 'utf8')));
+      } else saveFile(seedUsers());
       available = true;
     }
   } catch (cause) {
     // Never recreate a damaged store or expose account data / filesystem errors.
     available = false;
-    if (fixedMode) unavailableMessage = cause?.safeMessage || '固定账号配置或本站 HTTPS 地址无效。';
+    if (fixedMode && !fileBackedMode) unavailableMessage = cause?.safeMessage || '固定账号配置或本站 HTTPS 地址无效。';
   }
 
   function response(res, status, body) {
@@ -179,7 +216,7 @@ function createAuth(options = {}) {
     const token = crypto.randomBytes(32).toString('hex');
     const session = { userId: user.id, authVersion: user.authVersion, csrf: crypto.randomBytes(32).toString('hex'), lastSeen: now(), expires: now() + SESSION_MS };
     sessions.set(digest(token), session); cookie(res, token);
-    return { user: publicUser(user), csrfToken: session.csrf, authenticated: true, available: true, registrationEnabled: !fixedMode };
+    return { user: publicUser(user), csrfToken: session.csrf, authenticated: true, available: true, registrationEnabled };
   }
   function assertSameOrigin(req) {
     let expected = origin;
@@ -249,11 +286,12 @@ function createAuth(options = {}) {
   }
   async function handle(req, res, url) {
     if (!url.pathname.startsWith('/api/auth/')) return false;
+    await ready;
     try {
       if (req.method === 'GET' && url.pathname === '/api/auth/session') {
         const current = available ? sessionFor(req) : null;
         if (!current) cookie(res, '', 0);
-        response(res, 200, { available, authenticated: Boolean(current), user: current ? publicUser(current.user) : null, csrfToken: current?.session.csrf || '', registrationEnabled: !fixedMode, message: available ? '' : unavailableMessage });
+        response(res, 200, { available, authenticated: Boolean(current), user: current ? publicUser(current.user) : null, csrfToken: current?.session.csrf || '', registrationEnabled, message: available ? '' : unavailableMessage });
         return true;
       }
       if (!available) throw error(503, unavailableMessage);
@@ -261,7 +299,7 @@ function createAuth(options = {}) {
       assertSameOrigin(req);
       if (url.pathname === '/api/auth/register' || url.pathname === '/api/auth/login') {
         const registering = url.pathname.endsWith('/register');
-        if (fixedMode && registering) throw error(403, '本站账号由管理员统一配置，不开放自行注册。');
+        if (!registrationEnabled && registering) throw error(403, '本站账号由管理员统一配置，不开放自行注册。');
         const data = await body(req);
         const username = typeof data.account === 'string' ? data.account.trim().toLowerCase() : '';
         if (!usernameValid(username)) throw error(400, '账号须为 3–32 位字母、数字、下划线或连字符。');
@@ -277,16 +315,40 @@ function createAuth(options = {}) {
           const passwordHash = await hash(data.password, passwordSalt);
           if (users.some(user => user.username === username)) throw error(409, '该账号已注册，请登录或更换账号。');
           if (users.length >= 5000) throw error(503, '注册名额已满，请联系管理员。');
-          const user = { id: crypto.randomUUID(), username, ...values, passwordSalt, passwordHash, authVersion: 1 };
-          save([...users, user]);
-          response(res, 201, issue(req, res, user));
+          const recoveryCode = newRecoveryCode();
+          const user = { id: crypto.randomUUID(), username, ...values, passwordSalt, passwordHash, recoveryHash: digest(recoveryValue(recoveryCode)), authVersion: 1 };
+          await save([...users, user]);
+          response(res, 201, { ...issue(req, res, user), recoveryCode });
         } else {
           const user = users.find(item => item.username === username);
           if (!await verify(data.password, user)) throw error(401, '账号或密码错误。');
           // A simultaneous password change must not revive the old credential.
           if (!users.includes(user)) throw error(401, '账号信息已更新，请重新登录。');
-          response(res, 200, issue(req, res, user));
+          let loginUser = user, recoveryCode = '';
+          if (!user.fixed && fileBackedMode && !user.recoveryHash) {
+            recoveryCode = newRecoveryCode();
+            loginUser = { ...user, recoveryHash: digest(recoveryValue(recoveryCode)) };
+            await save(users.map(item => item.id === user.id ? loginUser : item));
+          }
+          response(res, 200, { ...issue(req, res, loginUser), ...(recoveryCode ? { recoveryCode } : {}) });
         }
+        return true;
+      }
+      if (url.pathname === '/api/auth/reset-password') {
+        const data = await body(req);
+        const username = typeof data.account === 'string' ? data.account.trim().toLowerCase() : '';
+        if (!usernameValid(username) || !passwordValid(data.password) || data.password !== data.passwordConfirm || !recoveryValid(data.recoveryCode)) throw error(400, '请填写有效账号、恢复码和两次一致的新密码。');
+        rate(req, 'credentials', 300, 10 * 60 * 1000);
+        rate(req, `recovery:${username}`, 10, 30 * 60 * 1000);
+        const user = users.find(item => item.username === username);
+        const candidate = digest(recoveryValue(data.recoveryCode));
+        const expected = user?.recoveryHash || digest('unavailable-recovery-code');
+        if (!user || user.fixed || !crypto.timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(expected, 'hex'))) throw error(401, '账号或恢复码错误。');
+        const passwordSalt = crypto.randomBytes(16).toString('hex'), recoveryCode = newRecoveryCode();
+        const updated = { ...user, passwordSalt, passwordHash: await hash(data.password, passwordSalt), recoveryHash: digest(recoveryValue(recoveryCode)), authVersion: user.authVersion + 1 };
+        if (!users.includes(user)) throw error(401, '账号信息已更新，请重新操作。');
+        revoke(user.id); await save(users.map(item => item.id === user.id ? updated : item));
+        response(res, 200, { ...issue(req, res, updated), recoveryCode });
         return true;
       }
       const current = authorize(req, res);
@@ -296,7 +358,7 @@ function createAuth(options = {}) {
         response(res, 200, { ok: true }); return true;
       }
       if (url.pathname === '/api/auth/profile') {
-        if (fixedMode) throw error(403, '固定账号不支持修改资料或密码。');
+        if (current.user.fixed) throw error(403, '固定账号不支持修改资料或密码。');
         rate(req, 'profile', 30, 60 * 1000);
         const data = await body(req), values = profileValues(data);
         let updated = { ...current.user, ...values };
@@ -308,7 +370,7 @@ function createAuth(options = {}) {
           updated = { ...updated, passwordSalt, passwordHash: await hash(data.password, passwordSalt), authVersion: current.user.authVersion + 1 };
         }
         if (!users.includes(current.user) || !sessions.has(digest(tokenFrom(req)))) throw error(401, '账号或会话已更新，请重新登录。');
-        save(users.map(user => user.id === updated.id ? updated : user));
+        await save(users.map(user => user.id === updated.id ? updated : user));
         if (data.password) { revoke(updated.id); response(res, 200, issue(req, res, updated)); }
         else response(res, 200, { user: publicUser(updated), csrfToken: current.session.csrf, authenticated: true, available: true });
         return true;
@@ -319,7 +381,7 @@ function createAuth(options = {}) {
       return true;
     }
   }
-  return { handle, authorize, get available() { return available; }, get dataDir() { return dataDir; } };
+  return { handle, authorize, get ready() { return ready; }, get available() { return available; }, get dataDir() { return dataDir; }, get storageKind() { return stateStore ? 'postgres' : fixedMode && !fileBackedMode ? 'fixed' : 'file'; } };
 }
 
 module.exports = { createAuth };

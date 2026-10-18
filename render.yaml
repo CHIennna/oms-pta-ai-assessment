@@ -8,6 +8,10 @@ services:
     envVars:
       - key: OMS_FIXED_USERS_JSON
         sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OMS_REGISTRATION_ENABLED
+        value: "1"
       - key: OMS_PUBLIC_ORIGIN
         value: https://oms-pta-ai-assessment.onrender.com
       - key: JUDGE_MAX_CONCURRENCY

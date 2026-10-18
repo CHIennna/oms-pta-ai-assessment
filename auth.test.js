@@ -12,6 +12,17 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const { createAuth } = require('./src/server/auth/auth');
 
+function createMemoryStateStore() {
+  const values = new Map();
+  const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
+  return {
+    kind: 'memory',
+    async initialize() {},
+    async load(key, fallback = null) { return clone(values.has(key) ? values.get(key) : fallback); },
+    async save(key, value) { values.set(key, clone(value)); }
+  };
+}
+
 async function fixture(t, options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'oms-auth-test-'));
   const auth = createAuth({ dataDir: directory, production: false, ...options });
@@ -63,11 +74,35 @@ test('registration validates fields, normalizes account name, and returns only a
   assert.equal(registered.data.user.schoolVerified, false);
   assert.equal(registered.data.user.passwordHash, undefined);
   assert.equal(registered.data.user.passwordSalt, undefined);
+  assert.equal(registered.data.user.recoveryHash, undefined);
   assert.equal(registered.data.user.role, undefined);
+  assert.match(registered.data.recoveryCode, /^(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
   assert.match(registered.cookieHeader, /HttpOnly/);
   assert.match(registered.cookieHeader, /SameSite=Strict/);
   assert.equal((await request('/api/auth/session', undefined, registered)).data.authenticated, true);
   assert.equal((await request('/api/judge', {}, registered)).status, 200);
+});
+
+test('recovery code resets the password, revokes sessions and rotates itself', async t => {
+  const { request, account, directory } = await fixture(t);
+  const registered = await request('/api/auth/register', account);
+  const otherSession = await request('/api/auth/login', account);
+  const nextPassword = `recovered-${crypto.randomBytes(16).toString('hex')}`;
+  const unknown = await request('/api/auth/reset-password', { account: 'unknown_user', recoveryCode: registered.data.recoveryCode, password: nextPassword, passwordConfirm: nextPassword });
+  const wrong = await request('/api/auth/reset-password', { account: account.account, recoveryCode: '0000-0000-0000-0000-0000', password: nextPassword, passwordConfirm: nextPassword });
+  assert.equal(unknown.status, 401); assert.equal(wrong.status, 401); assert.equal(unknown.data.message, wrong.data.message);
+  const reset = await request('/api/auth/reset-password', { account: account.account, recoveryCode: registered.data.recoveryCode, password: nextPassword, passwordConfirm: nextPassword });
+  assert.equal(reset.status, 200);
+  assert.match(reset.data.recoveryCode, /^(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
+  assert.notEqual(reset.data.recoveryCode, registered.data.recoveryCode);
+  assert.equal((await request('/api/auth/session', undefined, registered)).data.authenticated, false);
+  assert.equal((await request('/api/auth/session', undefined, otherSession)).data.authenticated, false);
+  assert.equal((await request('/api/auth/login', account)).status, 401);
+  assert.equal((await request('/api/auth/login', { account: account.account, password: nextPassword })).status, 200);
+  assert.equal((await request('/api/auth/reset-password', { account: account.account, recoveryCode: registered.data.recoveryCode, password: account.password, passwordConfirm: account.password })).status, 401);
+  const stored = fs.readFileSync(path.join(directory, 'users.json'), 'utf8');
+  assert.equal(stored.includes(registered.data.recoveryCode), false);
+  assert.equal(stored.includes(reset.data.recoveryCode), false);
 });
 
 test('wrong / unknown credentials fail identically and successful login rotates the session', async t => {
@@ -222,6 +257,35 @@ test('fixed account mode derives its HTTPS origin from Render hostname', async t
   assert.equal(guest.data.registrationEnabled, false);
 });
 
+test('database-backed production seeds configured accounts and keeps registrations without a disk', async t => {
+  const password = crypto.randomBytes(8).toString('hex');
+  const stateStore = createMemoryStateStore();
+  const hybrid = await fixture(t, {
+    production: true,
+    persistent: false,
+    stateStore,
+    registrationEnabled: true,
+    publicOrigin: 'https://school-app.example',
+    fixedUsers: [{ account: 'seeded_user', nickname: 'Seeded learner', password }]
+  });
+  const origin = { Origin: 'https://school-app.example' };
+  assert.equal((await hybrid.request('/api/auth/session')).data.registrationEnabled, true);
+  const seeded = await hybrid.request('/api/auth/login', { account: 'seeded_user', password }, {}, origin);
+  assert.equal(seeded.status, 200);
+  assert.match(seeded.data.recoveryCode, /^(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
+  const registered = await hybrid.request('/api/auth/register', hybrid.account, {}, origin);
+  assert.equal(registered.status, 201);
+  assert.equal(fs.existsSync(path.join(hybrid.directory, 'users.json')), false);
+  const restarted = await fixture(t, {
+    production: true,
+    persistent: false,
+    stateStore,
+    registrationEnabled: true,
+    publicOrigin: 'https://school-app.example'
+  });
+  assert.equal((await restarted.request('/api/auth/login', hybrid.account, {}, origin)).status, 200);
+});
+
 test('fixed account mode accepts a Render-style quoted environment assignment', async t => {
   const password = crypto.randomBytes(4).toString('hex');
   const records = JSON.stringify([{ account: 'fixed_three', nickname: 'Fixed learner', password }]);
@@ -365,6 +429,10 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   phase = 'register account and resume problem directory';
   const credentials = { account: 'ui_test_learner', nickname: 'UI Test Learner', password: `ui-only-${crypto.randomBytes(16).toString('hex')}` };
   await evaluate(`(() => { const data=${JSON.stringify(credentials)}, form=document.querySelector('#portal-login-form'); for(const key of ['account','nickname','password'])form.elements[key].value=data[key]; form.elements.passwordConfirm.value=data.password; form.requestSubmit(); })()`);
+  await until('Boolean(window.omsAuth.user && document.querySelector("#portal-recovery-code"))');
+  const recoveryCode = await evaluate('document.querySelector("#portal-recovery-code").value');
+  assert.match(recoveryCode, /^(?:[A-F0-9]{4}-){4}[A-F0-9]{4}$/);
+  await evaluate('document.querySelector("[data-recovery-continue]").click()');
   await until('Boolean(window.omsAuth.user && document.querySelector("#login-screen").hidden && document.querySelector(".problem-directory"))');
   assert.equal(await evaluate('window.omsAuth.user.schoolVerified'), false);
   phase = 'study advice overview and remembered section';
@@ -442,6 +510,18 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   await until('document.querySelector("#profile-dialog").open');
   await evaluate('document.querySelector("#profile-logout").click()');
   await until('!window.omsAuth.user && !document.querySelector("#profile-dialog").open');
+  phase = 'recover forgotten password through the login screen';
+  await evaluate('document.querySelector("[data-profile-open]").click()');
+  await until('!document.querySelector("#login-screen").hidden');
+  await evaluate('document.querySelector("[data-auth-recover]").click()');
+  const recoveredPassword = `ui-recovered-${crypto.randomBytes(16).toString('hex')}`;
+  await evaluate(`(() => { const form=document.querySelector('#portal-login-form'); form.elements.account.value=${JSON.stringify(credentials.account)}; form.elements.recoveryCode.value=${JSON.stringify(recoveryCode)}; form.elements.password.value=${JSON.stringify(recoveredPassword)}; form.elements.passwordConfirm.value=${JSON.stringify(recoveredPassword)}; form.requestSubmit(); })()`);
+  await until('Boolean(window.omsAuth.user && document.querySelector("#portal-recovery-code"))');
+  assert.notEqual(await evaluate('document.querySelector("#portal-recovery-code").value'), recoveryCode);
+  await evaluate('document.querySelector("[data-recovery-continue]").click()');
+  await until('document.querySelector("#profile-dialog").open');
+  await evaluate('document.querySelector("#profile-logout").click()');
+  await until('!window.omsAuth.user && !document.querySelector("#profile-dialog").open');
 });
 
 // These regressions execute production functions against synthetic exams and delayed
@@ -465,6 +545,7 @@ test('regression: server enforces campus schedule at API boundary and permits ar
       if(name==='./src/server/judge/local-judge')return {LocalJudge:class {async judge(){judgeCalls++;return {verdict:'Accepted'};}}};
       if(name==='./validate-exam-data')return {loadAndValidateExamData:()=>({exams:[exam,{...exam,examVersion:'archive',category:'past'},{...exam,examVersion:'broken',endAt:'invalid'}],practiceExams:[],report:{}})};
       if(name==='./src/server/auth/auth')return {createAuth:()=>({available:false,dataDir:os.tmpdir(),handle:async()=>false,authorize:()=>({user:{id:'synthetic'}})})};
+      if(name==='./src/server/storage/postgres-state')return {createPostgresStateStore:()=>null};
       if(name==='./src/client/judge/judge-score')return {calculate:()=>({score:100})};
       assert.ok(['crypto','os','path','zlib'].includes(name));return require(name);
     }

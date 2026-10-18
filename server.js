@@ -7,6 +7,7 @@ const zlib = require('zlib');
 const { LocalJudge } = require('./src/server/judge/local-judge');
 const { loadAndValidateExamData } = require('./validate-exam-data');
 const { createAuth } = require('./src/server/auth/auth');
+const { createPostgresStateStore } = require('./src/server/storage/postgres-state');
 const { calculate: calculateScore } = require('./src/client/judge/judge-score');
 
 const root = __dirname;
@@ -37,14 +38,18 @@ const publicFiles = new Map([
 ]);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg' };
 const rateBuckets = new Map();
-const auth = createAuth();
+const stateStore = createPostgresStateStore();
+const auth = createAuth({ stateStore });
 const progressFile = path.join(auth.dataDir, 'progress.json');
 let progressStore = { version: 1, users: {} };
 let progressStoreAvailable = false;
+const progressCache = new Map();
+const progressQueues = new Map();
 const zipArchives = new Map();
 const archivedTestCases = new Map();
 
 function loadProgressStore() {
+  if (stateStore) return stateStore.initialize().then(() => { progressStoreAvailable = true; }).catch(() => { progressStoreAvailable = false; });
   if (!auth.available) return;
   try {
     fsSync.mkdirSync(auth.dataDir, { recursive: true, mode: 0o700 });
@@ -82,12 +87,48 @@ function saveProgressStore(next) {
   }
 }
 
-function progressFor(userId) {
-  const exams = progressStore.users[userId]?.exams;
+function validUserProgress(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) && value.exams && typeof value.exams === 'object' && !Array.isArray(value.exams)
+    ? value
+    : { exams: {} };
+}
+
+async function loadUserProgress(userId) {
+  if (stateStore) {
+    if (progressCache.has(userId)) return progressCache.get(userId);
+    const value = validUserProgress(await stateStore.load(`progress:${userId}`, { version: 1, exams: {} }));
+    progressCache.set(userId, value);
+    return value;
+  }
+  return validUserProgress(progressStore.users[userId]);
+}
+
+async function saveUserProgress(userId, nextUser) {
+  if (!progressStoreAvailable) throw new Error('Progress store unavailable');
+  if (stateStore) {
+    await stateStore.save(`progress:${userId}`, { version: 1, ...nextUser });
+    progressCache.set(userId, nextUser);
+    return;
+  }
+  saveProgressStore({ version: 1, users: { ...progressStore.users, [userId]: nextUser } });
+}
+
+function queueUserProgress(userId, operation) {
+  const previous = progressQueues.get(userId) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+  progressQueues.set(userId, current);
+  current.finally(() => { if (progressQueues.get(userId) === current) progressQueues.delete(userId); }).catch(() => {});
+  return current;
+}
+
+async function progressFor(userId) {
+  const queued = progressQueues.get(userId);
+  if (queued) await queued.catch(() => {});
+  const exams = (await loadUserProgress(userId)).exams;
   return { available: progressStoreAvailable, exams: exams && typeof exams === 'object' ? exams : {} };
 }
 
-function recordDraft(current, payload) {
+async function recordDraft(current, payload) {
   if (!progressStoreAvailable) return { status: 503, body: { message: '长期草稿存储暂不可用，本地草稿仍会保留。' } };
   const userId = current.user.id;
   const examVersion = String(payload?.examVersion || '').slice(0, 160);
@@ -103,81 +144,63 @@ function recordDraft(current, payload) {
   if (Buffer.byteLength(payload.code, 'utf8') > 128 * 1024) {
     return { status: 413, body: { message: '草稿内容过大，请精简后重试。' } };
   }
-  const previousUser = progressStore.users[userId] || { exams: {} };
-  const previousExam = previousUser.exams?.[examVersion] || { scores: {}, statuses: {}, submissions: [], drafts: {} };
-  const previousDraft = previousExam.drafts?.[problemId];
-  const baseUpdatedAt = payload.baseUpdatedAt == null ? '' : String(payload.baseUpdatedAt);
-  if (previousDraft?.updatedAt && baseUpdatedAt !== previousDraft.updatedAt) {
-    return { status: 409, body: { message: '云端已有更新版本，本地草稿仍会保留。', draft: previousDraft } };
-  }
-  const draft = {
-    code: payload.code,
-    language: String(payload.language || '').slice(0, 40),
-    updatedAt: new Date().toISOString()
-  };
-  const examProgress = {
-    ...previousExam,
-    drafts: { ...(previousExam.drafts || {}), [problemId]: draft },
-    updatedAt: draft.updatedAt
-  };
-  const next = {
-    version: 1,
-    users: {
-      ...progressStore.users,
-      [userId]: { ...previousUser, exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } }
-    }
-  };
   try {
-    saveProgressStore(next);
-    return { status: 200, body: { draftSaved: true, examVersion, problemId, draft } };
+    return await queueUserProgress(userId, async () => {
+      const previousUser = await loadUserProgress(userId);
+      const previousExam = previousUser.exams?.[examVersion] || { scores: {}, statuses: {}, submissions: [], drafts: {} };
+      const previousDraft = previousExam.drafts?.[problemId];
+      const baseUpdatedAt = payload.baseUpdatedAt == null ? '' : String(payload.baseUpdatedAt);
+      if (previousDraft?.updatedAt && baseUpdatedAt !== previousDraft.updatedAt) {
+        return { status: 409, body: { message: '云端已有更新版本，本地草稿仍会保留。', draft: previousDraft } };
+      }
+      const draft = { code: payload.code, language: String(payload.language || '').slice(0, 40), updatedAt: new Date().toISOString() };
+      const examProgress = { ...previousExam, drafts: { ...(previousExam.drafts || {}), [problemId]: draft }, updatedAt: draft.updatedAt };
+      await saveUserProgress(userId, { ...previousUser, exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } });
+      return { status: 200, body: { draftSaved: true, examVersion, problemId, draft } };
+    });
   } catch {
     progressStoreAvailable = false;
     return { status: 503, body: { message: '长期草稿保存失败，本地草稿仍会保留。' } };
   }
 }
 
-function recordSubmission(current, payload, result, question) {
+async function recordSubmission(current, payload, result, question) {
   if (!progressStoreAvailable || !question) return { progressSaved: false };
   const scoring = calculateScore(result, question);
   const userId = current.user.id;
   const examVersion = String(payload.examVersion);
   const problemId = String(payload.problemId);
-  const previousUser = progressStore.users[userId] || { exams: {} };
-  const previousExam = previousUser.exams?.[examVersion] || { scores: {}, statuses: {}, submissions: [] };
-  const previousScore = Math.max(0, Number(previousExam.scores?.[problemId]) || 0);
-  const bestScore = Math.max(previousScore, scoring.score);
-  const bestStatus = scoring.maxScore > 0 && bestScore >= scoring.maxScore ? 'accepted' : bestScore > 0 ? 'partial' : 'wrong';
-  const submission = {
-    id: crypto.randomUUID(), examVersion, problemId,
-    language: String(payload.language || '').slice(0, 40), verdict: String(result.verdict || ''),
-    status: scoring.status, score: scoring.score, maxScore: scoring.maxScore,
-    passedTests: Number(result.passedTests) || 0, totalTests: Number(result.totalTests) || 0,
-    createdAt: new Date().toISOString()
-  };
-  const examProgress = {
-    ...previousExam,
-    scores: { ...(previousExam.scores || {}), [problemId]: bestScore },
-    statuses: { ...(previousExam.statuses || {}), [problemId]: bestStatus },
-    submissions: [submission, ...(Array.isArray(previousExam.submissions) ? previousExam.submissions : [])].slice(0, 500),
-    updatedAt: submission.createdAt
-  };
-  const next = {
-    version: 1,
-    users: {
-      ...progressStore.users,
-      [userId]: { ...previousUser, exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } }
-    }
-  };
   try {
-    saveProgressStore(next);
-    return { progressSaved: true, scoring, submission, progress: examProgress };
+    return await queueUserProgress(userId, async () => {
+      const previousUser = await loadUserProgress(userId);
+      const previousExam = previousUser.exams?.[examVersion] || { scores: {}, statuses: {}, submissions: [] };
+      const previousScore = Math.max(0, Number(previousExam.scores?.[problemId]) || 0);
+      const bestScore = Math.max(previousScore, scoring.score);
+      const bestStatus = scoring.maxScore > 0 && bestScore >= scoring.maxScore ? 'accepted' : bestScore > 0 ? 'partial' : 'wrong';
+      const submission = {
+        id: crypto.randomUUID(), examVersion, problemId,
+        language: String(payload.language || '').slice(0, 40), verdict: String(result.verdict || ''),
+        status: scoring.status, score: scoring.score, maxScore: scoring.maxScore,
+        passedTests: Number(result.passedTests) || 0, totalTests: Number(result.totalTests) || 0,
+        createdAt: new Date().toISOString()
+      };
+      const examProgress = {
+        ...previousExam,
+        scores: { ...(previousExam.scores || {}), [problemId]: bestScore },
+        statuses: { ...(previousExam.statuses || {}), [problemId]: bestStatus },
+        submissions: [submission, ...(Array.isArray(previousExam.submissions) ? previousExam.submissions : [])].slice(0, 500),
+        updatedAt: submission.createdAt
+      };
+      await saveUserProgress(userId, { ...previousUser, exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } });
+      return { progressSaved: true, scoring, submission, progress: examProgress };
+    });
   } catch {
     progressStoreAvailable = false;
     return { progressSaved: false, scoring, submission };
   }
 }
 
-loadProgressStore();
+const progressReady = Promise.resolve(loadProgressStore());
 
 function openZipArchive(fileName) {
   const resolved = path.resolve(root, fileName);
@@ -445,6 +468,7 @@ async function fetchPatBasicProblem(problemSetProblemId) {
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  await Promise.all([auth.ready, progressReady]);
   if (await auth.handle(req, res, url)) return;
   if (req.method === 'GET' && url.pathname === '/api/learning/carl') {
     try { return reply(res, 200, await fetchCarlPage(url.searchParams.get('url') || '/algo/')); }
@@ -462,19 +486,19 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/progress') {
     const current = auth.authorize(req, res);
     if (!current) return;
-    return reply(res, 200, progressFor(current.user.id));
+    return reply(res, 200, await progressFor(current.user.id));
   }
   if (req.method === 'POST' && url.pathname === '/api/drafts') {
     const current = auth.authorize(req, res);
     if (!current) return;
     try {
-      const result = recordDraft(current, await collect(req));
+      const result = await recordDraft(current, await collect(req));
       return reply(res, result.status, result.body);
     } catch {
       return reply(res, 400, { message: '草稿请求格式无效。' });
     }
   }
-  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, progressPersistence: progressStoreAvailable, portableRuntime: portableRuntime.detected });
+  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, progressPersistence: progressStoreAvailable, storageBackend: stateStore ? 'postgres' : auth.storageKind, portableRuntime: portableRuntime.detected });
   if (req.method === 'POST' && url.pathname === '/api/judge') {
     const current = auth.authorize(req, res);
     if (!current) return;
@@ -484,7 +508,7 @@ const server = http.createServer(async (req, res) => {
       const result = await localJudge.judge(payload);
       const recordable = payload.mode === 'submit' && ['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded'].includes(result.verdict);
       const question = questionBankByExam.get(`${payload.examVersion}:${payload.problemId}`);
-      const persisted = recordable ? recordSubmission(current, payload, result, question) : {};
+      const persisted = recordable ? await recordSubmission(current, payload, result, question) : {};
       return reply(res, 200, { ...result, ...persisted });
     } catch (error) { return reply(res, error.statusCode || 500, { verdict: error.verdict || (error.statusCode === 400 ? 'InvalidProblem' : 'JudgeUnavailable'), message: error.verdict || error.statusCode === 400 ? error.message : '自建评测机暂不可用，请稍后重试。', compilerOutput: error.message }); }
   }
