@@ -87,6 +87,55 @@ function progressFor(userId) {
   return { available: progressStoreAvailable, exams: exams && typeof exams === 'object' ? exams : {} };
 }
 
+function recordDraft(current, payload) {
+  if (!progressStoreAvailable) return { status: 503, body: { message: '长期草稿存储暂不可用，本地草稿仍会保留。' } };
+  const userId = current.user.id;
+  const examVersion = String(payload?.examVersion || '').slice(0, 160);
+  const requestedId = String(payload?.problemId || '').slice(0, 80);
+  const aliasId = testAliases.get(`${examVersion}:${requestedId}`);
+  const problemId = questionBankByExam.has(`${examVersion}:${requestedId}`) ? requestedId : aliasId || requestedId;
+  if (!examVersion || !problemId || !questionBankByExam.has(`${examVersion}:${problemId}`)) {
+    return { status: 400, body: { message: '题号与试卷不匹配，草稿未保存。' } };
+  }
+  if (typeof payload.code !== 'string') {
+    return { status: 400, body: { message: '草稿内容格式无效。' } };
+  }
+  if (Buffer.byteLength(payload.code, 'utf8') > 128 * 1024) {
+    return { status: 413, body: { message: '草稿内容过大，请精简后重试。' } };
+  }
+  const previousUser = progressStore.users[userId] || { exams: {} };
+  const previousExam = previousUser.exams?.[examVersion] || { scores: {}, statuses: {}, submissions: [], drafts: {} };
+  const previousDraft = previousExam.drafts?.[problemId];
+  const baseUpdatedAt = payload.baseUpdatedAt == null ? '' : String(payload.baseUpdatedAt);
+  if (previousDraft?.updatedAt && baseUpdatedAt !== previousDraft.updatedAt) {
+    return { status: 409, body: { message: '云端已有更新版本，本地草稿仍会保留。', draft: previousDraft } };
+  }
+  const draft = {
+    code: payload.code,
+    language: String(payload.language || '').slice(0, 40),
+    updatedAt: new Date().toISOString()
+  };
+  const examProgress = {
+    ...previousExam,
+    drafts: { ...(previousExam.drafts || {}), [problemId]: draft },
+    updatedAt: draft.updatedAt
+  };
+  const next = {
+    version: 1,
+    users: {
+      ...progressStore.users,
+      [userId]: { ...previousUser, exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } }
+    }
+  };
+  try {
+    saveProgressStore(next);
+    return { status: 200, body: { draftSaved: true, examVersion, problemId, draft } };
+  } catch {
+    progressStoreAvailable = false;
+    return { status: 503, body: { message: '长期草稿保存失败，本地草稿仍会保留。' } };
+  }
+}
+
 function recordSubmission(current, payload, result, question) {
   if (!progressStoreAvailable || !question) return { progressSaved: false };
   const scoring = calculateScore(result, question);
@@ -106,6 +155,7 @@ function recordSubmission(current, payload, result, question) {
     createdAt: new Date().toISOString()
   };
   const examProgress = {
+    ...previousExam,
     scores: { ...(previousExam.scores || {}), [problemId]: bestScore },
     statuses: { ...(previousExam.statuses || {}), [problemId]: bestStatus },
     submissions: [submission, ...(Array.isArray(previousExam.submissions) ? previousExam.submissions : [])].slice(0, 500),
@@ -115,7 +165,7 @@ function recordSubmission(current, payload, result, question) {
     version: 1,
     users: {
       ...progressStore.users,
-      [userId]: { exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } }
+      [userId]: { ...previousUser, exams: { ...(previousUser.exams || {}), [examVersion]: examProgress } }
     }
   };
   try {
@@ -413,6 +463,16 @@ const server = http.createServer(async (req, res) => {
     const current = auth.authorize(req, res);
     if (!current) return;
     return reply(res, 200, progressFor(current.user.id));
+  }
+  if (req.method === 'POST' && url.pathname === '/api/drafts') {
+    const current = auth.authorize(req, res);
+    if (!current) return;
+    try {
+      const result = recordDraft(current, await collect(req));
+      return reply(res, result.status, result.body);
+    } catch {
+      return reply(res, 400, { message: '草稿请求格式无效。' });
+    }
   }
   if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, progressPersistence: progressStoreAvailable, portableRuntime: portableRuntime.detected });
   if (req.method === 'POST' && url.pathname === '/api/judge') {

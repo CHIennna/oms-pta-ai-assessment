@@ -9,7 +9,8 @@ config.questions=fallback.questions;primaryConfig=config;
 if(config.studentId==='102505201')config.studentId=fallback.studentId;
 if(window.OMS_NUMBER_EXAM){config=window.OMS_NUMBER_EXAM(config,[config,...(window.OMS_EXAM_ARCHIVE||[])]);primaryConfig=config;}
 let portalUser=null,portalAuthenticated=false,portalCsrf='',pendingLoginRoute='home',portalAuthAvailable=false,portalRegistrationEnabled=true,portalAuthMessage='',routeRevision=0,portalSessionRevision=0,portalIdentityRevision=0,loadingCode=false;
-let SUBMITTED_CODE_STORAGE='',DRAFT_CODE_STORAGE='',submittedCodes={},draftCodes={};
+let SUBMITTED_CODE_STORAGE='',DRAFT_CODE_STORAGE='',DRAFT_META_STORAGE='',submittedCodes={},draftCodes={},draftMeta={};
+const draftSyncTimers=new Map(),draftSyncQueues=new Map();
 function readCodeMap(key){try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch{return {};}}
 function migrateQuestionCodes(map,questions){
   const migrated={...map};
@@ -24,10 +25,12 @@ function loadCodeStores(examVersion){
   const owner=portalUser?.id||'guest';
   SUBMITTED_CODE_STORAGE=`oms-pta-submitted-code-${owner}-${examVersion}`;
   DRAFT_CODE_STORAGE=`oms-pta-draft-code-${owner}-${examVersion}`;
+  DRAFT_META_STORAGE=`oms-pta-draft-meta-${owner}-${examVersion}`;
   const questions=config.examVersion===examVersion?config.questions:[];
   submittedCodes=migrateQuestionCodes(readCodeMap(SUBMITTED_CODE_STORAGE),questions);
   draftCodes=migrateQuestionCodes(readCodeMap(DRAFT_CODE_STORAGE),questions);
-  try{localStorage.setItem(SUBMITTED_CODE_STORAGE,JSON.stringify(submittedCodes));localStorage.setItem(DRAFT_CODE_STORAGE,JSON.stringify(draftCodes));}catch{/* Keep readable drafts in memory if storage is full. */}
+  draftMeta=migrateQuestionCodes(readCodeMap(DRAFT_META_STORAGE),questions);
+  try{localStorage.setItem(SUBMITTED_CODE_STORAGE,JSON.stringify(submittedCodes));localStorage.setItem(DRAFT_CODE_STORAGE,JSON.stringify(draftCodes));localStorage.setItem(DRAFT_META_STORAGE,JSON.stringify(draftMeta));}catch{/* Keep readable drafts in memory if storage is full. */}
 }
 loadCodeStores(config.examVersion);function submittedCodeForQuestion(questionId){return Object.prototype.hasOwnProperty.call(submittedCodes,questionId)?submittedCodes[questionId]:'';}function codeForQuestion(questionId){return Object.prototype.hasOwnProperty.call(draftCodes,questionId)?draftCodes[questionId]:submittedCodeForQuestion(questionId);}let activeQuestionId=config.questions[current].id;let loadedCode=submittedCodeForQuestion(activeQuestionId);code.value=codeForQuestion(activeQuestionId);
 const $=s=>document.querySelector(s);const escape=s=>String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -122,7 +125,56 @@ function cleanStatementDecoration(text){return String(text||'').replace(/^[ \t]*
 function formatStatement(text,q){const limits=resourceLimits();if(!text)return `<div class="rendered-markdown problem-copy"><p>请根据题目要求完成程序。提交后，AI 助教将检查程序逻辑、边界条件和代码风格。</p><h3>输入格式：</h3><p>输入数据由题目给定。</p><h3>输出格式：</h3><p>按题目要求输出计算结果。</p><h3>输入样例：</h3>${sampleBlock('in',q.sampleInput||'100311')}<h3>输出样例：</h3>${sampleBlock('out',q.sampleOutput||'0:2\n1:3\n3:1')}${limits}</div>`;const statementHtml=enhanceStatementSamples(cleanStatementDecoration(text),q).replaceAll('FZUTRIANGLEFIGUREMARKER','<img src="./src/client/assets/fzu-triangle-lattice.svg" alt="n = 4 时的三角形网格示意图" style="display:block;max-width:100%;height:auto;margin:12px auto">');return `<div class="rendered-markdown problem-copy">${statementHtml}${limits}</div>`;}
 function statusGlyph(status,label){if(status==='accepted')return '<svg viewBox="0 0 24 24" aria-label="答案正确"><path d="m5.5 12.5 4.1 4.1L18.5 7.5"/></svg>';if(status==='wrong')return '<svg viewBox="0 0 24 24" aria-label="答案错误"><path d="m8 8 8 8M16 8l-8 8"/></svg>';return label;}
 function updateCountdown(){const timestamp=value=>{const text=String(value||'').trim().replace(' ','T');return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text)?`${text}+08:00`:text);};const practice=config.category==='practice',start=timestamp(config.startAt),end=timestamp(config.endAt),now=Date.now(),remain=$('.remain'),archived=config.category==='past'||practice,invalid=!archived&&(!Number.isFinite(start)||!Number.isFinite(end)||end<=start),beforeStart=!archived&&now<start,displayEnded=!practice&&(archived||now>=end),judgeable=config.questions[current]?.judgeable!==false;let milliseconds=archived||invalid?0:Math.max(0,beforeStart?start-now:end-now);const seconds=Math.floor(milliseconds/1000),hours=String(Math.floor(seconds/3600)).padStart(2,'0'),minutes=String(Math.floor(seconds%3600/60)).padStart(2,'0'),secs=String(seconds%60).padStart(2,'0');$('#countdown-label').textContent=practice?'不限时':invalid?'时间异常':beforeStart?'距开始':displayEnded?'已结束':'剩余';$('#countdown').textContent=`${hours}:${minutes}:${secs}`;remain.classList.toggle('warning',!archived&&!displayEnded&&!invalid&&milliseconds<=5*60*1000);remain.classList.toggle('expired',displayEnded);$('#submit').disabled=invalid||beforeStart||!judgeable||submissionPending;$('#run-test').disabled=invalid||beforeStart||!judgeable||submissionPending;if(!judgeable)$('#submit-state').textContent=config.questions[current]?.unjudgeableReason||'题面资料不完整，暂不支持评测';else if(invalid)$('#submit-state').textContent='考试时间配置无效';else if(beforeStart)$('#submit-state').textContent='考试尚未开始';else if(displayEnded)$('#submit-state').textContent='考试已结束，可继续运行和提交';}
-function editorCode(){return window.omsCodeEditor?.getValue?.()??code.value;}function saveDraftCode(questionId,source){if(!questionId)return false;draftCodes[questionId]=source;try{localStorage.setItem(DRAFT_CODE_STORAGE,JSON.stringify(draftCodes));return true;}catch{return false;}}function persistActiveDraft(){if(loadingCode)return false;return saveDraftCode(activeQuestionId,editorCode());}function saveSubmittedCode(questionId,source){if(!questionId)return;submittedCodes[questionId]=source;try{localStorage.setItem(SUBMITTED_CODE_STORAGE,JSON.stringify(submittedCodes));}catch{}saveDraftCode(questionId,source);}function hasUnsavedCode(){return editorCode()!==loadedCode;}function loadCode(source){loadingCode=true;try{code.value=source;code.dispatchEvent(new Event('input',{bubbles:true}));}finally{loadingCode=false;}lines();requestAnimationFrame(()=>document.querySelectorAll('.editor .cm-scroller,.editor textarea').forEach(scroller=>{scroller.scrollLeft=0;}));}function restoreSavedCode(){const source=codeForQuestion(activeQuestionId);loadedCode=submittedCodeForQuestion(activeQuestionId);loadCode(source);}function changeQuestion(index){if(index===current)return;persistActiveDraft();current=index;activeQuestionId=config.questions[current].id;render();restoreSavedCode();}
+function editorCode(){return window.omsCodeEditor?.getValue?.()??code.value;}
+function updateDraftCloudRevision(snapshot,cloudUpdatedAt){
+  const stored=readCodeMap(snapshot.metaStorage),entry=stored[snapshot.problemId]||{};
+  stored[snapshot.problemId]={...entry,cloudUpdatedAt};
+  try{localStorage.setItem(snapshot.metaStorage,JSON.stringify(stored));}catch{}
+  if(DRAFT_META_STORAGE===snapshot.metaStorage)draftMeta=stored;
+}
+async function syncDraftSnapshot(snapshot){
+  if(!portalAuthenticated||portalUser?.id!==snapshot.owner)return false;
+  try{
+    const result=await portalRequest('/api/drafts',{examVersion:snapshot.examVersion,problemId:snapshot.problemId,code:snapshot.source,language:snapshot.language,baseUpdatedAt:snapshot.baseUpdatedAt});
+    if(!portalAuthenticated||portalUser?.id!==snapshot.owner)return false;
+    updateDraftCloudRevision(snapshot,result.draft.updatedAt);
+    if(config.examVersion===snapshot.examVersion&&activeQuestionId===snapshot.problemId&&Number(draftMeta[snapshot.problemId]?.updatedAt)===snapshot.localUpdatedAt)$('#submit-state').textContent='草稿已长期保存';
+    return true;
+  }catch(failure){
+    if(failure.status===409&&failure.payload?.draft?.updatedAt)updateDraftCloudRevision(snapshot,failure.payload.draft.updatedAt);
+    if(config.examVersion===snapshot.examVersion&&activeQuestionId===snapshot.problemId)$('#submit-state').textContent=failure.status===409?'云端已有更新，本地草稿仍保留':'本地草稿已保存，云端同步待重试';
+    return false;
+  }
+}
+function scheduleDraftSync(questionId,source,localUpdatedAt,delay=900){
+  if(!portalAuthenticated||!portalUser||!questionId)return;
+  const owner=portalUser.id,examVersion=config.examVersion,key=`${owner}:${examVersion}:${questionId}`,metaStorage=DRAFT_META_STORAGE;
+  clearTimeout(draftSyncTimers.get(key));
+  const snapshot={owner,examVersion,problemId:questionId,source,language:$('#language')?.value||'',localUpdatedAt,metaStorage};
+  draftSyncTimers.set(key,setTimeout(()=>{
+    draftSyncTimers.delete(key);
+    const previous=draftSyncQueues.get(key)||Promise.resolve();
+    const queued=previous.then(()=>{
+      const latestMeta=readCodeMap(metaStorage)[questionId]||{};
+      return syncDraftSnapshot({...snapshot,baseUpdatedAt:latestMeta.cloudUpdatedAt||null});
+    });
+    draftSyncQueues.set(key,queued);
+    queued.finally(()=>{if(draftSyncQueues.get(key)===queued)draftSyncQueues.delete(key);});
+  },delay));
+}
+function saveDraftCode(questionId,source,{sync=true,updatedAt}={}){
+  if(!questionId)return false;
+  const language=$('#language')?.value||'',previous=draftMeta[questionId]||{},changed=draftCodes[questionId]!==source||previous.language!==language||!Number(previous.updatedAt);
+  const localUpdatedAt=Number(updatedAt)||Number(previous.updatedAt)||(changed?Date.now():0);
+  draftCodes[questionId]=source;draftMeta[questionId]={...previous,updatedAt:localUpdatedAt,language};
+  try{localStorage.setItem(DRAFT_CODE_STORAGE,JSON.stringify(draftCodes));localStorage.setItem(DRAFT_META_STORAGE,JSON.stringify(draftMeta));if(sync&&changed)scheduleDraftSync(questionId,source,localUpdatedAt);return true;}catch{return false;}
+}
+function persistActiveDraft(){if(loadingCode)return false;return saveDraftCode(activeQuestionId,editorCode());}
+function saveSubmittedCode(questionId,source){if(!questionId)return;submittedCodes[questionId]=source;try{localStorage.setItem(SUBMITTED_CODE_STORAGE,JSON.stringify(submittedCodes));}catch{}saveDraftCode(questionId,source);}
+function hasUnsavedCode(){return editorCode()!==loadedCode;}
+function loadCode(source){loadingCode=true;try{code.value=source;code.dispatchEvent(new Event('input',{bubbles:true}));}finally{loadingCode=false;}lines();requestAnimationFrame(()=>document.querySelectorAll('.editor .cm-scroller,.editor textarea').forEach(scroller=>{scroller.scrollLeft=0;}));}
+function restoreSavedCode(){const source=codeForQuestion(activeQuestionId),language=draftMeta[activeQuestionId]?.language;loadedCode=submittedCodeForQuestion(activeQuestionId);if(language&&[...$('#language').options].some(option=>option.value===language))$('#language').value=language;loadCode(source);}
+function changeQuestion(index){if(index===current)return;persistActiveDraft();current=index;activeQuestionId=config.questions[current].id;render();restoreSavedCode();}
 function activateExam(examVersion,questionIndex=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exam=examVersion===primaryExamVersion?primaryConfig:[...archive,...(window.OMS_PRACTICE_EXAMS||[])].find(item=>item.examVersion===examVersion);
@@ -130,7 +182,7 @@ function activateExam(examVersion,questionIndex=0){
   const target=Math.max(0,Math.min(Number(questionIndex)||0,exam.questions.length-1));
   if(config.examVersion===exam.examVersion){changeQuestion(target);return current===target;}
   const identity={seat:primaryConfig.seat,candidateName:primaryConfig.candidateName,studentId:primaryConfig.studentId};
-  persistActiveDraft();config={...exam,...identity,registered:exam.registered??exam.participants??primaryConfig.registered};current=target;loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;applyPersistedProgress(config.examVersion);restoreSavedCode();updateCountdown();return true;
+  persistActiveDraft();config={...exam,...identity,registered:exam.registered??exam.participants??primaryConfig.registered};current=target;loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;applyPersistedProgress(config.examVersion);mergePersistedDrafts(config.examVersion);restoreSavedCode();updateCountdown();return true;
 }
 function renderOmsClientChrome(routeName=activeRoute){const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');if(student)student.textContent=config.studentId||'—';if(name)name.textContent=config.candidateName||'—';if(seat)seat.textContent=config.seat||'—';const displayUser=portalUser?.username||config.studentId||'未登录',displayName=portalUser?.nickname||portalUser?.username||config.candidateName||'U';if(user)user.textContent=displayUser;if(avatar)avatar.textContent=String(displayName).trim().slice(0,1).toUpperCase()||'U';if(address)address.value=`${location.origin}/#${routeName||'home'}${routeName==='exam'&&question?`-${question.id}`:''}`;}
 const OMS_CONTENT_ZOOM_KEY='oms-pta-content-zoom',OMS_CONTENT_ZOOM_MIN=.8,OMS_CONTENT_ZOOM_MAX=1.5,OMS_CONTENT_ZOOM_STEP=.1;
@@ -721,6 +773,35 @@ function storedVerdictLabel(item){
   if(item.status==='partial')return '部分正确';
   return {Accepted:'答案正确',WrongAnswer:'答案错误',CompilationError:'编译错误',RuntimeError:'运行时错误',TimeLimitExceeded:'运行超时'}[item.verdict]||'答案错误';
 }
+function mergePersistedDrafts(examVersion=config.examVersion){
+  if(!portalAuthenticated||!portalUser||config.examVersion!==examVersion)return false;
+  const cloudDrafts=progressByExam.get(examVersion)?.drafts||{},pending=[],now=Date.now();
+  let restored=false;
+  for(const [problemId,cloud] of Object.entries(cloudDrafts)){
+    if(!cloud||typeof cloud.code!=='string')continue;
+    const hasLocal=Object.prototype.hasOwnProperty.call(draftCodes,problemId),localTime=Number(draftMeta[problemId]?.updatedAt)||0,cloudTime=Date.parse(cloud.updatedAt)||0;
+    if(!hasLocal||cloudTime>=localTime){
+      restored=restored||draftCodes[problemId]!==cloud.code;
+      draftCodes[problemId]=cloud.code;
+      draftMeta[problemId]={updatedAt:cloudTime||now,cloudUpdatedAt:cloud.updatedAt,language:cloud.language||draftMeta[problemId]?.language||''};
+    }else if(draftCodes[problemId]===cloud.code){
+      draftMeta[problemId]={...draftMeta[problemId],cloudUpdatedAt:cloud.updatedAt,language:draftMeta[problemId]?.language||cloud.language||''};
+    }else{
+      draftMeta[problemId]={...draftMeta[problemId],cloudUpdatedAt:cloud.updatedAt};
+      pending.push([problemId,draftCodes[problemId],localTime]);
+    }
+  }
+  for(const [problemId,source] of Object.entries(draftCodes)){
+    if(Object.prototype.hasOwnProperty.call(cloudDrafts,problemId))continue;
+    const localTime=Number(draftMeta[problemId]?.updatedAt)||now;
+    draftMeta[problemId]={...draftMeta[problemId],updatedAt:localTime};
+    pending.push([problemId,source,localTime]);
+  }
+  try{localStorage.setItem(DRAFT_CODE_STORAGE,JSON.stringify(draftCodes));localStorage.setItem(DRAFT_META_STORAGE,JSON.stringify(draftMeta));}catch{}
+  pending.forEach(([problemId,source,localTime])=>scheduleDraftSync(problemId,source,localTime,50));
+  if(restored){restoreSavedCode();$('#submit-state').textContent='长期草稿已恢复';}
+  return restored;
+}
 function applyPersistedProgress(examVersion=config.examVersion){
   for(const key of Object.keys(results))delete results[key];
   for(const key of Object.keys(scores))delete scores[key];
@@ -750,6 +831,7 @@ async function refreshPersistedProgress(force=false){
   for(const [examVersion,progress] of Object.entries(data.exams||{}))progressByExam.set(examVersion,progress);
   progressOwner=owner;
   applyPersistedProgress(config.examVersion);
+  mergePersistedDrafts(config.examVersion);
 }
 function setPortalSession(data){
   portalSessionRevision++;
@@ -763,7 +845,7 @@ function setPortalSession(data){
   if(changed){
     progressByExam.clear();progressOwner='';
     for(const key of Object.keys(results))delete results[key];for(const key of Object.keys(scores))delete scores[key];submissions.length=0;
-    loadCodeStores(config.examVersion);restoreSavedCode();$('#submit-state').textContent='本站草稿已加载';
+    loadCodeStores(config.examVersion);restoreSavedCode();$('#submit-state').textContent='本地草稿已加载';
   }
   if(profileChanged){render();document.dispatchEvent(new CustomEvent('oms:auth-change',{detail:next}));}
 }
@@ -772,7 +854,7 @@ async function portalRequest(endpoint,payload){
   try{
     const response=await fetch(endpoint,{method:payload?'POST':'GET',credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:payload?{'Content-Type':'application/json','X-OMS-Request':'1','X-OMS-CSRF':portalCsrf}:{},...(payload?{body:JSON.stringify(payload)}:{})});
     let data;try{data=await response.json();}catch{throw Error('账号服务不可用，请通过本站服务器打开页面。');}
-    if(!response.ok){const failure=Error(data.message||'请求失败，请稍后重试。');failure.status=response.status;throw failure;}
+    if(!response.ok){const failure=Error(data.message||'请求失败，请稍后重试。');failure.status=response.status;failure.payload=data;throw failure;}
     return data;
   }catch(failure){if(failure.name==='AbortError')throw Error('账号服务响应超时，请稍后重试。');throw failure;}
   finally{clearTimeout(timer);}
@@ -1029,5 +1111,5 @@ async function importNumberedQuestions(event){
   }catch(error){$('#import-note').textContent='导入失败：'+error.message;}
   event.target.value='';
 }
-$('#overview-toggle').onclick=()=>{$('#pta-app').classList.toggle('overview-collapsed');const closed=$('#pta-app').classList.contains('overview-collapsed');$('#overview-toggle').textContent=closed?'▯':'▮';};$('#previous').onclick=()=>changeQuestion((current+config.questions.length-1)%config.questions.length);$('#next').onclick=()=>changeQuestion((current+1)%config.questions.length);function updateDraftState(){const saved=persistActiveDraft();$('#submit-state').textContent=saved?(hasUnsavedCode()?'草稿已自动保存':'当前代码与最近一次提交一致'):'草稿保存失败，请复制代码后重试';}window.addEventListener('oms-code-save-draft',updateDraftState);window.addEventListener('beforeunload',persistActiveDraft);document.querySelectorAll('.rail-button').forEach(button=>button.onclick=()=>route(button.dataset.route));$('#home-button').onclick=()=>route('home');code.oninput=()=>{lines();updateDraftState();};lines();document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>setTab(button.dataset.tab));$('#tester-toggle').onclick=()=>{const tester=$('#tester');tester.classList.toggle('collapsed');tester.classList.remove('expanded');syncTesterToggle();};syncTesterToggle();$('#reset-test').onclick=()=>{const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#sample-input').value=sample.input||'';$('#expected').textContent=sample.expected||'';$('#run-state').textContent='等待运行';};$('#run-test').onclick=()=>judge('sample');$('#submit').onclick=()=>judge('submit');
+$('#overview-toggle').onclick=()=>{$('#pta-app').classList.toggle('overview-collapsed');const closed=$('#pta-app').classList.contains('overview-collapsed');$('#overview-toggle').textContent=closed?'▯':'▮';};$('#previous').onclick=()=>changeQuestion((current+config.questions.length-1)%config.questions.length);$('#next').onclick=()=>changeQuestion((current+1)%config.questions.length);function updateDraftState(){const saved=persistActiveDraft();$('#submit-state').textContent=saved?(portalAuthenticated?'本地草稿已保存，正在同步':'草稿已保存在本机'):'草稿保存失败，请复制代码后重试';}window.addEventListener('oms-code-save-draft',updateDraftState);window.addEventListener('beforeunload',persistActiveDraft);document.querySelectorAll('.rail-button').forEach(button=>button.onclick=()=>route(button.dataset.route));$('#home-button').onclick=()=>route('home');code.oninput=()=>{lines();updateDraftState();};$('#language').addEventListener('change',updateDraftState);lines();document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>setTab(button.dataset.tab));$('#tester-toggle').onclick=()=>{const tester=$('#tester');tester.classList.toggle('collapsed');tester.classList.remove('expanded');syncTesterToggle();};syncTesterToggle();$('#reset-test').onclick=()=>{const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#sample-input').value=sample.input||'';$('#expected').textContent=sample.expected||'';$('#run-state').textContent='等待运行';};$('#run-test').onclick=()=>judge('sample');$('#submit').onclick=()=>judge('submit');
 const dialog=$('#admin-dialog'),form=$('#admin-form');$('#open-admin').onclick=()=>{for(const [key,value] of Object.entries(config))if(form.elements[key])form.elements[key].value=value;renderSettings();dialog.showModal();};dialog.querySelector('.close').onclick=()=>dialog.close();dialog.querySelector('.cancel').onclick=()=>dialog.close();$('#import-file').onchange=importNumberedQuestions;form.onsubmit=event=>{event.preventDefault();const data=new FormData(form);for(const key of ['title','duration','startAt','endAt','seat','candidateName','studentId','registered'])config[key]=key==='duration'||key==='registered'?Number(data.get(key)):data.get(key);const start=Date.parse(config.startAt),end=Date.parse(config.endAt);if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start){$('#import-note').textContent='结束时间必须晚于开始时间。';return;}config.duration=Math.round((end-start)/60000);document.querySelectorAll('.question-setting').forEach(row=>{const q=config.questions[Number(row.querySelector('[data-k="name"]').dataset.i)];q.name=row.querySelector('[data-k="name"]').value;q.score=Number(row.querySelector('[data-k="score"]').value)||1;q.tests=Number(row.querySelector('[data-k="tests"]').value)||1;});localStorage.setItem(STORAGE,JSON.stringify(config));current=Math.min(current,config.questions.length-1);dialog.close();render();updateCountdown();syncSolutionNavigation();};render();route('info');updateCountdown();syncSolutionNavigation();window.setInterval(()=>{updateCountdown();syncSolutionNavigation();},1000);

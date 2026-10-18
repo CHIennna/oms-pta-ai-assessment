@@ -381,8 +381,24 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   await until('Boolean(document.querySelector(".problem-directory"))');
   await evaluate('document.querySelector("[data-portal-route=advice]").click()');
   await until('document.querySelector("[data-study-tab=mistakes]")?.getAttribute("aria-selected") === "true"');
+  phase = 'persist a long-term draft';
+  await evaluate('loadCode("first-account-private-draft"); persistActiveDraft()');
+  await until(`(async () => {
+    const response = await fetch('/api/progress');
+    const progress = await response.json();
+    return progress.exams?.[config.examVersion]?.drafts?.[activeQuestionId]?.code === 'first-account-private-draft';
+  })()`);
+  const draftStorageKeys = await evaluate('({ code: DRAFT_CODE_STORAGE, meta: DRAFT_META_STORAGE })');
+  const cloudDraft = await evaluate(`(async () => {
+    const response = await fetch('/api/progress');
+    const progress = await response.json();
+    return progress.exams[config.examVersion].drafts[activeQuestionId];
+  })()`);
+  assert.equal(cloudDraft.code, 'first-account-private-draft');
+  assert.equal(cloudDraft.language, await evaluate('document.querySelector("#language").value'));
+  assert.ok(Date.parse(cloudDraft.updatedAt));
   phase = 'edit profile';
-  await evaluate('loadCode("first-account-private-draft"); persistActiveDraft(); document.querySelector("[data-profile-open]").click()');
+  await evaluate('document.querySelector("[data-profile-open]").click()');
   await until('document.querySelector("#profile-dialog").open');
   assert.equal(await evaluate('document.querySelector("#profile-form").elements.username.readOnly'), true);
   await evaluate('document.querySelector("#profile-form").elements.nickname.value="Updated UI Learner"; document.querySelector("#profile-form").requestSubmit()');
@@ -404,6 +420,7 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   await until('!window.omsAuth.user && !document.querySelector("#profile-dialog").open');
   assert.equal(await evaluate('DRAFT_CODE_STORAGE.includes("-guest-")'), true);
   assert.notEqual(await evaluate('codeForQuestion(activeQuestionId)'), 'first-account-private-draft');
+  await evaluate(`localStorage.removeItem(${JSON.stringify(draftStorageKeys.code)}); localStorage.removeItem(${JSON.stringify(draftStorageKeys.meta)})`);
   await evaluate('document.querySelector("[data-profile-open]").click()');
   await until('!document.querySelector("#login-screen").hidden');
   phase = 'reject incorrect password';
@@ -414,11 +431,13 @@ test('real portal UI: register, resume intended page, edit profile, reject wrong
   await evaluate(`(() => { const form=document.querySelector('#portal-login-form'); form.elements.password.value=${JSON.stringify(credentials.password)};form.requestSubmit(); })()`);
   await until('Boolean(window.omsAuth.user && document.querySelector("#profile-dialog").open)');
   await evaluate('document.querySelector("#profile-dialog").close()');
+  await until('codeForQuestion(activeQuestionId) === "first-account-private-draft"');
   assert.equal(await evaluate('codeForQuestion(activeQuestionId)'), 'first-account-private-draft');
   phase = 'restore session on refresh';
   await command('Page.reload', {}, sessionId);
   await until('Boolean(window.omsAuth && window.omsAuth.user && [...progressByExam.values()].some(progress => progress.submissions?.length === 1))');
   assert.equal(await evaluate('window.omsAuth.user.nickname'), 'Updated UI Learner');
+  assert.equal(await evaluate('codeForQuestion(activeQuestionId)'), 'first-account-private-draft');
   await evaluate('document.querySelector("[data-profile-open]").click()');
   await until('document.querySelector("#profile-dialog").open');
   await evaluate('document.querySelector("#profile-logout").click()');
