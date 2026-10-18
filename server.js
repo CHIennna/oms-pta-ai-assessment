@@ -244,7 +244,6 @@ function assertExamOpen(examVersion, now = Date.now()) {
   const start = examTimestamp(exam.startAt), end = examTimestamp(exam.endAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) reject(503, 'InvalidSchedule', '考试时间配置无效，请联系管理员。');
   if (now < start) reject(403, 'ExamNotStarted', '考试尚未开始，暂不能运行或提交。');
-  if (now >= end) reject(403, 'ExamEnded', '考试已结束，不能继续运行或提交。');
 }
 
 function trustedPayload(payload) {

@@ -460,10 +460,10 @@ test('regression: server enforces campus schedule at API boundary and permits ar
   time--;assert.equal((await submit()).body.verdict,'ExamNotStarted');
   assert.equal((await submit('live','sample')).status,403);assert.equal(judgeCalls,0);
   time++;assert.equal((await submit()).status,200);assert.equal(judgeCalls,1);
-  time+=60*60*1000;assert.equal((await submit()).body.verdict,'ExamEnded');assert.equal(judgeCalls,1);
+  time+=60*60*1000;assert.equal((await submit()).status,200);assert.equal(judgeCalls,2);
   assert.equal((await submit('')).status,400);assert.equal((await submit('unknown')).status,400);
   assert.equal((await submit('broken')).body.verdict,'InvalidSchedule');
-  assert.equal((await submit('archive')).status,200);assert.equal(judgeCalls,2);
+  assert.equal((await submit('archive')).status,200);assert.equal(judgeCalls,3);
 });
 
 function submissionFixture() {
@@ -534,7 +534,7 @@ test('regression: late errors do not paint a newly selected exam or account', as
   assert.equal(f.elements.has('#compiler-output'),false);
 });
 
-test('regression: countdown disables early/closed submissions but not archived practice', () => {
+test('regression: countdown disables early submissions but permits ended exams and archived practice', () => {
   const f=submissionFixture(),ctx=f.context;
   const now=Date.parse('2030-01-01T10:00:00+08:00');
   ctx.Date=class extends Date {static now(){return now;}};
@@ -542,7 +542,11 @@ test('regression: countdown disables early/closed submissions but not archived p
   Object.assign(ctx.config,{startAt:'2030-01-01T10:01',endAt:'2030-01-01T11:00'});
   ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,true);assert.equal(ctx.$('#run-test').disabled,true);
   ctx.config.startAt='2030-01-01T10:00';ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,false);
-  ctx.config.endAt='2030-01-01T10:00';ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,true);
+  Object.assign(ctx.config,{startAt:'2030-01-01T09:00',endAt:'2030-01-01T09:59'});
+  ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,false);assert.equal(ctx.$('#run-test').disabled,false);
+  assert.match(ctx.$('#submit-state').textContent,/可继续运行和提交/);
+  Object.assign(ctx.config,{startAt:'2030-01-01T10:00',endAt:'2030-01-01T10:00'});
+  ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,true);
   ctx.config.category='past';ctx.updateCountdown();assert.equal(ctx.$('#submit').disabled,false);
 });
 
