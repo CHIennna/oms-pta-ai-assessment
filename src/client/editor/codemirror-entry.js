@@ -6,6 +6,7 @@ import {python} from '@codemirror/lang-python';
 import {java} from '@codemirror/lang-java';
 import {tags} from '@lezer/highlight';
 import {indentationDeleteSize} from './indentation-backspace.js';
+import {lineCommentChanges} from './line-comment.js';
 
 const input = document.querySelector('#code');
 const legacyGutter = document.querySelector('#lines');
@@ -150,6 +151,14 @@ function handleShortcut(event, editor) {
     if (key === 'a') { editor.dispatch({selection: {anchor: 0, head: editor.state.doc.length}}); event.preventDefault(); return true; }
     if (key === 'z' && !event.shiftKey && editingHistory.undo.length) { editingHistory.redo.push(editor.state.doc.toString()); replaceDocument(editingHistory.undo.pop()); event.preventDefault(); return true; }
     if ((key === 'y' || (key === 'z' && event.shiftKey)) && editingHistory.redo.length) { editingHistory.undo.push(editor.state.doc.toString()); replaceDocument(editingHistory.redo.pop()); event.preventDefault(); return true; }
+    if (!event.shiftKey && (key === '/' || event.code === 'Slash')) {
+      const token = isPythonLanguage() ? '#' : '//';
+      const ranges = editor.state.selection.ranges.map(range => ({from: range.from, to: range.to}));
+      const changes = lineCommentChanges(editor.state.doc.toString(), ranges, token);
+      if (changes.length) editor.dispatch({changes, scrollIntoView: true});
+      event.preventDefault();
+      return true;
+    }
     if (key === 's') { window.dispatchEvent(new Event('oms-code-save-draft')); event.preventDefault(); return true; }
     return false;
 }
