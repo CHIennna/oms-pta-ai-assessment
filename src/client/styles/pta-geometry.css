@@ -943,3 +943,26 @@ html.oms-fullscreen-fallback{--oms-client-chrome-height:0px;overflow:hidden}html
 @media (max-width:900px){.study-advice-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:760px){.study-advice-head{gap:14px}.study-advice-summary{gap:8px}.study-advice-summary button{padding:12px}.study-advice-summary strong{font-size:17px}.study-advice-tabs button{min-width:max-content}.study-advice-panel>header{align-items:flex-start}.study-advice-panel>header p{max-width:46ch}}
 @media (max-width:430px){.study-advice-summary{grid-template-columns:1fr}.study-advice-summary small{white-space:normal}.study-advice-tabs{margin-bottom:16px}}
+
+/* Practice center: resource links and exam groups share one clear navigation. */
+.exam-center-head{display:grid;gap:5px;margin-bottom:20px}
+.exam-center-head small{color:var(--color-primary);font:600 12px var(--font-mono);letter-spacing:.1em}
+.exam-center-head h1{margin:0}
+.exam-center-head p{margin:0;color:var(--text-light);font:13px/1.6 var(--font-sans)}
+.exam-center-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px;margin-bottom:22px;padding:9px;border:1px solid var(--border-all);border-radius:9px;background:var(--bg-light)}
+.exam-center-tabs button{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:9px;padding:11px 13px;border:1px solid transparent;border-radius:6px;text-align:left}
+.exam-center-tabs button:hover{border-color:hsl(211 82% 56%/.35);background:hsl(211 82% 56%/.06);color:var(--text-dark)}
+.exam-center-tabs button.active{border-color:hsl(211 82% 56%/.5);background:hsl(211 82% 56%/.12)}
+.exam-center-tabs button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exam-center-tabs button em{display:grid;flex:none;min-width:23px;height:21px;place-items:center;padding:0 6px;border-radius:11px;background:var(--bg-normal);color:var(--text-light);font:11px var(--font-mono);font-style:normal}
+.exam-center-tabs button.active em{background:var(--color-primary);color:#fff}
+.exam-center-panel>header>div{min-width:0}
+.exam-center-panel>header p{margin:5px 0 0;color:var(--text-light);font-size:13px;line-height:1.55}
+.exam-center-panel[data-exam-center-panel="resources"] .key-question-browser{padding-top:3px}
+.study-advice-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+@media (max-width:760px){
+  .exam-center-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:7px}
+  .exam-center-tabs button{min-width:0;padding:10px}
+  .exam-center-panel>header{align-items:flex-start;flex-direction:column;gap:6px}
+}

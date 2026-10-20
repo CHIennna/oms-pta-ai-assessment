@@ -450,11 +450,12 @@ function renderExamCenter(){
   const mockExams=[currentExam,...archive.filter(exam=>(exam.category==='mock'||exam.category==='practice')&&exam.homeworkGroup!=='gplt').map(exam=>({...exam,current:config.examVersion===exam.examVersion,selectable:true}))];
   const homework=window.OMS_PRACTICE_EXAMS||[];
   const activeCategory=config.homeworkGroup==='gplt'?'gplt':homework.length?'homework':gplt.length?'gplt':config.examVersion===primaryExamVersion?'mock':'past';
-  const tabs=[...(homework.length?[['homework','专项作业']]:[]),...(gplt.length?[['gplt','天梯赛 L1/L2']]:[]),['past','历年题'],['mock','模拟练习']];
-  const tabHtml=tabs.map(([key,label])=>`<button type="button" class="${activeCategory===key?'active':''}" data-exam-center-tab="${key}" role="tab" aria-selected="${activeCategory===key}">${label}</button>`).join('');
+  const tabs=[['resources','常用题单',5],...(homework.length?[['homework','专项作业',homework.length]]:[]),...(gplt.length?[['gplt','天梯赛 L1/L2',gplt.length]]:[]),['past','历年题',pastExams.length],['mock','模拟练习',mockExams.length]];
+  const tabHtml=tabs.map(([key,label,count])=>`<button type="button" class="${activeCategory===key?'active':''}" data-exam-center-tab="${key}" role="tab" aria-selected="${activeCategory===key}"><span>${label}</span><em>${count}</em></button>`).join('');
+  const resourcesHtml=`<section class="exam-center-panel ${activeCategory==='resources'?'active':''}" data-exam-center-panel="resources" ${activeCategory==='resources'?'':'hidden'}><header><div><h2>常用题单</h2><p>在 OMS 内集中打开常用题库与专题训练入口。</p></div><span>5 个入口</span></header>${renderKeyQuestionLinks()}</section>`;
   const homeworkHtml=homework.length?`<section class="exam-center-panel ${activeCategory==='homework'?'active':''}" data-exam-center-panel="homework" ${activeCategory==='homework'?'':'hidden'}><header><h2>FZU 竞赛精选 · 五次专项作业</h2><span>每次 4 道核心＋1 道选做，不限时</span></header><p>可以每天完成 1～2 题。原站练习题打开 FZU 页面，不计入本站通过记录。</p><div class="exam-archive-list">${renderHomeworkCards(homework)}</div></section>`:'';
   const gpltHtml=gplt.length?`<section class="exam-center-panel ${activeCategory==='gplt'?'active':''}" data-exam-center-panel="gplt" ${activeCategory==='gplt'?'':'hidden'}><header><h2>历年真题作业 · 天梯赛 L1/L2</h2><span>2024、2025、2026 · 三套独立练习</span></header><p>每年 8 道 L1＋4 道 L2，200 分，不限时；作答记录按年份独立保存。</p><p>题面为非官方重述，测试点为自建练习数据，不是官方隐藏测试。部分题目有练习版规则差异，请阅读题面中的勘误提示。难度标签沿用包内参考评级。</p><div class="exam-archive-list">${renderExamCards(gplt)}</div></section>`:'';
-  return `<div class="exam-center-head"><h1>练习</h1></div><div class="exam-center-tabs" role="tablist">${tabHtml}</div>${homeworkHtml}${gpltHtml}<section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年题</h2><span>历年考试题目练习</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟练习</h2><span>周练与模拟题目</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
+  return `<div class="exam-center-head"><small>PRACTICE CENTER</small><h1>练习</h1><p>从专题题单到历年真题，按目标选择训练内容。</p></div><div class="exam-center-tabs" role="tablist">${tabHtml}</div>${resourcesHtml}${homeworkHtml}${gpltHtml}<section class="exam-center-panel ${activeCategory==='past'?'active':''}" data-exam-center-panel="past" ${activeCategory==='past'?'':'hidden'}><header><h2>历年题</h2><span>历年考试题目练习</span></header><div class="exam-archive-list">${renderExamCards(pastExams)}</div></section><section class="exam-center-panel ${activeCategory==='mock'?'active':''}" data-exam-center-panel="mock" ${activeCategory==='mock'?'':'hidden'}><header><h2>模拟练习</h2><span>周练与模拟题目</span></header><div class="exam-archive-list">${renderExamCards(mockExams)}</div></section>`;
 }
 const PROBLEM_DIFFICULTY_GROUPS=[
   [1,['普及-','普及','普及+/提高-','普及-','普及+/提高-','普及-','普及-','待定']],
@@ -547,7 +548,7 @@ const experiencePosts=(Array.isArray(window.OMS_EXPERIENCE_POSTS)&&window.OMS_EX
 const EXPERIENCE_FONT_STORAGE='oms-pta-experience-font-size';
 const EXPERIENCE_LIBRARY_STORAGE='oms-pta-experience-library-collapsed';
 const STUDY_TAB_STORAGE='oms-pta-study-tab';
-const STUDY_TABS=['knowledge','mistakes','key','experience'];
+const STUDY_TABS=['knowledge','mistakes','experience'];
 let experienceFontSize='medium';
 let experienceLibraryCollapsed=false;
 let studyActiveTab='knowledge';
@@ -565,11 +566,13 @@ function renderKnowledgeReader(){
 }
 function renderKeyQuestionLinks(){
   const links=[
+    {name:'FZU OJ',description:'福州大学在线评测与竞赛平台',url:'https://oj.fzu.edu.cn/',mark:'FZU',mode:'frame'},
     {name:'PAT 乙级题库',description:'程序设计能力考试 · Basic Level',url:'https://pintia.cn/problem-sets/994805260223102976',mark:'PAT',mode:'pat'},
+    {name:'Codeforces',description:'国际算法竞赛与题库',url:'https://codeforces.com/problemset',mark:'CF',mode:'frame'},
     {name:'代码随想录题单',description:'按专题循序练习算法与数据结构',url:'https://programmercarl.com/qita/12.list.html',mark:'题单',mode:'frame'},
     {name:'洛谷首页',description:'题库、比赛与在线评测',url:'https://www.luogu.com.cn/',mark:'洛谷',mode:'frame'}
   ];
-  return `<div class="key-question-browser"><div class="key-question-links" data-key-links>${links.map(item=>`<button type="button" class="key-question-link" data-key-resource data-key-name="${item.name}" data-key-url="${item.url}" data-key-mode="${item.mode}"><span class="key-question-mark" aria-hidden="true">${item.mark}</span><span class="key-question-copy"><b>${item.name}</b><small>${item.description}</small></span><span class="key-question-arrow" aria-hidden="true">›</span></button>`).join('')}</div><section class="key-question-viewer" data-key-viewer hidden><div class="key-question-toolbar"><button type="button" data-key-back>‹ 返回入口</button><strong data-key-title></strong><div><button type="button" data-key-refresh>刷新</button><a data-key-source target="_blank" rel="noopener noreferrer">打开原页 ↗</a></div></div><iframe class="key-question-frame" data-key-frame title="关键题目资源" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" allowfullscreen></iframe><div class="pat-basic-viewer" data-key-pat hidden><div data-pat-index><div class="pat-basic-filter"><input type="search" data-pat-search placeholder="搜索题号或题目名称" aria-label="搜索 PAT 乙级题目"><span data-pat-count></span></div><div class="pat-basic-list" data-pat-list role="table" aria-label="PAT 乙级题单"><div class="pat-basic-row pat-basic-head" role="row"><span>题号</span><span>题目名称</span><span>分值</span><span>通过率</span></div><div class="pat-basic-state" data-pat-state>正在加载 PAT 乙级题单…</div></div></div><article class="pat-basic-detail" data-pat-detail hidden><div class="pat-basic-detail-nav"><button type="button" data-pat-detail-back>‹ 返回题单</button></div><div class="pat-basic-state" data-pat-detail-state>正在加载题面…</div><div data-pat-detail-content></div></article></div></section></div>`;
+  return `<div class="key-question-browser"><div class="key-question-links" data-key-links>${links.map(item=>`<button type="button" class="key-question-link" data-key-resource data-key-name="${item.name}" data-key-url="${item.url}" data-key-mode="${item.mode}"><span class="key-question-mark" aria-hidden="true">${item.mark}</span><span class="key-question-copy"><b>${item.name}</b><small>${item.description}</small></span><span class="key-question-arrow" aria-hidden="true">›</span></button>`).join('')}</div><section class="key-question-viewer" data-key-viewer hidden><div class="key-question-toolbar"><button type="button" data-key-back>‹ 返回入口</button><strong data-key-title></strong><div><button type="button" data-key-refresh>刷新</button><a data-key-source target="_blank" rel="noopener noreferrer">打开原页 ↗</a></div></div><iframe class="key-question-frame" data-key-frame title="练习题单资源" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" allowfullscreen></iframe><div class="pat-basic-viewer" data-key-pat hidden><div data-pat-index><div class="pat-basic-filter"><input type="search" data-pat-search placeholder="搜索题号或题目名称" aria-label="搜索 PAT 乙级题目"><span data-pat-count></span></div><div class="pat-basic-list" data-pat-list role="table" aria-label="PAT 乙级题单"><div class="pat-basic-row pat-basic-head" role="row"><span>题号</span><span>题目名称</span><span>分值</span><span>通过率</span></div><div class="pat-basic-state" data-pat-state>正在加载 PAT 乙级题单…</div></div></div><article class="pat-basic-detail" data-pat-detail hidden><div class="pat-basic-detail-nav"><button type="button" data-pat-detail-back>‹ 返回题单</button></div><div class="pat-basic-state" data-pat-detail-state>正在加载题面…</div><div data-pat-detail-content></div></article></div></section></div>`;
 }
 function setupKeyQuestionLinks(root){
   if(!root)return;
@@ -763,11 +766,10 @@ function renderStudyAdvice(){
   const summary=[
     ['knowledge','知识路线','代码随想录','按专题学习与查看力扣题面'],
     ['mistakes','待复盘',`${wrongQuestions.length} 道`,'从错误提交返回重新作答'],
-    ['key','重点题单','3 组','PAT、代码随想录与洛谷'],
     ['experience','经验文章',`${experiencePosts.length} 篇`,'复盘方法与考场策略']
   ].map(([category,label,value,description])=>`<button type="button" data-study-jump="${category}" class="${isActive(category)?'active':''}"><span>${label}</span><strong>${value}</strong><small>${description}</small></button>`).join('');
   const experienceTools=`<div class="experience-header-tools"><div class="experience-font-controls" role="group" aria-label="经验贴字号"><span>字号</span>${fontOptions}</div></div>`;
-  return `<div class="study-advice-head"><div class="study-advice-title"><h1>备考</h1><p>讲解、练习、复盘与经验集中在一个学习工作台。</p></div><div class="study-advice-summary" aria-label="备考概览">${summary}</div></div><div class="study-advice-tabs" role="tablist">${tab('knowledge','知识讲解','路线')}${tab('mistakes','错题集',wrongQuestions.length)}${tab('key','关键题目','3')}${tab('experience','经验贴',experiencePosts.length)}</div>${panel('knowledge','知识讲解','按专题阅读讲解，并在 OMS 内查看对应力扣题面。',renderKnowledgeReader())}${panel('mistakes','错题集','优先重做本场错误题，完成后列表会自动更新。',renderAdviceQuestionRows(wrongQuestions,'暂无错题记录'))}${panel('key','关键题目','在 OMS 内打开常用题单和题库入口。',renderKeyQuestionLinks())}${panel('experience','经验贴','将复盘方法、备考节奏和考场策略沉淀为可查阅文章。',renderExperienceReader(),experienceTools)}`;
+  return `<div class="study-advice-head"><div class="study-advice-title"><h1>备考</h1><p>讲解、复盘与经验集中在一个学习工作台。</p></div><div class="study-advice-summary" aria-label="备考概览">${summary}</div></div><div class="study-advice-tabs" role="tablist">${tab('knowledge','知识讲解','路线')}${tab('mistakes','错题集',wrongQuestions.length)}${tab('experience','经验贴',experiencePosts.length)}</div>${panel('knowledge','知识讲解','按专题阅读讲解，并在 OMS 内查看对应力扣题面。',renderKnowledgeReader())}${panel('mistakes','错题集','优先重做本场错误题，完成后列表会自动更新。',renderAdviceQuestionRows(wrongQuestions,'暂无错题记录'))}${panel('experience','经验贴','将复盘方法、备考节奏和考场策略沉淀为可查阅文章。',renderExperienceReader(),experienceTools)}`;
 }
 function storedVerdictLabel(item){
   if(item.status==='partial')return '部分正确';
@@ -1026,6 +1028,7 @@ async function route(name,allowGuest=false){
     };
     secondary.querySelectorAll('[data-exam-center-tab]').forEach(button=>button.onclick=()=>showPracticePanel(button.dataset.examCenterTab));
     secondary.querySelectorAll('[data-exam-version][data-question-open]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.examVersion,Number(button.dataset.questionOpen)))route('exam');});
+    setupKeyQuestionLinks(secondary.querySelector('.key-question-browser'));
   }
   if(name==='info'){
     secondary.innerHTML=renderExamInfo();
@@ -1052,7 +1055,6 @@ async function route(name,allowGuest=false){
     const initializeAdvicePanel=category=>{
       if(initializedAdvicePanels.has(category))return;
       if(category==='knowledge')setupKnowledgeReader(secondary.querySelector('.carl-reader'));
-      if(category==='key')setupKeyQuestionLinks(secondary.querySelector('.key-question-browser'));
       initializedAdvicePanels.add(category);
     };
     const showAdvicePanel=category=>{
