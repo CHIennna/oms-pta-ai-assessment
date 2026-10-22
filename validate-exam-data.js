@@ -194,7 +194,8 @@ if (require.main === module) {
           path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'),
           path.join(examDataRoot, 'shenzhuo-round3-20260920.js'),
           path.join(examDataRoot, 'gplt-homework-2024-2026.js'),
-          path.join(examDataRoot, 'fzu-practice-homework.js')
+          path.join(examDataRoot, 'fzu-practice-homework.js'),
+          path.join(examDataRoot, 'third-stage-weekly-20261025.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
