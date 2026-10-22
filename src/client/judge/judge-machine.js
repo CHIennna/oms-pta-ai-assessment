@@ -62,7 +62,7 @@
     const stillVisible = () => portalAuthenticated && portalUser?.id === owner && portalIdentityRevision === identityRevision && config.examVersion === examVersion && config.questions[current]?.id === question.id && activeRoute === 'exam';
     const sample = { input: $('#sample-input').value, expected: $('#expected').textContent.replace(/\\n/g, '\n') };
     const tests = mode === 'sample' ? [sample] : (question.testCases || []);
-    state.textContent = '评测机正在运行…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
+    state.textContent = '评测服务正在运行…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
       const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, problemId:question.id, examVersion, input:sample.input, mode, tests }) });
@@ -136,7 +136,7 @@
     const sameIdentity = () => Boolean(owner && portalAuthenticated && portalUser?.id === owner && portalIdentityRevision === identityRevision);
     const stillVisible = () => sameIdentity() && config.examVersion === examVersion && config.questions[current]?.id === question.id && activeRoute === 'exam';
     submissionPending = true; updateCountdown();
-    state.textContent = '正在本机编译并运行测试点…';
+    state.textContent = '正在评测服务编译并运行测试点…';
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
       const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language, problemId:question.id, examVersion, mode:'submit', tests, problem:{ id:question.id, title:question.name, statement:question.statement || '' } }) });

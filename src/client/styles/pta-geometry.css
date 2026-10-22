@@ -354,6 +354,38 @@ body.statement-reading-mode{overflow:hidden}
 .workspace.code-first > .description-tab { display: none; }
 .workspace.code-first .statement { padding-top: 0; background: var(--bg-base); }
 
+/* Keep the primary test action visible, matching the PTA test-case drawer. */
+.coding>.tester:not(.collapsed){height:min(44vh,420px);min-height:220px;max-height:420px;overflow:visible}
+.coding>.tester.expanded{height:min(52vh,460px);max-height:460px}
+.coding>.tester:not(.collapsed) .test-content{display:flex!important;height:calc(100% - 42px);min-height:0;flex-direction:column;padding:16px 14px 0;overflow:hidden!important}
+.test-input-editor{display:grid;grid-template-columns:64px minmax(0,1fr);flex:1;min-height:0;border:1px solid var(--border-all);background:var(--bg-light);overflow:hidden}
+.test-input-editor #test-input-lines{height:100%;min-height:0;margin:0;padding:12px 14px;border:0;border-right:1px solid var(--border-all);border-radius:0;background:hsl(0 0% 27%);color:var(--text-light);font:16px/1.75 var(--font-mono);text-align:right;white-space:pre;overflow:hidden;user-select:none}
+.test-input-editor #sample-input{width:100%;height:100%;min-height:0!important;margin:0;padding:12px 16px;border:0;border-radius:0;outline:0;background:transparent;color:var(--text-dark);font:16px/1.75 var(--font-mono);resize:none;white-space:pre;overflow:auto}
+.coding>.tester .test-actions{display:flex;flex:none;height:68px;min-width:0;flex-direction:row;align-items:center;justify-content:flex-end;gap:20px;padding:0}
+.coding>.tester .test-actions button{border:0;box-shadow:none;white-space:nowrap}
+.coding>.tester #reset-test{padding:10px 4px;background:transparent;color:var(--text-normal);font-size:16px}
+.coding>.tester #run-test{min-width:142px;padding:11px 22px;border-radius:5px;background:#52c41a;color:#fff;font-size:18px;font-weight:600}
+.coding>.tester #run-test:hover{background:#63d52a}
+.coding>.tester:not(.has-compiler-output) .tester-tabs [data-tab="compiler"]{display:none}
+.coding>.tester .tester-tabs{position:relative}
+.coding>.tester .tester-help{position:relative;display:grid;place-items:center;width:42px;padding:0;margin-left:auto;border:0;background:transparent;color:var(--text-light);font:600 16px/1 var(--font-sans)}
+.coding>.tester .tester-help:before{content:"";position:absolute;top:50%;left:50%;width:20px;height:20px;border:2px solid currentColor;border-radius:50%;opacity:.8;transform:translate(-50%,-50%)}
+.coding>.tester .tester-tabs #tester-toggle{position:relative;font-size:0;color:var(--text-light);transform:none}
+.coding>.tester .tester-tabs #tester-toggle:before,.coding>.tester .tester-tabs #tester-toggle:after{content:""!important;position:absolute;left:50%;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor}
+.coding>.tester:not(.collapsed) .tester-tabs #tester-toggle:before{top:9px;transform:translateX(-50%) rotate(45deg)}
+.coding>.tester:not(.collapsed) .tester-tabs #tester-toggle:after{top:16px;transform:translateX(-50%) rotate(45deg)}
+.coding>.tester.collapsed .tester-tabs #tester-toggle:before{top:15px;transform:translateX(-50%) rotate(225deg)}
+.coding>.tester.collapsed .tester-tabs #tester-toggle:after{top:22px;transform:translateX(-50%) rotate(225deg)}
+.tester-help-popover{position:absolute;z-index:30;right:10px;bottom:calc(100% + 12px);width:min(390px,calc(100vw - 36px));padding:18px 22px;border:1px solid hsl(0 0% 100% / .08);border-radius:6px;background:#414141;box-shadow:0 8px 24px #1119;color:#e1e1e1;font-size:16px;line-height:1.65}
+.tester-help-popover[hidden]{display:none}
+.tester-help-popover p{margin:0 0 12px}.tester-help-popover p:last-child{margin-bottom:0}
+.tester-help-popover strong{color:#f1f1f1;font-weight:700}.tester-help-popover code{padding:0 .15em;border-radius:3px;background:#4b4b4b;color:#ff5a52;font:600 1em var(--font-mono)}
+.pta-app.light-mode .test-input-editor{background:#fff}
+.pta-app.light-mode .test-input-editor #test-input-lines{border-color:var(--border-all);background:#f4f5f7;color:var(--text-light)}
+.pta-app.light-mode .test-input-editor #sample-input{background:#fff;color:var(--text-dark)}
+.pta-app.light-mode .tester-help-popover{border-color:var(--border-all);background:#fff;box-shadow:0 8px 24px #1f293733;color:var(--text-normal)}
+.pta-app.light-mode .tester-help-popover strong{color:var(--text-dark)}
+
 @media (max-width: 760px) {
   .workspace-middle.code-first { flex-direction: column-reverse; }
   .workspace.code-first .coding { height: min(50dvh, 360px); min-height: 280px; }

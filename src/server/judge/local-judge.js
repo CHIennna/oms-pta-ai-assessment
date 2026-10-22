@@ -553,8 +553,8 @@ const commandAvailable = command => {
   return !probe.error && probe.status === 0;
 };
 const resolveCommand = command => {
-  if (!command || path.isAbsolute(command)) return command;
-  const probe = spawnSync(isWindows ? 'where.exe' : 'which', [command], { windowsHide: true, encoding: 'utf8', timeout: 1500 });
+  if (!command || path.isAbsolute(command) || isWindows) return command;
+  const probe = spawnSync('which', [command], { windowsHide: true, encoding: 'utf8', timeout: 1500 });
   const located = !probe.error && probe.status === 0 ? String(probe.stdout || '').split(/\r?\n/).find(Boolean) : '';
   return located || command;
 };
