@@ -3,13 +3,13 @@
 (() => {
   const data = {
   "examVersion": "2026-10-25-third-stage-weekly-v3",
-  "title": "2026-10-25 第三次周练",
+  "title": "2026-10-24 第三次周练",
   "type": "OI",
   "rule": "OI",
   "category": "mock",
   "duration": 120,
-  "startAt": "2026-10-25T19:00:00+08:00",
-  "endAt": "2026-10-25T21:00:00+08:00",
+  "startAt": "2026-10-24T09:40:00+08:00",
+  "endAt": "2026-10-24T11:40:00+08:00",
   "totalScore": 800,
   "author": "转专业命题中心",
   "introduction": "第三阶段周练，共 8 道编程题。每题 100 分，每题 10 个测试点，每点 10 分，支持部分分。",
@@ -207,7 +207,7 @@
       ]
     }
   ],
-  "scheduleVersion": "2026-10-25-evening-19-21"
+  "scheduleVersion": "2026-10-24-morning-0940-1140"
 };
   const archive = Array.isArray(window.OMS_EXAM_ARCHIVE) ? window.OMS_EXAM_ARCHIVE : [];
   const previous = window.OMS_EXAM_DATA;

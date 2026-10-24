@@ -171,6 +171,13 @@ async function recordSubmission(current, payload, result, question) {
   const userId = current.user.id;
   const examVersion = String(payload.examVersion);
   const problemId = String(payload.problemId);
+  const submission = {
+    id: crypto.randomUUID(), examVersion, problemId,
+    language: String(payload.language || '').slice(0, 40), verdict: String(result.verdict || ''),
+    status: scoring.status, score: scoring.score, maxScore: scoring.maxScore,
+    passedTests: Number(result.passedTests) || 0, totalTests: Number(result.totalTests) || 0,
+    createdAt: new Date().toISOString()
+  };
   try {
     return await queueUserProgress(userId, async () => {
       const previousUser = await loadUserProgress(userId);
@@ -178,13 +185,6 @@ async function recordSubmission(current, payload, result, question) {
       const previousScore = Math.max(0, Number(previousExam.scores?.[problemId]) || 0);
       const bestScore = Math.max(previousScore, scoring.score);
       const bestStatus = scoring.maxScore > 0 && bestScore >= scoring.maxScore ? 'accepted' : bestScore > 0 ? 'partial' : 'wrong';
-      const submission = {
-        id: crypto.randomUUID(), examVersion, problemId,
-        language: String(payload.language || '').slice(0, 40), verdict: String(result.verdict || ''),
-        status: scoring.status, score: scoring.score, maxScore: scoring.maxScore,
-        passedTests: Number(result.passedTests) || 0, totalTests: Number(result.totalTests) || 0,
-        createdAt: new Date().toISOString()
-      };
       const examProgress = {
         ...previousExam,
         scores: { ...(previousExam.scores || {}), [problemId]: bestScore },
@@ -321,8 +321,10 @@ function assertExamOpen(examVersion, now = Date.now()) {
 }
 
 function trustedPayload(payload) {
+  if (!payload || !['sample', 'submit'].includes(payload.mode)) {
+    throw Object.assign(new Error('评测模式无效。'), { statusCode: 400, verdict: 'InvalidRequest' });
+  }
   assertExamOpen(payload?.examVersion);
-  if (payload.mode !== 'submit') return payload;
   const requestedId = String(payload.problemId || '');
   const examVersion = String(payload.examVersion || '');
   const aliasId = examVersion && testAliases.get(`${examVersion}:${requestedId}`);
@@ -333,7 +335,19 @@ function trustedPayload(payload) {
     error.statusCode = 400;
     throw error;
   }
-  return { ...payload, problemId: canonicalId, tests: resolveTestCases(source) };
+  if (payload.mode === 'sample') {
+    const question = questionBankByExam.get(`${examVersion}:${canonicalId}`);
+    const input = String(payload.input ?? payload.tests?.[0]?.input ?? '');
+    // Only public samples can supply a reference answer. Custom input is execution-only.
+    const samples = question.sampleInput !== undefined
+      ? [{ input: question.sampleInput, expected: question.sampleOutput, checker: question.sampleChecker || '' }]
+      : (Array.isArray(question.testCases) ? question.testCases.slice(0, 1) : []);
+    const normalizeInput = value => String(value ?? '').replace(/\r\n?/g, '\n').trimEnd();
+    const sample = samples.find(item => normalizeInput(item.input) === normalizeInput(input));
+    const compared = Boolean(sample && sample.expected != null);
+    return { ...payload, problemId: canonicalId, tests: [{ input, expected: compared ? sample.expected : '', checker: compared ? sample.checker || '' : '', compared }] };
+  }
+  return { ...payload, problemId: canonicalId, tests: resolveTestCases(source).map(test => ({ ...test, compared: true })) };
 }
 
 function reply(res, status, body, type = 'application/json; charset=utf-8') {

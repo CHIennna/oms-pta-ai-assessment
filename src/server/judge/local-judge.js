@@ -2,6 +2,7 @@ const fs = require('fs/promises');
 const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const { StringDecoder } = require('string_decoder');
 
 const isWindows = process.platform === 'win32';
 const executable = name => path.join(name.workDir, isWindows ? 'program.exe' : 'program');
@@ -585,6 +586,8 @@ function runProcess(spec, options) {
     const started = Date.now();
     const command = limitedCommand(spec, options.limits || {}, options.usePrlimit);
     let stdout = '', stderr = '', settled = false, timedOut = false, outputExceeded = false;
+    const stdoutDecoder = new StringDecoder('utf8'), stderrDecoder = new StringDecoder('utf8');
+    let outputBytes = 0;
     const child = spawn(command.command, command.args || [], {
       cwd: options.cwd,
       windowsHide: true,
@@ -599,18 +602,20 @@ function runProcess(spec, options) {
     const finish = result => {
       if (settled) return;
       settled = true; clearTimeout(timer);
+      stdout += stdoutDecoder.end(); stderr += stderrDecoder.end();
       resolve({ stdout, stderr, durationMs: Date.now() - started, timedOut, outputExceeded, ...result });
     };
-    const append = (target, chunk) => {
-      const next = target + chunk.toString('utf8');
-      if (Buffer.byteLength(next, 'utf8') > options.outputLimitBytes) {
+    const append = (target, chunk, decoder) => {
+      const remaining = Math.max(0, options.outputLimitBytes - outputBytes);
+      outputBytes += chunk.length;
+      const next = target + decoder.write(chunk.subarray(0, remaining));
+      if (outputBytes > options.outputLimitBytes && !outputExceeded) {
         outputExceeded = true; killProcessTree(child);
-        return next.slice(0, options.outputLimitBytes);
       }
       return next;
     };
-    child.stdout.on('data', chunk => { stdout = append(stdout, chunk); });
-    child.stderr.on('data', chunk => { stderr = append(stderr, chunk); });
+    child.stdout.on('data', chunk => { stdout = append(stdout, chunk, stdoutDecoder); });
+    child.stderr.on('data', chunk => { stderr = append(stderr, chunk, stderrDecoder); });
     child.on('error', error => finish({ error }));
     child.on('close', (code, signal) => finish({ code, signal }));
     child.stdin.on('error', () => {});
@@ -646,7 +651,8 @@ class LocalJudge {
       compileTimeoutMs: renderRuntime ? Math.max(60000, requestedCompileTimeout) : requestedCompileTimeout,
       runTimeoutMs: clamp(options.runTimeoutMs ?? process.env.JUDGE_RUN_TIMEOUT_MS, 2000, 100, 10000),
       memoryLimitKb: clamp(options.memoryLimitKb ?? process.env.JUDGE_MEMORY_LIMIT_KB, 262144, 65536, 1048576),
-      outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 262144, 4096, 1048576)
+      outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 262144, 4096, 1048576),
+      codeLimitBytes: 65536
     };
     this.availableLanguages = Object.entries(this.toolchains)
       .filter(([, toolchain]) => !Array.isArray(toolchain.commands) || toolchain.commands.every(commandAvailable))
@@ -660,7 +666,8 @@ class LocalJudge {
       runner: 'local', configured: this.availableLanguages.length > 0,
       languages: this.availableLanguages,
       unavailableLanguages: Object.keys(this.toolchains).filter(language => !this.availableLanguages.includes(language)),
-      isolation: process.platform === 'linux' && this.usePrlimit ? 'non-root + prlimit' : 'process limits',
+      isolation: process.platform === 'linux' && this.usePrlimit ? 'prlimit (not a security sandbox)' : 'process timeout (not a security sandbox)',
+      limits: { timeLimitMs: this.limits.runTimeoutMs, memoryLimitKb: this.limits.memoryLimitKb, codeLimitBytes: this.limits.codeLimitBytes, stackLimitKb: null, memoryLimitEnforced: process.platform === 'linux' && this.usePrlimit },
       queue: { active: this.active, waiting: this.queue.length, concurrency: this.maxConcurrency }
     };
   }
@@ -691,12 +698,13 @@ class LocalJudge {
     const tests = Array.isArray(payload.tests) ? payload.tests.map(test => ({
       input: String(test && test.input || ''), expected: String(test && (test.expected ?? test.expectedOutput) || ''),
       score: Number.isFinite(Number(test && test.score)) ? Number(test.score) : 0,
+      compared: payload.mode !== 'sample' || test?.compared !== false,
       checker: String(test && test.checker || '')
     })) : [];
     if (!toolchain) return unavailableResult(`自建评测机暂不支持 ${language || '该语言'}。`, tests, this.limits);
     if (!source.trim()) return { ...unavailableResult('请先编写代码。', tests, this.limits), verdict: 'CompilationError' };
     if (!tests.length || tests.length > 20) return { ...unavailableResult('该题尚未配置有效测试点。', tests, this.limits), verdict: 'NotConfigured' };
-    if (source.length > 65536 || tests.some(test => test.input.length > 10500000 || test.expected.length > 10500000)) {
+    if (Buffer.byteLength(source, 'utf8') > this.limits.codeLimitBytes || tests.some(test => test.input.length > 10500000 || test.expected.length > 10500000)) {
       return { ...unavailableResult('代码或测试点超过评测机限制。', tests, this.limits), verdict: 'CompilationError' };
     }
 
@@ -707,6 +715,7 @@ class LocalJudge {
     try {
       await fs.chmod(workDir, 0o700).catch(() => {});
       await fs.writeFile(sourcePath, source, { encoding: 'utf8', mode: 0o600 });
+      let compilerDiagnostics = '';
       if (toolchain.compile) {
         const compileSpec = toolchain.compile(job);
         compileSpec.command = resolveCommand(compileSpec.command);
@@ -721,6 +730,7 @@ class LocalJudge {
         if (compilation.timedOut) return this.compileFailure('编译超时。', compilation, tests);
         if (compilation.outputExceeded) return this.compileFailure('编译器输出超过限制。', compilation, tests);
         if (compilation.code !== 0) return this.compileFailure('编译失败，请查看编译器输出。', compilation, tests);
+        compilerDiagnostics = clipped(compilation.stdout + compilation.stderr);
       }
 
       const testCases = [];
@@ -742,17 +752,17 @@ class LocalJudge {
           verdict = 'RuntimeError'; hint = '程序输出超过限制。'; detail = clipped(execution.stdout + execution.stderr);
         } else if (execution.code !== 0) {
           verdict = 'RuntimeError'; hint = `程序异常退出${execution.signal ? `（${execution.signal}）` : `（退出码 ${execution.code}）`}。`; detail = clipped(execution.stderr);
-        } else if (!checkSpecialOutput(test.checker, test.input, execution.stdout, test.expected)) {
+        } else if (test.compared && !checkSpecialOutput(test.checker, test.input, execution.stdout, test.expected)) {
           verdict = 'WrongAnswer';
           hint = test.checker ? '输出不满足题目要求或构造条件。' : '输出与预期不一致';
           detail = test.checker ? `你的输出：\n${execution.stdout || '(空)'}` : `你的输出：\n${execution.stdout || '(空)'}\n\n预期输出：\n${test.expected}`;
         }
         testCases.push({
           index, verdict, hint, score: test.score, memoryKb: null, timeMs: execution.durationMs, detail,
-          ...(payload.mode === 'sample' ? { actualOutput: clipped(execution.stdout) } : {})
+          ...(payload.mode === 'sample' ? { actualOutput: clipped(execution.stdout), stderr: clipped(execution.stderr), compared: test.compared, ...(test.compared ? { expectedOutput: test.expected } : {}) } : {})
         });
       }
-      return this.result(testCases, tests, payload.mode);
+      return { ...this.result(testCases, tests, payload.mode), compilerDiagnostics };
     } finally {
       const resolved = path.resolve(workDir);
       const allowedPrefix = `${path.resolve(os.tmpdir())}${path.sep}fzupta-judge-`;
@@ -776,12 +786,13 @@ class LocalJudge {
     const verdict = priority.find(value => testCases.some(test => test.verdict === value)) || 'Accepted';
     const passedTests = testCases.filter(test => test.verdict === 'Accepted').length;
     const firstFailure = testCases.find(test => test.verdict === verdict);
-    const message = verdict === 'Accepted' ? (mode === 'sample' ? '样例输出与预期输出一致。' : '所有测试点均已通过。') : firstFailure.hint;
+    const compared = tests.every(test => test.compared);
+    const message = verdict === 'Accepted' ? (mode === 'sample' ? (compared ? '样例输出与预期输出一致。' : '运行完成（自定义输入未进行答案比较）。') : '所有测试点均已通过。') : firstFailure.hint;
     const compilerOutput = verdict === 'Accepted'
-      ? `自建评测机运行完成\n通过测试点：${passedTests}/${tests.length}`
+      ? (compared ? `自建评测机运行完成\n通过测试点：${passedTests}/${tests.length}` : message)
       : `测试点 ${firstFailure.index + 1}：${firstFailure.hint}${firstFailure.detail ? `\n\n${firstFailure.detail}` : ''}`;
     return {
-      verdict, message, compilerOutput,
+      verdict, message, compilerOutput, compared,
       testCases: testCases.map(({ detail, ...test }) => test), passedTests, totalTests: tests.length,
       timeLimitMs: this.limits.runTimeoutMs, memoryLimitKb: this.limits.memoryLimitKb,
       runner: 'local'

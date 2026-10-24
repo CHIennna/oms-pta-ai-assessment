@@ -568,10 +568,10 @@ test('regression: server enforces campus schedule at API boundary and permits ar
 
 function submissionFixture() {
   const elements=new Map(),storage=new Map();let release,reject;
-  const context={current:0,activeRoute:'exam',submissionPending:false,portalUser:{id:'user-a'},portalAuthenticated:true,portalIdentityRevision:1,
+  const context={current:0,activeRoute:'exam',submissionPending:false,samplePending:false,availableJudgeLanguages:null,portalUser:{id:'user-a'},portalAuthenticated:true,portalIdentityRevision:1,
     config:{examVersion:'exam-a',questions:[{id:'q1',score:100,testCases:[]}]},scores:{},results:{},submissions:[],progressByExam:new Map(),submittedCodes:{},activeQuestionId:'q1',loadedCode:'',
     $:selector=>{if(!elements.has(selector))elements.set(selector,{value:'cpp',textContent:'',classList:{toggle(){}}});return elements.get(selector);},
-    document:{querySelector:()=>null},editorCode:()=>'submitted snapshot',updateCountdown(){},render(){},formatExamTime:value=>value,
+    document:{querySelector:()=>null},editorCode:()=>'submitted snapshot',updateCountdown(){},render(){},setTab(){},formatExamTime:value=>value,
     localStorage:{setItem:(key,value)=>storage.set(key,value)},readCodeMap:key=>JSON.parse(storage.get(key)||'{}'),
     fetch:()=>new Promise((resolve,fail)=>{release=resolve;reject=fail;}),
     calculateScore:result=>({score:result.verdict==='Accepted'?100:0,status:result.verdict==='Accepted'?'accepted':'wrong'}),formatJudgeOutput:()=>'',

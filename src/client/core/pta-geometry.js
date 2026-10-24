@@ -9,8 +9,10 @@
   const app = document.querySelector('#pta-app');
   const overviewToggle = document.querySelector('#overview-toggle');
   const overview = document.querySelector('#overview');
+  const descriptionTabs = document.querySelector('.description-tab');
   const statementFullscreen = document.querySelector('#statement-fullscreen');
   const layoutToggle = document.querySelector('#layout-toggle');
+  if (statement && descriptionTabs) statement.prepend(descriptionTabs);
   if (statement && statementFullscreen) {
     const setStatementFullscreen = active => {
       statement.classList.toggle('statement-reading-fullscreen', active);
@@ -72,6 +74,7 @@
     const collapsed = tester.classList.contains('collapsed');
     toggle.title = collapsed ? '展开测试用例' : '收起测试用例';
     toggle.setAttribute('aria-label', toggle.title);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
   };
   toggle.onclick = () => { tester.classList.toggle('collapsed'); sync(); };
   run.addEventListener('click', () => { tester.classList.remove('collapsed'); tester.classList.add('expanded'); sync(); });
@@ -149,6 +152,7 @@
     });
     window.addEventListener('blur', stopResize);
     window.addEventListener('resize', () => requestAnimationFrame(restoreSplit));
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(restoreSplit).observe(middle);
     requestAnimationFrame(restoreSplit);
   }
   sync();

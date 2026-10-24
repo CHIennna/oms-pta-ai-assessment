@@ -11,6 +11,7 @@ if(window.OMS_NUMBER_EXAM){config=window.OMS_NUMBER_EXAM(config,[config,...(wind
 let portalUser=null,portalAuthenticated=false,portalCsrf='',pendingLoginRoute='home',portalAuthAvailable=false,portalRegistrationEnabled=true,portalAuthMessage='',routeRevision=0,portalSessionRevision=0,portalIdentityRevision=0,loadingCode=false;
 let SUBMITTED_CODE_STORAGE='',DRAFT_CODE_STORAGE='',DRAFT_META_STORAGE='',submittedCodes={},draftCodes={},draftMeta={};
 const draftSyncTimers=new Map(),draftSyncQueues=new Map();
+let samplePending=false,sampleContextKey='';
 function readCodeMap(key){try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch{return {};}}
 function migrateQuestionCodes(map,questions){
   const migrated={...map};
@@ -119,17 +120,40 @@ function markdownToHtml(source){
   closeParagraph();closeList();if(inCode)closeCode();return html;
 }
 function sampleBlock(kind,value){const rows=String(value||'').split('\n');return `<div class="sample-block"><div class="sample-toolbar"><span>[ ${kind} ]</span><div><button type="button">复制内容</button><button type="button">格式</button><button type="button">全屏</button></div></div><div class="sample-rows">${rows.map((row,index)=>`<div><span>${index+1}</span><code>${escape(row)||' '}</code></div>`).join('')}</div></div>`;}
-function resourceLimits(){return `<section class="problem-limits" aria-label="资源限制"><div><span>代码长度限制</span><b>16 KB</b></div><div><span>时间限制</span><b>250 ms</b></div><div><span>内存限制</span><b>64 MB</b></div><div><span>栈限制</span><b>8192 KB</b></div></section>`;}
+let judgeRuntimeLimits=null,availableJudgeLanguages=null;
+function resourceLimits(){
+  const limits=judgeRuntimeLimits;
+  const size=value=>Number.isFinite(Number(value))&&Number(value)>0?Number(value):null;
+  const codeBytes=size(limits?.codeLimitBytes),timeMs=size(limits?.timeLimitMs),memoryKb=size(limits?.memoryLimitKb);
+  const unknown='以评测服务为准';
+  return `<section class="problem-limits" aria-label="资源限制"><div><span>代码长度限制</span><b>${codeBytes?codeBytes/1024+' KB':unknown}</b></div><div><span>时间限制</span><b>${timeMs?timeMs+' ms':unknown}</b></div><div title="当前环境不提供完整安全隔离；内存限制还受语言运行时影响"><span>内存限制</span><b>${limits?.memoryLimitEnforced&&memoryKb?memoryKb/1024+' MB':limits?'当前环境未强制限制':unknown}</b></div><div><span>栈限制</span><b>按语言运行时</b></div></section>`;
+}
+async function refreshJudgeLimits(){
+  try{
+    const response=await fetch('/api/health');
+    if(!response.ok)return;
+    const info=await response.json();
+    if(Array.isArray(info.languages)){
+      availableJudgeLanguages=info.languages;
+      for(const option of $('#language').options){option.disabled=!info.languages.includes(option.value);option.title=option.disabled?'当前评测服务未安装该语言':'';}
+      updateCountdown();
+    }
+    if(!info.limits)return;
+    judgeRuntimeLimits=info.limits;
+    const section=document.querySelector('#problem-text .problem-limits');
+    if(section)section.outerHTML=resourceLimits();
+  }catch{/* Static previews remain usable without a judge service. */}
+}
 function enhanceStatementSamples(text,q){let html=markdownToHtml(text);const decode=value=>String(value).replace(/&(amp|lt|gt|quot|#39);/g,(_,entity)=>({amp:'&',lt:'<',gt:'>',quot:'"','#39':"'"}[entity]));const pattern=/(<h[2-4]>(?:输入样例|样例输入|输出样例|样例输出)(?:\s*\d+)?[：:]?<\/h[2-4]>)\s*<pre><code(?:\s[^>]*)?>([\s\S]*?)<\/code><\/pre>/gi;html=html.replace(pattern,(whole,heading,content)=>`${heading}${sampleBlock(heading.includes('输入')?'in':'out',decode(content).replace(/\n$/,''))}`);return html;}
 function cleanStatementDecoration(text){return String(text||'').replace(/^[ \t]*\[【原题配图 photo1\.png：HTML 未附图像文件，点此查看原题】\]\([^)]+\)[ \t]*(?:\r?\n|$)/gmi,'FZUTRIANGLEFIGUREMARKER\n').replace(/^[ \t]*(?:\*\*原题\*\*|原题)\s*[:：]\s*\[FZU Online Judge\]\([^)]+\)(?=[^\r\n]*(?:时间|time))(?=[^\r\n]*(?:内存|memory))[^\r\n]*(?:\r?\n|$)/gmi,'').replace(/(^|\r?\n)[ \t]*(?:\*\*)?(?:原题链接|题型|题目类型|时间限制|内存限制)[：:](?:\*\*)?[\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/gi,'$1').replace(/^[ \t]*\[?【原题配图[^\r\n]*HTML 未附图像文件[^\r\n]*】\]?(?:\([^)]+\))?[ \t]*(?:\r?\n|$)/gmi,'').replace(/\n{3,}/g,'\n\n').trim();}
 function formatStatement(text,q){const limits=resourceLimits();if(!text)return `<div class="rendered-markdown problem-copy"><p>请根据题目要求完成程序。提交后，AI 助教将检查程序逻辑、边界条件和代码风格。</p><h3>输入格式：</h3><p>输入数据由题目给定。</p><h3>输出格式：</h3><p>按题目要求输出计算结果。</p><h3>输入样例：</h3>${sampleBlock('in',q.sampleInput||'100311')}<h3>输出样例：</h3>${sampleBlock('out',q.sampleOutput||'0:2\n1:3\n3:1')}${limits}</div>`;const statementHtml=enhanceStatementSamples(cleanStatementDecoration(text),q).replaceAll('FZUTRIANGLEFIGUREMARKER','<img src="./src/client/assets/fzu-triangle-lattice.svg" alt="n = 4 时的三角形网格示意图" style="display:block;max-width:100%;height:auto;margin:12px auto">');return `<div class="rendered-markdown problem-copy">${statementHtml}${limits}</div>`;}
 function questionGridStatus(status){return status==='accepted'?'accepted':status==='wrong'||status==='partial'?'wrong':'';}
 function statusGlyph(status,label){if(status==='accepted')return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5.5 12.5 4.1 4.1L18.5 7.5"/></svg>';if(status==='wrong')return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8 8 8M16 8l-8 8"/></svg>';return label;}
-function updateCountdown(){const timestamp=value=>{const text=String(value||'').trim().replace(' ','T');return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text)?`${text}+08:00`:text);};const practice=config.category==='practice',start=timestamp(config.startAt),end=timestamp(config.endAt),now=Date.now(),remain=$('.remain'),archived=config.category==='past'||practice,invalid=!archived&&(!Number.isFinite(start)||!Number.isFinite(end)||end<=start),beforeStart=!archived&&now<start,displayEnded=!practice&&(archived||now>=end),judgeable=config.questions[current]?.judgeable!==false;let milliseconds=archived||invalid?0:Math.max(0,beforeStart?start-now:end-now);const seconds=Math.floor(milliseconds/1000),hours=String(Math.floor(seconds/3600)).padStart(2,'0'),minutes=String(Math.floor(seconds%3600/60)).padStart(2,'0'),secs=String(seconds%60).padStart(2,'0');$('#countdown-label').textContent=practice?'不限时':invalid?'时间异常':beforeStart?'距开始':displayEnded?'已结束':'剩余';$('#countdown').textContent=`${hours}:${minutes}:${secs}`;remain.classList.toggle('warning',!archived&&!displayEnded&&!invalid&&milliseconds<=5*60*1000);remain.classList.toggle('expired',displayEnded);$('#submit').disabled=invalid||beforeStart||!judgeable||submissionPending;$('#run-test').disabled=invalid||beforeStart||!judgeable||submissionPending;if(!judgeable)$('#submit-state').textContent=config.questions[current]?.unjudgeableReason||'题面资料不完整，暂不支持评测';else if(invalid)$('#submit-state').textContent='考试时间配置无效';else if(beforeStart)$('#submit-state').textContent='考试尚未开始';else if(displayEnded)$('#submit-state').textContent='考试已结束，可继续运行和提交';}
+function updateCountdown(){const timestamp=value=>{const text=String(value||'').trim().replace(' ','T');return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text)?`${text}+08:00`:text);};const practice=config.category==='practice',start=timestamp(config.startAt),end=timestamp(config.endAt),now=Date.now(),remain=$('.remain'),archived=config.category==='past'||practice,invalid=!archived&&(!Number.isFinite(start)||!Number.isFinite(end)||end<=start),beforeStart=!archived&&now<start,displayEnded=!practice&&(archived||now>=end),judgeable=config.questions[current]?.judgeable!==false,languageAvailable=!availableJudgeLanguages||availableJudgeLanguages.includes($('#language').value);let milliseconds=archived||invalid?0:Math.max(0,beforeStart?start-now:end-now);const seconds=Math.floor(milliseconds/1000),hours=String(Math.floor(seconds/3600)).padStart(2,'0'),minutes=String(Math.floor(seconds%3600/60)).padStart(2,'0'),secs=String(seconds%60).padStart(2,'0');$('#countdown-label').textContent=practice?'不限时':invalid?'时间异常':beforeStart?'距开始':displayEnded?'已结束':'剩余';$('#countdown').textContent=`${hours}:${minutes}:${secs}`;remain.classList.toggle('warning',!archived&&!displayEnded&&!invalid&&milliseconds<=5*60*1000);remain.classList.toggle('expired',displayEnded);$('#submit').disabled=invalid||beforeStart||!judgeable||submissionPending||samplePending||!languageAvailable;$('#run-test').disabled=invalid||beforeStart||!judgeable||submissionPending||samplePending||!languageAvailable;if(!judgeable)$('#submit-state').textContent=config.questions[current]?.unjudgeableReason||'题面资料不完整，暂不支持评测';else if(!languageAvailable)$('#submit-state').textContent='当前评测服务不支持所选语言';else if(invalid)$('#submit-state').textContent='考试时间配置无效';else if(beforeStart)$('#submit-state').textContent='考试尚未开始';else if(displayEnded)$('#submit-state').textContent='考试已结束，可继续运行和提交';}
 function editorCode(){return window.omsCodeEditor?.getValue?.()??code.value;}
-function updateDraftCloudRevision(snapshot,cloudUpdatedAt){
+function updateDraftCloudRevision(snapshot,cloudUpdatedAt,synced=false){
   const stored=readCodeMap(snapshot.metaStorage),entry=stored[snapshot.problemId]||{};
-  stored[snapshot.problemId]={...entry,cloudUpdatedAt};
+  stored[snapshot.problemId]={...entry,cloudUpdatedAt,...(synced?{syncedLocalUpdatedAt:snapshot.localUpdatedAt}:{})};
   try{localStorage.setItem(snapshot.metaStorage,JSON.stringify(stored));}catch{}
   if(DRAFT_META_STORAGE===snapshot.metaStorage)draftMeta=stored;
 }
@@ -138,7 +162,7 @@ async function syncDraftSnapshot(snapshot){
   try{
     const result=await portalRequest('/api/drafts',{examVersion:snapshot.examVersion,problemId:snapshot.problemId,code:snapshot.source,language:snapshot.language,baseUpdatedAt:snapshot.baseUpdatedAt});
     if(!portalAuthenticated||portalUser?.id!==snapshot.owner)return false;
-    updateDraftCloudRevision(snapshot,result.draft.updatedAt);
+    updateDraftCloudRevision(snapshot,result.draft.updatedAt,true);
     if(config.examVersion===snapshot.examVersion&&activeQuestionId===snapshot.problemId&&Number(draftMeta[snapshot.problemId]?.updatedAt)===snapshot.localUpdatedAt)$('#submit-state').textContent='草稿已长期保存';
     return true;
   }catch(failure){
@@ -166,7 +190,7 @@ function scheduleDraftSync(questionId,source,localUpdatedAt,delay=900){
 function saveDraftCode(questionId,source,{sync=true,updatedAt}={}){
   if(!questionId)return false;
   const language=$('#language')?.value||'',previous=draftMeta[questionId]||{},changed=draftCodes[questionId]!==source||previous.language!==language||!Number(previous.updatedAt);
-  const localUpdatedAt=Number(updatedAt)||Number(previous.updatedAt)||(changed?Date.now():0);
+  const localUpdatedAt=Number(updatedAt)||(changed?Math.max(Date.now(),(Number(previous.updatedAt)||0)+1):Number(previous.updatedAt));
   draftCodes[questionId]=source;draftMeta[questionId]={...previous,updatedAt:localUpdatedAt,language};
   try{localStorage.setItem(DRAFT_CODE_STORAGE,JSON.stringify(draftCodes));localStorage.setItem(DRAFT_META_STORAGE,JSON.stringify(draftMeta));if(sync&&changed)scheduleDraftSync(questionId,source,localUpdatedAt);return true;}catch{return false;}
 }
@@ -174,7 +198,7 @@ function persistActiveDraft(){if(loadingCode)return false;return saveDraftCode(a
 function saveSubmittedCode(questionId,source){if(!questionId)return;submittedCodes[questionId]=source;try{localStorage.setItem(SUBMITTED_CODE_STORAGE,JSON.stringify(submittedCodes));}catch{}saveDraftCode(questionId,source);}
 function hasUnsavedCode(){return editorCode()!==loadedCode;}
 function loadCode(source){loadingCode=true;try{code.value=source;code.dispatchEvent(new Event('input',{bubbles:true}));}finally{loadingCode=false;}lines();requestAnimationFrame(()=>document.querySelectorAll('.editor .cm-scroller,.editor textarea').forEach(scroller=>{scroller.scrollLeft=0;}));}
-function restoreSavedCode(){const source=codeForQuestion(activeQuestionId),language=draftMeta[activeQuestionId]?.language;loadedCode=submittedCodeForQuestion(activeQuestionId);if(language&&[...$('#language').options].some(option=>option.value===language))$('#language').value=language;loadCode(source);}
+function restoreSavedCode(){const source=codeForQuestion(activeQuestionId),language=draftMeta[activeQuestionId]?.language;loadedCode=submittedCodeForQuestion(activeQuestionId);if(language&&[...$('#language').options].some(option=>option.value===language)){loadingCode=true;try{$('#language').value=language;$('#language').dispatchEvent(new Event('change',{bubbles:true}));}finally{loadingCode=false;}}loadCode(source);}
 function changeQuestion(index){if(index===current)return;persistActiveDraft();current=index;problemContentTab='description';resetTesterOutput();activeQuestionId=config.questions[current].id;render();restoreSavedCode();}
 function activateExam(examVersion,questionIndex=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
@@ -192,8 +216,17 @@ function applyOmsContentZoom(next=omsContentZoom){const target=$('#pta-app');if(
 function initOmsClientChrome(){const back=$('#oms-client-back'),forward=$('#oms-client-forward'),refresh=$('#oms-client-refresh'),zoomIn=$('#oms-client-zoom-in'),zoomOut=$('#oms-client-zoom-out');if(back)back.onclick=exitDefaultFullscreen;if(forward)forward.onclick=enterDefaultFullscreen;if(refresh)refresh.onclick=()=>location.reload();if(zoomIn)zoomIn.onclick=()=>applyOmsContentZoom(omsContentZoom+OMS_CONTENT_ZOOM_STEP);if(zoomOut)zoomOut.onclick=()=>applyOmsContentZoom(omsContentZoom-OMS_CONTENT_ZOOM_STEP);applyOmsContentZoom();window.addEventListener('resize',()=>applyOmsContentZoom());['fullscreenchange','webkitfullscreenchange','MSFullscreenChange'].forEach(name=>document.addEventListener(name,handleFullscreenChange));document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.documentElement.classList.contains('oms-fullscreen-fallback'))exitDefaultFullscreen();});renderOmsClientChrome();}
 function renderProblemContent(q=config.questions[current]){const analysis=problemContentTab==='analysis';document.querySelectorAll('[data-problem-tab]').forEach(button=>{const active=button.dataset.problemTab===problemContentTab;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active));});$('#problem-text').innerHTML=analysis?'<div class="problem-analysis-empty">无题解</div>':formatStatement(q.statement,q);}
 function setProblemContentTab(tab){problemContentTab=tab==='analysis'?'analysis':'description';renderProblemContent();}
+function syncQuestionSample(question){
+  const key=JSON.stringify([portalUser?.id||'guest',config.examVersion,question.id]);
+  if(sampleContextKey===key)return;
+  sampleContextKey=key;
+  const sample=question.sampleInput!==undefined?{input:question.sampleInput,expected:question.sampleOutput}:question.testCases?.[0]||{};
+  $('#sample-input').value=sample.input||'';
+  $('#expected').textContent=sample.expected||'';
+  syncTestInputLines();
+}
 function syncTestInputLines(){const input=$('#sample-input'),gutter=$('#test-input-lines');if(!input||!gutter)return;const count=Math.max(1,input.value.split('\n').length);gutter.textContent=Array.from({length:count},(_,index)=>index+1).join('\n');gutter.scrollTop=input.scrollTop;}
-function render(){const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#exam-name').textContent=config.title;$('#seat').textContent=config.seat;$('#candidate').textContent=config.candidateName;$('#student-id').textContent=config.studentId;$('#bar-title').textContent=`${q.id} ${q.name}`;$('#problem-title').textContent=`${q.id} ${q.name}`;$('#score').textContent=`分数 ${q.score}`;renderProblemContent(q);$('#sample-input').value=sample.input||'';syncTestInputLines();$('#expected').textContent=sample.expected||'';const complete=Object.keys(results).length;$('#answer-count').textContent=`${complete} / ${config.questions.length}`;$('#question-grid').innerHTML=config.questions.map((item,index)=>{const status=questionGridStatus(results[index]),statusLabel=status==='accepted'?'答案正确':status==='wrong'?'答案错误':'未提交',compactId=escape(String(item.id).slice(-3));return `<button class="${status} ${index===current?'current':''}" data-i="${index}" title="${escape(item.id)} ${escape(item.name)} · ${statusLabel}" aria-label="${escape(item.id)} ${escape(item.name)}，${statusLabel}">${statusGlyph(status,compactId)}</button>`;}).join('');document.querySelectorAll('#question-grid button').forEach(button=>button.onclick=()=>changeQuestion(Number(button.dataset.i)));renderOmsClientChrome();updateCountdown();}
+function render(){const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#exam-name').textContent=config.title;$('#seat').textContent=config.seat;$('#candidate').textContent=config.candidateName;$('#student-id').textContent=config.studentId;$('#bar-title').textContent=`${q.id} ${q.name}`;$('#problem-title').textContent=`${q.id} ${q.name}`;$('#score').textContent=`分数 ${q.score}`;renderProblemContent(q);syncQuestionSample(q);const complete=Object.keys(results).length;$('#answer-count').textContent=`${complete} / ${config.questions.length}`;$('#question-grid').innerHTML=config.questions.map((item,index)=>{const status=questionGridStatus(results[index]),statusLabel=status==='accepted'?'答案正确':status==='wrong'?'答案错误':'未提交',compactId=escape(String(item.id).slice(-3));return `<button class="${status} ${index===current?'current':''}" data-i="${index}" title="${escape(item.id)} ${escape(item.name)} · ${statusLabel}" aria-label="${escape(item.id)} ${escape(item.name)}，${statusLabel}">${statusGlyph(status,compactId)}</button>`;}).join('');document.querySelectorAll('#question-grid button').forEach(button=>button.onclick=()=>changeQuestion(Number(button.dataset.i)));renderOmsClientChrome();updateCountdown();}
   function renderPortalSubmissions(filters={},page=0){
    const pageSize=20,query=value=>String(value||'').trim().toLowerCase();
    const examConfigs=[primaryConfig,...(window.OMS_EXAM_ARCHIVE||[]),...(window.OMS_PRACTICE_EXAMS||[]),config];
@@ -254,14 +287,17 @@ function portalExamStatus(exam){const now=Date.now(),start=Date.parse(exam.start
 function contestRuleOf(exam){return exam.rule||exam.type||exam.contestType||'OI';}
 function contestRuleLabel(rule){const value=String(rule||'');return value.trim().toUpperCase()==='OI'?'IOI':value;}
 function portalDuration(value){const minutes=Number(value)||0;if(!minutes)return '未记录';if(minutes%60===0)return `${minutes/60} 小时`;return `${minutes} 分钟`;}
-const publishedWeeklyPracticeScores={
-  examVersion:'2026-10-11-second-stage-weekly-practice-2',
-  participantCount:6,
-  rows:[
-    {userId:'102500000',userName:'ciena',total:400,scores:null}
-  ]
-};
-function examParticipantCount(exam){if(exam.examVersion===publishedWeeklyPracticeScores.examVersion)return publishedWeeklyPracticeScores.participantCount;const value=Number(exam.registered??exam.participants);return Number.isFinite(value)&&value>=0?value:1;}
+const publishedScoreboards=new Map([
+  ['2026-10-11-second-stage-weekly-practice-2',{
+    participantCount:6,
+    rows:[{userId:'102500000',userName:'ciena',total:400,scores:null}]
+  }],
+  ['2026-10-25-third-stage-weekly-v3',{
+    participantCount:48,
+    rows:[{userId:'032500001',userName:'小福',total:670,scores:[100,100,100,100,70,100,60,40]}]
+  }]
+]);
+function examParticipantCount(exam){const published=publishedScoreboards.get(exam.examVersion);if(published)return published.participantCount;const value=Number(exam.registered??exam.participants);return Number.isFinite(value)&&value>=0?value:1;}
 const PORTAL_ICONS={home:'<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 9.8V20h13V9.8M9.5 20v-6h5v6"/>',problems:'<rect x="5" y="3.5" width="14" height="17" rx="1.8"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5"/>',training:'<path d="M5 4.5h14v15H5zM8 8h8M8 12h8M8 16h5"/>',contest:'<path d="M8 4h8v3.5a4 4 0 0 1-8 0zM12 11.5V16M8.5 20h7M9 16h6"/><path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11"/>',assignment:'<path d="M8 5h11v16H5V8z"/><path d="M8 5v3H5M9 12h6M9 16h6"/>',judge:'<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="m3.5 6.5 1.3 1.3 2.3-2.6M3.5 12l1.3 1.3 2.3-2.6M3.5 17.5l1.3 1.3 2.3-2.6"/>',advice:'<path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.1 14 18h-4c0-1.9-.5-2.7-1.5-3.5Z"/>',theme:'<path d="M20 15.2A8.4 8.4 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7.2h.01"/>',panel:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M8.5 3.5v17M11.5 8h5M11.5 12h5M11.5 16h3"/>',calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',users:'<path d="M8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6 6 0 0 1 12 0M16 12a3 3 0 1 0 0-6M16 14a5.5 5.5 0 0 1 5.5 5.5"/>',award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/>',arrow:'<path d="m9 5 7 7-7 7"/>',chevron:'<path d="m7 14 5-5 5 5"/>'};
 PORTAL_ICONS.user='<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>';
 function portalIcon(name){return `<svg class="portal-icon" viewBox="0 0 24 24" aria-hidden="true">${PORTAL_ICONS[name]||''}</svg>`;}
@@ -361,11 +397,12 @@ function scoreboardScoreCell(score,maximum,attempted=true){
   return `<td class="score-problem score-${tone}"><b>${attempted?escape(points):'—'}</b></td>`;
 }
 function renderScoreboard(){
-  if(config.examVersion===publishedWeeklyPracticeScores.examVersion){
+  const published=publishedScoreboards.get(config.examVersion);
+  if(published){
     const heads=config.questions.map((question,index)=>`<th><b>${index+1}</b></th>`).join('');
     const scoreCell=(score,index,attempted=true)=>scoreboardScoreCell(score,Number(config.questions[index]?.score)||100,attempted);
     const unsyncedCell='<td class="score-problem score-unsubmitted" title="逐题成绩未同步"><b>—</b><span>未同步</span></td>';
-    const publishedRows=publishedWeeklyPracticeScores.rows.map(user=>{const scores=Array.isArray(user.scores)?user.scores:null;return {...user,total:Number.isFinite(Number(user.total))?Number(user.total):(scores||[]).reduce((sum,score)=>sum+Number(score||0),0),cells:config.questions.map((question,index)=>scores&&index<scores.length?scoreCell(scores[index],index):unsyncedCell).join('')}});
+    const publishedRows=published.rows.map(user=>{const scores=Array.isArray(user.scores)?user.scores:null;return {...user,total:Number.isFinite(Number(user.total))?Number(user.total):(scores||[]).reduce((sum,score)=>sum+Number(score||0),0),cells:config.questions.map((question,index)=>scores&&index<scores.length?scoreCell(scores[index],index):unsyncedCell).join('')}});
     const participants=publishedRows
       .filter((user,index,array)=>array.findIndex(candidate=>candidate.userId===user.userId)===index)
       .sort((left,right)=>right.total-left.total);
@@ -779,12 +816,14 @@ function mergePersistedDrafts(examVersion=config.examVersion){
   for(const [problemId,cloud] of Object.entries(cloudDrafts)){
     if(!cloud||typeof cloud.code!=='string')continue;
     const hasLocal=Object.prototype.hasOwnProperty.call(draftCodes,problemId),localTime=Number(draftMeta[problemId]?.updatedAt)||0,cloudTime=Date.parse(cloud.updatedAt)||0;
-    if(!hasLocal||cloudTime>=localTime){
+    const syncedLocalTime=Number(draftMeta[problemId]?.syncedLocalUpdatedAt)||0;
+    const pendingLocal=hasLocal&&localTime>syncedLocalTime&&draftCodes[problemId]!==cloud.code;
+    if(!hasLocal||(!pendingLocal&&cloudTime>=localTime)){
       restored=restored||draftCodes[problemId]!==cloud.code;
       draftCodes[problemId]=cloud.code;
-      draftMeta[problemId]={updatedAt:cloudTime||now,cloudUpdatedAt:cloud.updatedAt,language:cloud.language||draftMeta[problemId]?.language||''};
+      draftMeta[problemId]={updatedAt:cloudTime||now,syncedLocalUpdatedAt:cloudTime||now,cloudUpdatedAt:cloud.updatedAt,language:cloud.language||draftMeta[problemId]?.language||''};
     }else if(draftCodes[problemId]===cloud.code){
-      draftMeta[problemId]={...draftMeta[problemId],cloudUpdatedAt:cloud.updatedAt,language:draftMeta[problemId]?.language||cloud.language||''};
+      draftMeta[problemId]={...draftMeta[problemId],syncedLocalUpdatedAt:localTime,cloudUpdatedAt:cloud.updatedAt,language:draftMeta[problemId]?.language||cloud.language||''};
     }else{
       draftMeta[problemId]={...draftMeta[problemId],cloudUpdatedAt:cloud.updatedAt};
       pending.push([problemId,draftCodes[problemId],localTime]);
@@ -1124,5 +1163,6 @@ async function importNumberedQuestions(event){
   }catch(error){$('#import-note').textContent='导入失败：'+error.message;}
   event.target.value='';
 }
-$('#overview-toggle').onclick=()=>{$('#pta-app').classList.toggle('overview-collapsed');const closed=$('#pta-app').classList.contains('overview-collapsed');$('#overview-toggle').textContent=closed?'▯':'▮';};$('#previous').onclick=()=>changeQuestion((current+config.questions.length-1)%config.questions.length);$('#next').onclick=()=>changeQuestion((current+1)%config.questions.length);document.querySelectorAll('[data-problem-tab]').forEach(button=>button.onclick=()=>setProblemContentTab(button.dataset.problemTab));function updateDraftState(){const saved=persistActiveDraft();$('#submit-state').textContent=saved?(portalAuthenticated?'本地草稿已保存，正在同步':'草稿已保存在本机'):'草稿保存失败，请复制代码后重试';}window.addEventListener('oms-code-save-draft',updateDraftState);window.addEventListener('beforeunload',persistActiveDraft);document.querySelectorAll('.rail-button').forEach(button=>button.onclick=()=>route(button.dataset.route));$('#home-button').onclick=()=>route('home');code.oninput=()=>{lines();updateDraftState();};$('#language').addEventListener('change',updateDraftState);lines();document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>setTab(button.dataset.tab));$('#tester-toggle').onclick=()=>{const tester=$('#tester');tester.classList.toggle('collapsed');tester.classList.remove('expanded');setTesterHelp(false);syncTesterToggle();};syncTesterToggle();$('#tester-help').onclick=event=>{event.stopPropagation();setTesterHelp($('#tester-help-popover').hidden);};$('#tester-help-popover').onclick=event=>event.stopPropagation();document.addEventListener('click',()=>setTesterHelp(false));document.addEventListener('keydown',event=>{if(event.key==='Escape')setTesterHelp(false);});$('#sample-input').addEventListener('input',syncTestInputLines);$('#sample-input').addEventListener('scroll',syncTestInputLines);$('#reset-test').onclick=()=>{const q=config.questions[current],sample=q.testCases?.[0]||{input:q.sampleInput||'',expected:q.sampleOutput||''};$('#sample-input').value=sample.input||'';syncTestInputLines();$('#expected').textContent=sample.expected||'';$('#run-state').textContent='等待运行';};$('#run-test').onclick=()=>judge('sample');$('#submit').onclick=()=>judge('submit');
+$('#overview-toggle').onclick=()=>{$('#pta-app').classList.toggle('overview-collapsed');const closed=$('#pta-app').classList.contains('overview-collapsed');$('#overview-toggle').textContent=closed?'▯':'▮';};$('#previous').onclick=()=>changeQuestion((current+config.questions.length-1)%config.questions.length);$('#next').onclick=()=>changeQuestion((current+1)%config.questions.length);document.querySelectorAll('[data-problem-tab]').forEach(button=>button.onclick=()=>setProblemContentTab(button.dataset.problemTab));function updateDraftState(){if(loadingCode)return;const saved=persistActiveDraft();$('#submit-state').textContent=saved?(portalAuthenticated?'本地草稿已保存，正在同步':'草稿已保存在本机'):'草稿保存失败，请复制代码后重试';}window.addEventListener('oms-code-save-draft',updateDraftState);window.addEventListener('beforeunload',persistActiveDraft);document.querySelectorAll('.rail-button').forEach(button=>button.onclick=()=>route(button.dataset.route));$('#home-button').onclick=()=>route('home');code.oninput=()=>{lines();updateDraftState();};$('#language').addEventListener('change',updateDraftState);lines();document.querySelectorAll('[data-tab]').forEach(button=>button.onclick=()=>setTab(button.dataset.tab));$('#tester-toggle').onclick=()=>{const tester=$('#tester');tester.classList.toggle('collapsed');tester.classList.remove('expanded');setTesterHelp(false);syncTesterToggle();};syncTesterToggle();$('#tester-help').onclick=event=>{event.stopPropagation();setTesterHelp($('#tester-help-popover').hidden);};$('#tester-help-popover').onclick=event=>event.stopPropagation();document.addEventListener('click',()=>setTesterHelp(false));document.addEventListener('keydown',event=>{if(event.key==='Escape')setTesterHelp(false);});$('#sample-input').addEventListener('input',syncTestInputLines);$('#sample-input').addEventListener('scroll',syncTestInputLines);$('#reset-test').onclick=()=>{sampleContextKey='';syncQuestionSample(config.questions[current]);$('#run-state').textContent='等待运行';};$('#run-test').onclick=()=>judge('sample');$('#submit').onclick=()=>judge('submit');
 const dialog=$('#admin-dialog'),form=$('#admin-form');$('#open-admin').onclick=()=>{for(const [key,value] of Object.entries(config))if(form.elements[key])form.elements[key].value=value;renderSettings();dialog.showModal();};dialog.querySelector('.close').onclick=()=>dialog.close();dialog.querySelector('.cancel').onclick=()=>dialog.close();$('#import-file').onchange=importNumberedQuestions;form.onsubmit=event=>{event.preventDefault();const data=new FormData(form);for(const key of ['title','duration','startAt','endAt','seat','candidateName','studentId','registered'])config[key]=key==='duration'||key==='registered'?Number(data.get(key)):data.get(key);const start=Date.parse(config.startAt),end=Date.parse(config.endAt);if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start){$('#import-note').textContent='结束时间必须晚于开始时间。';return;}config.duration=Math.round((end-start)/60000);document.querySelectorAll('.question-setting').forEach(row=>{const q=config.questions[Number(row.querySelector('[data-k="name"]').dataset.i)];q.name=row.querySelector('[data-k="name"]').value;q.score=Number(row.querySelector('[data-k="score"]').value)||1;q.tests=Number(row.querySelector('[data-k="tests"]').value)||1;});localStorage.setItem(STORAGE,JSON.stringify(config));current=Math.min(current,config.questions.length-1);dialog.close();render();updateCountdown();syncSolutionNavigation();};render();route('info');updateCountdown();syncSolutionNavigation();window.setInterval(()=>{updateCountdown();syncSolutionNavigation();},1000);
+refreshJudgeLimits();

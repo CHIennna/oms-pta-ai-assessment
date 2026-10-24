@@ -7,16 +7,19 @@
   const makeDefaultCases = question => Array.from({ length: Math.max(1, Number(question.tests) || 1) }, (_, index) => question.testCases && question.testCases[index] || { input:'', expected:'' });
   const calculateScore = (result, question) => window.OMS_JUDGE_SCORE.calculate(result, question);
   const shownOutput = value => String(value ?? '').length ? String(value) : '(无输出)';
+  let submissionSource = '';
   function formatJudgeOutput(result, mode, sample) {
     const sections = [];
+    if (result.compilerDiagnostics) sections.push(result.compilerDiagnostics);
     if (result.compilerOutput || result.message) sections.push(result.compilerOutput || result.message);
     const cases = Array.isArray(result.testCases) ? result.testCases : [];
     if (mode === 'sample') {
       const test = cases[0];
       sections.push([
-        '【样例输入】', shownOutput(sample.input),
-        '【预期输出】', shownOutput(sample.expected),
+        '【测试输入】', shownOutput(sample.input),
+        ...(test?.compared === true ? ['【预期输出】', shownOutput(test.expectedOutput)] : []),
         '【程序实际输出】', shownOutput(test?.actualOutput),
+        ...(test?.stderr ? ['【标准错误输出】', test.stderr] : []),
         `【运行结果】${test?.hint || result.message || '未返回测试点结果'}${test?.timeMs == null ? '' : `（${test.timeMs} ms）`}`
       ].join('\n'));
     } else if (cases.length) {
@@ -57,12 +60,15 @@
 
   judge = async function (mode) {
     if (mode === 'submit') return aiJudgeSubmit();
+    if (samplePending || submissionPending) return;
     const state = $('#run-state'), question = config.questions[current], examVersion = config.examVersion;
     const owner = portalUser?.id, identityRevision = portalIdentityRevision;
     const stillVisible = () => portalAuthenticated && portalUser?.id === owner && portalIdentityRevision === identityRevision && config.examVersion === examVersion && config.questions[current]?.id === question.id && activeRoute === 'exam';
     const sample = { input: $('#sample-input').value, expected: $('#expected').textContent.replace(/\\n/g, '\n') };
     const tests = mode === 'sample' ? [sample] : (question.testCases || []);
+    samplePending = true; updateCountdown();
     state.textContent = '评测服务正在运行…'; $('#tester').classList.remove('collapsed'); $('#tester').classList.add('expanded');
+    syncTesterToggle();
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
       const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, problemId:question.id, examVersion, input:sample.input, mode, tests }) });
@@ -71,15 +77,16 @@
       if (!response.ok) throw Error(result.message || '自建评测机暂不可用。');
       $('#compiler-output').textContent = formatJudgeOutput(result, mode, sample); setTab('compiler');
       const label = { Accepted:'答案正确', WrongAnswer:'答案错误', CompilationError:'编译错误', RuntimeError:'运行时错误', TimeLimitExceeded:'运行超时', NotConfigured:'未配置测试点' }[result.verdict] || '评测失败';
-      state.textContent = `${label} · ${result.passedTests ?? 0}/${result.totalTests ?? tests.length}`;
+      state.textContent = result.compared === false && result.verdict === 'Accepted' ? '运行完成 · 自定义输入未进行答案比较' : `${label} · ${result.passedTests ?? 0}/${result.totalTests ?? tests.length}`;
     } catch (error) { if (stillVisible()) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = '评测失败'; } }
+    finally { samplePending = false; updateCountdown(); }
   };
 
   const aiVerdict = verdict => ({
     Accepted: { label: '答案正确', tone: 'accepted' },
     WrongAnswer: { label: '答案错误', tone: 'wrong' },
     CompilationError: { label: '编译错误', tone: 'error' },
-    RuntimeError: { label: '段错误', tone: 'error' },
+    RuntimeError: { label: '运行时错误', tone: 'error' },
     TimeLimitExceeded: { label: '运行超时', tone: 'timeout' },
     NotConfigured: { label: '未配置测试点', tone: 'error' },
     RateLimited: { label: '提交过于频繁', tone: 'review' },
@@ -123,13 +130,14 @@
     const selectedLanguage = submissionContext.language || $('#language').value;
     const codeLanguage = selectedLanguage.startsWith('C++') ? 'C++' : selectedLanguage.startsWith('C ') ? 'C' : (selectedLanguage.startsWith('Python') || selectedLanguage === 'PyPy') ? 'Python' : selectedLanguage;
     $('#submission-code-language').textContent = `[ ${codeLanguage} ]`;
-    $('#submission-code').innerHTML = String(submissionContext.source ?? editorCode()).split('\n').map((line, index) => `<span class="submission-code-line"><i>${index + 1}</i><code>${escapeHtml(line) || ' '}</code></span>`).join('');
+    submissionSource = String(submissionContext.source ?? editorCode());
+    $('#submission-code').innerHTML = submissionSource.split('\n').map((line, index) => `<span class="submission-code-line"><i>${index + 1}</i><code>${escapeHtml(line) || ' '}</code></span>`).join('');
     if (!dialog.open) dialog.showModal();
   }
   document.querySelector('#close-submission-dialog')?.addEventListener('click', () => document.querySelector('#submission-dialog')?.close());
   document.querySelector('#submission-dialog')?.addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
   async function aiJudgeSubmit() {
-    if (submissionPending) { $('#submit-state').textContent = '当前提交仍在评测，请稍候'; return; }
+    if (submissionPending || samplePending) { $('#submit-state').textContent = '当前代码仍在评测，请稍候'; return; }
     const state = $('#run-state'), questionIndex = current, examVersion = config.examVersion, question = config.questions[questionIndex];
     const tests = question.testCases || [], source = editorCode(), language = $('#language').value;
     const owner = portalUser?.id, identityRevision = portalIdentityRevision;
@@ -168,6 +176,7 @@
       if (activeQuestionId === question.id) loadedCode = source;
       if (stillVisible()) {
         $('#compiler-output').textContent = `${formatJudgeOutput(result, 'submit', {})}${result.progressSaved===false?'\n\n注意：本次成绩未能保存到服务器，请稍后重新提交。':''}`.trim();
+        setTab('compiler');
         state.textContent = `自建评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
         $('#submit-state').textContent = `刚刚提交 · ${status.label} · ${scoring.score}/${maxScore} 分${result.progressSaved===false?' · 未保存':''}`;
         showSubmissionResult(result, question, { source, language });
@@ -176,6 +185,7 @@
     } catch (error) {
       if (stillVisible()) {
         $('#compiler-output').textContent = error.message;
+        setTab('compiler');
         state.textContent = '评测未完成 · 本次不计成绩';
         $('#submit-state').textContent = '评测未完成，请重试';
       }
@@ -184,7 +194,7 @@
     }
   }
   document.querySelector('#copy-submission-code')?.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(editorCode()); } catch {}
+    try { await navigator.clipboard.writeText(submissionSource); } catch {}
   });
   document.querySelector('#format-submission-code')?.addEventListener('click', () => document.querySelector('.submission-code')?.classList.toggle('wrapped'));
   document.querySelector('#fullscreen-submission-code')?.addEventListener('click', () => document.querySelector('.submission-code')?.classList.toggle('fullscreen'));

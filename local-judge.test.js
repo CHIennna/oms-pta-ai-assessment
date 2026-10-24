@@ -5,6 +5,35 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { LocalJudge, DEFAULT_TOOLCHAINS } = require('./src/server/judge/local-judge');
 
+const nodeJudge = () => new LocalJudge({ usePrlimit: false, toolchains: { NodeFixture: {
+  file: 'main.js', run: job => ({ command: process.execPath, args: [job.sourcePath] })
+} } });
+
+test('custom input returns actual stdout and stderr without falsely comparing against a sample', async () => {
+  const result = await nodeJudge().judge({ language: 'NodeFixture', mode: 'sample',
+    code: 'process.stdout.write("actual"); process.stderr.write("diagnostic");',
+    tests: [{ input: 'custom', expected: 'stale', compared: false }] });
+  assert.equal(result.verdict, 'Accepted'); assert.equal(result.compared, false);
+  assert.equal(result.testCases[0].actualOutput, 'actual'); assert.equal(result.testCases[0].stderr, 'diagnostic');
+  assert.equal(result.testCases[0].expectedOutput, undefined); assert.doesNotMatch(result.message, /一致/);
+});
+
+test('UTF-8 output split across process chunks is not corrupted', async () => {
+  const result = await nodeJudge().judge({ language: 'NodeFixture', mode: 'sample',
+    code: 'const b=Buffer.from("中文"); process.stdout.write(b.subarray(0,1)); setTimeout(()=>process.stdout.write(b.subarray(1)),30);',
+    tests: [{ input: '', expected: '中文', compared: true }] });
+  assert.equal(result.verdict, 'Accepted'); assert.equal(result.testCases[0].actualOutput, '中文');
+});
+
+test('submission cannot opt out of comparison and source limit is measured in bytes', async () => {
+  const judge = nodeJudge();
+  const result = await judge.judge({ language: 'NodeFixture', mode: 'submit', code: 'console.log("wrong")',
+    tests: [{ input: '', expected: 'correct', compared: false }] });
+  assert.equal(result.verdict, 'WrongAnswer');
+  const oversized = await judge.judge({ language: 'NodeFixture', mode: 'sample', code: '//'+ '字'.repeat(22000), tests: [{ input: '', expected: '' }] });
+  assert.equal(oversized.verdict, 'CompilationError'); assert.match(oversized.message, /超过/);
+});
+
 test('native C and C++ compilers avoid pipe mode to reduce peak memory', () => {
   const workDir = path.resolve('temporary-judge-test');
   const sourcePath = path.join(workDir, 'main.cpp');
