@@ -92,7 +92,7 @@ test('only one sample runs at once; custom input renders actual stdout/stderr wi
   await running;
   assert.equal(context.samplePending, false); assert.equal(context.tab, 'compiler');
   assert.match(node('#compiler-output').textContent, /actual/); assert.match(node('#compiler-output').textContent, /warning/);
-  assert.doesNotMatch(node('#compiler-output').textContent, /STALE|预期输出/);
+  assert.doesNotMatch(node('#compiler-output').textContent, /STALE|预期输出|测试点|ms/);
   assert.match(node('#run-state').textContent, /运行完成/);
 });
 
@@ -107,10 +107,13 @@ test('submission copy uses submitted snapshot rather than subsequently edited so
   const { context, node, requests, clipboard } = judgeClient();
   context.editorCode = () => 'submitted snapshot';
   const running = context.judge('submit'); context.editorCode = () => 'new unsent draft';
-  requests[0]({ ok: true, json: async () => ({ verdict: 'Accepted', passedTests: 1, totalTests: 1,
-    testCases: [{ verdict: 'Accepted', score: 100 }], scoring: { score: 100, status: 'accepted' } }) });
+  requests[0]({ ok: true, json: async () => ({ verdict: 'Accepted', message: '所有测试均已通过。',
+    compilerOutput: '自建评测机运行完成\n通过测试点：1/1', passedTests: 1, totalTests: 1,
+    testCases: [{ verdict: 'Accepted', score: 100, timeMs: 42 }], scoring: { score: 100, status: 'accepted' } }) });
   await running;
   await node('#copy-submission-code').handlers.click();
   assert.deepEqual(clipboard, ['submitted snapshot']); assert.equal(context.tab, 'compiler');
+  assert.equal(node('#compiler-output').textContent, '所有测试均已通过。');
+  assert.doesNotMatch(node('#compiler-output').textContent, /测试点|42 ms/);
   assert.equal(context.submissionPending, false);
 });

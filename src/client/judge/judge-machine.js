@@ -9,27 +9,21 @@
   const shownOutput = value => String(value ?? '').length ? String(value) : '(无输出)';
   let submissionSource = '';
   function formatJudgeOutput(result, mode, sample) {
-    const sections = [];
-    if (result.compilerDiagnostics) sections.push(result.compilerDiagnostics);
-    if (result.compilerOutput || result.message) sections.push(result.compilerOutput || result.message);
     const cases = Array.isArray(result.testCases) ? result.testCases : [];
     if (mode === 'sample') {
       const test = cases[0];
-      sections.push([
-        '【测试输入】', shownOutput(sample.input),
-        ...(test?.compared === true ? ['【预期输出】', shownOutput(test.expectedOutput)] : []),
-        '【程序实际输出】', shownOutput(test?.actualOutput),
-        ...(test?.stderr ? ['【标准错误输出】', test.stderr] : []),
-        `【运行结果】${test?.hint || result.message || '未返回测试点结果'}${test?.timeMs == null ? '' : `（${test.timeMs} ms）`}`
-      ].join('\n'));
-    } else if (cases.length) {
-      sections.push(`【测试点结果】\n${cases.map((test, index) => {
-        const time = test.timeMs == null ? '' : ` · ${test.timeMs} ms`;
-        const hint = test.hint && test.verdict !== 'Accepted' ? ` · ${test.hint}` : '';
-        return `测试点 ${test.index == null ? index + 1 : Number(test.index) + 1}：${test.verdict || '未知'}${time}${hint}`;
-      }).join('\n')}`);
+      if (test && Object.prototype.hasOwnProperty.call(test, 'actualOutput')) {
+        return [
+          shownOutput(test.actualOutput),
+          ...(test.stderr ? [`标准错误输出：\n${test.stderr}`] : [])
+        ].join('\n\n');
+      }
+      return result.compilerDiagnostics || result.compilerOutput || result.message || '运行失败，未返回程序输出。';
     }
-    return sections.join('\n\n') || '评测服务未返回编译或运行结果。';
+    if (result.verdict === 'CompilationError') {
+      return result.compilerDiagnostics || result.compilerOutput || result.message || '编译失败。';
+    }
+    return result.message || '评测完成。';
   }
 
   function renderJudgeCases() {
