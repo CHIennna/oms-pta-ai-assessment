@@ -536,7 +536,7 @@ function renderProblemDirectory(filters={status:'all',difficulty:'all',keyword:'
     return latest?'未通过':'未提交';
   };
   const filtered=problems.filter(item=>{
-    const difficulty=item.question.difficulty||PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'';
+    const difficulty=item.question.difficulty||item.question.difficultyEstimate||PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'';
     const tags=Array.isArray(item.question.tags)?item.question.tags.join(' '):String(item.question.tags||'');
     const status=statusFor(item),text=`${item.question.id||''} ${item.question.name||''} ${difficulty} ${tags}`.toLowerCase();
     return (filters.status==='all'||status===filters.status)&&(filters.difficulty==='all'||difficulty===filters.difficulty)&&(!filters.keyword||text.includes(filters.keyword.trim().toLowerCase()));
@@ -544,7 +544,7 @@ function renderProblemDirectory(filters={status:'all',difficulty:'all',keyword:'
   const pageSize=20,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1);
   const rows=filtered.slice(safePage*pageSize,(safePage+1)*pageSize).map(item=>{
     const status=statusFor(item),tone=status==='已通过'?'accepted':status==='未通过'?'wrong':status==='暂不可评测'?'unavailable':'pending';
-    const difficulty=item.question.difficulty||PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'—';
+    const difficulty=item.question.difficulty||item.question.difficultyEstimate||PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'—';
     const tags=Array.isArray(item.question.tags)?item.question.tags.join('、'):String(item.question.tags||'');
     const ratio=item.question.passRate??item.question.acceptanceRate;
     const passRate=ratio===undefined||ratio===null?'—':`${escape(ratio)}${Number.isFinite(Number(ratio))?'%':''}`;
