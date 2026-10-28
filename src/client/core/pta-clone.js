@@ -316,7 +316,7 @@ function renderFzuOjHome(activePage='home'){
     .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
   const activeNavRoute=activePage==='problemset'?'problems':activePage==='practice'?'practice':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':activePage==='advice'?'advice':'home';
   const navItems=[['home','首页','home'],['problems','题目','problemset'],['training','练习','practice'],['contest','考试','home-contests'],['judge','评测','home-submissions'],['advice','备考','advice']]
-    .map(([icon,label,route])=>`<button type="button" class="fzuoj-nav-item ${route===activeNavRoute?'active':''}" data-portal-route="${route}"><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
+    .map(([icon,label,route])=>`<button type="button" class="fzuoj-nav-item ${route===activeNavRoute?'active':''}" data-portal-route="${route}" aria-label="${label}" title="${label}" ${route===activeNavRoute?'aria-current="page"':''}><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
   const contestTime=exam=>formatExamTime(exam.startAt||exam.date);
   const contests=exams.slice(0,5).map(exam=>{
     const status=portalExamStatus(exam);
@@ -332,9 +332,9 @@ function renderFzuOjHome(activePage='home'){
       <header class="fzuoj-domain"><span class="fzuoj-seal"><img src="/fzu-logo.png?v=20261007" alt="福州大学校徽" onerror="this.onerror=null;this.src='https://www.fzu.edu.cn/__local/B/00/85/7E40A9947CCADB9BCCF7F6A8AA0_9BDD11BE_23796.png';"></span><b>福州大学</b></header>
       <nav class="fzuoj-nav" aria-label="主页面导航">${navItems}</nav>
       <footer class="fzuoj-sidebar-footer">
-        <button type="button" class="fzuoj-nav-item" data-portal-theme><span>${portalIcon('theme')}</span><b>主题切换</b></button>
+        <button type="button" class="fzuoj-nav-item" data-portal-theme aria-label="主题切换" title="主题切换"><span>${portalIcon('theme')}</span><b>主题切换</b></button>
         <div class="fzuoj-service"><span></span><b>服务状态</b></div>
-        <button type="button" class="fzuoj-nav-item ${activePage==='about'?'active':''}" data-portal-route="about"><span>${portalIcon('info')}</span><b>关于</b></button>
+        <button type="button" class="fzuoj-nav-item ${activePage==='about'?'active':''}" data-portal-route="about" aria-label="关于" title="关于" ${activePage==='about'?'aria-current="page"':''}><span>${portalIcon('info')}</span><b>关于</b></button>
         <button type="button" class="fzuoj-account" data-profile-open aria-label="打开个人中心"><span>${initial}</span><p><b>${escape(config.studentId||config.candidateName)}</b><small>${escape(config.candidateName)}</small></p><i>${portalIcon('chevron')}</i></button>
       </footer>
     </aside>
