@@ -269,18 +269,18 @@ function configurePortableRuntime() {
     path.join(os.homedir(), 'fzupta-runtime'),
     path.resolve(root, '..', 'fzupta-runtime')
   ].filter(Boolean);
-  const runtimeRoot = runtimeCandidates.find(candidate => fsSync.existsSync(candidate)) || runtimeCandidates[0];
+  const runtimeRoots = [...new Set(runtimeCandidates.filter(candidate => fsSync.existsSync(candidate)).map(candidate => path.resolve(candidate)))];
   const bins = [];
-  const ucrtBin = path.join(runtimeRoot, 'msys64', 'ucrt64', 'bin');
-  if (fsSync.existsSync(ucrtBin)) bins.push(ucrtBin);
-  const javaRoot = path.join(runtimeRoot, 'java');
-  if (fsSync.existsSync(javaRoot)) {
-    for (const entry of fsSync.readdirSync(javaRoot, { withFileTypes: true })) {
-      const bin = path.join(javaRoot, entry.name, 'bin');
-      if (entry.isDirectory() && fsSync.existsSync(path.join(bin, process.platform === 'win32' ? 'javac.exe' : 'javac'))) bins.push(bin);
+  for (const runtimeRoot of runtimeRoots) {
+    const ucrtBin = path.join(runtimeRoot, 'msys64', 'ucrt64', 'bin');
+    if (fsSync.existsSync(ucrtBin)) bins.push(ucrtBin);
+    const javaRoot = path.join(runtimeRoot, 'java');
+    if (fsSync.existsSync(javaRoot)) {
+      for (const entry of fsSync.readdirSync(javaRoot, { withFileTypes: true })) {
+        const bin = path.join(javaRoot, entry.name, 'bin');
+        if (entry.isDirectory() && fsSync.existsSync(path.join(bin, process.platform === 'win32' ? 'javac.exe' : 'javac'))) bins.push(bin);
+      }
     }
-  }
-  if (fsSync.existsSync(runtimeRoot)) {
     const executableNames = process.platform === 'win32'
       ? ['python2.exe', 'python2.7.exe', 'pypy.exe', 'pypy2.exe', 'pypy3.exe']
       : ['python2', 'python2.7', 'pypy', 'pypy2', 'pypy3'];
@@ -295,7 +295,7 @@ function configurePortableRuntime() {
   }
   const uniqueBins = [...new Set(bins)];
   if (uniqueBins.length) process.env.PATH = `${uniqueBins.join(path.delimiter)}${path.delimiter}${process.env.PATH || ''}`;
-  return { detected: uniqueBins.length > 0, bins: uniqueBins };
+  return { detected: uniqueBins.length > 0, roots: runtimeRoots, bins: uniqueBins };
 }
 
 function loadTestBank(exams) {
