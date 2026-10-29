@@ -2,8 +2,21 @@ FROM node:22-bookworm-slim
 
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates clang g++ gcc default-jdk-headless python3 time util-linux \
+    bzip2 ca-certificates clang curl g++ gcc default-jdk-headless pypy3 python3 time util-linux \
   && rm -rf /var/lib/apt/lists/* \
+  && architecture="$(dpkg --print-architecture)" \
+  && case "$architecture" in \
+       amd64) pypy2_archive='pypy2.7-v7.3.22-linux64.tar.bz2'; pypy2_sha='c47a4030542cbd34d0cb673a0de1956c94c1ebe6c6b094f2ae6a167c55375f68' ;; \
+       arm64) pypy2_archive='pypy2.7-v7.3.22-aarch64.tar.bz2'; pypy2_sha='49829ef97a36d50870b0a4a7d6d67c4817d98a0bbd936e7a86ac6ef615b07205' ;; \
+       *) echo "Unsupported architecture for PyPy2: $architecture" >&2; exit 1 ;; \
+     esac \
+  && curl --fail --location --silent --show-error "https://downloads.python.org/pypy/$pypy2_archive" --output "/tmp/$pypy2_archive" \
+  && echo "$pypy2_sha  /tmp/$pypy2_archive" | sha256sum --check --strict \
+  && mkdir -p /opt/pypy2 \
+  && tar --extract --bzip2 --file "/tmp/$pypy2_archive" --directory /opt/pypy2 --strip-components=1 \
+  && ln -s /opt/pypy2/bin/pypy /usr/local/bin/python2 \
+  && ln -s /opt/pypy2/bin/pypy /usr/local/bin/pypy2 \
+  && rm -f "/tmp/$pypy2_archive" \
   && groupadd --system fzupta \
   && useradd --system --gid fzupta --home-dir /tmp/fzupta --create-home fzupta
 

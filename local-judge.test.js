@@ -44,6 +44,29 @@ test('native C and C++ compilers avoid pipe mode to reduce peak memory', () => {
   }
 });
 
+test('Python 2 and PyPy toolchains are registered with version-checked runtime candidates', () => {
+  for (const language of ['Python 2', 'PyPy']) {
+    const toolchain = DEFAULT_TOOLCHAINS[language];
+    assert.ok(toolchain);
+    assert.ok(Array.isArray(toolchain.commandCandidates));
+    assert.ok(toolchain.commandCandidates.length > 0);
+    assert.ok(toolchain.commandCandidates.every(candidate => candidate.versionPattern instanceof RegExp));
+  }
+});
+
+test('a version-matched dynamic interpreter is detected and used', async () => {
+  const judge = new LocalJudge({ usePrlimit: false, toolchains: { DynamicRuntime: {
+    commandCandidates: [{ command: process.execPath, versionPattern: /^v?\d+/m }],
+    file: 'main.js',
+    run: (job, runtime) => ({ command: runtime.command, args: [...runtime.prefixArgs, job.sourcePath] })
+  } } });
+  assert.deepEqual(judge.info().languages, ['DynamicRuntime']);
+  const result = await judge.judge({ language: 'DynamicRuntime', mode: 'sample',
+    code: 'process.stdout.write("dynamic-ok")', tests: [{ input: '', expected: 'dynamic-ok', compared: true }] });
+  assert.equal(result.verdict, 'Accepted');
+  assert.equal(result.testCases[0].actualOutput, 'dynamic-ok');
+});
+
 test('Render uses a single worker and a sixty second compile budget', t => {
   const previousRender = process.env.RENDER;
   const previousConcurrency = process.env.JUDGE_MAX_CONCURRENCY;

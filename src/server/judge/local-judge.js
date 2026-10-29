@@ -41,13 +41,36 @@ const DEFAULT_TOOLCHAINS = {
     commands: [process.platform === 'win32' ? 'python' : 'python3'],
     file: 'main.py',
     run: job => ({ command: process.platform === 'win32' ? 'python' : 'python3', args: ['-I', job.sourcePath] })
+  },
+  'Python 2': {
+    commandCandidates: [
+      { command: 'python2', versionPattern: /Python 2\./i },
+      { command: 'python2.7', versionPattern: /Python 2\.7/i },
+      { command: 'pypy2', versionPattern: /Python 2\.[\s\S]*PyPy/i },
+      { command: 'pypy', versionPattern: /Python 2\.[\s\S]*PyPy/i },
+      { command: 'py', probeArgs: ['-2', '--version'], prefixArgs: ['-2'], versionPattern: /Python 2\./i }
+    ],
+    file: 'main.py',
+    run: (job, runtime) => ({ command: runtime.command, args: [...(runtime.prefixArgs || []), '-E', '-s', '-S', job.sourcePath] })
+  },
+  PyPy: {
+    commandCandidates: [
+      { command: 'pypy3', versionPattern: /Python 3\.[\s\S]*PyPy/i },
+      { command: 'pypy3.12', versionPattern: /Python 3\.12[\s\S]*PyPy/i },
+      { command: 'pypy3.11', versionPattern: /Python 3\.11[\s\S]*PyPy/i },
+      { command: 'pypy3.10', versionPattern: /Python 3\.10[\s\S]*PyPy/i },
+      { command: 'pypy', versionPattern: /Python 3\.[\s\S]*PyPy/i }
+    ],
+    file: 'main.py',
+    run: (job, runtime) => ({ command: runtime.command, args: [...(runtime.prefixArgs || []), '-I', job.sourcePath] })
   }
 };
 
 const LANGUAGE_ALIASES = {
   cpp: 'C++ (g++)', 'c++': 'C++ (g++)', gpp: 'C++ (g++)',
   clangpp: 'C++ (clang++)', c: 'C (gcc)', gcc: 'C (gcc)', clang: 'C (clang)',
-  java: 'Java', python: 'Python 3', python3: 'Python 3', py: 'Python 3'
+  java: 'Java', python: 'Python 3', python3: 'Python 3', py: 'Python 3',
+  python2: 'Python 2', py2: 'Python 2', pypy2: 'Python 2', pypy: 'PyPy', pypy3: 'PyPy'
 };
 
 const clamp = (value, fallback, minimum, maximum) => {
@@ -553,6 +576,20 @@ const commandAvailable = command => {
   const probe = spawnSync(command, ['--version'], { windowsHide: true, stdio: 'ignore', timeout: 1500 });
   return !probe.error && probe.status === 0;
 };
+const resolveRuntimeCandidate = candidates => {
+  for (const candidate of candidates || []) {
+    const spec = typeof candidate === 'string' ? { command: candidate } : candidate;
+    if (!spec?.command) continue;
+    const probe = spawnSync(spec.command, spec.probeArgs || ['--version'], {
+      windowsHide: true, encoding: 'utf8', timeout: 1500
+    });
+    const version = `${probe.stdout || ''}\n${probe.stderr || ''}`;
+    if (!probe.error && probe.status === 0 && (!spec.versionPattern || spec.versionPattern.test(version))) {
+      return { command: spec.command, prefixArgs: spec.prefixArgs || [] };
+    }
+  }
+  return null;
+};
 const resolveCommand = command => {
   if (!command || path.isAbsolute(command) || isWindows) return command;
   const probe = spawnSync('which', [command], { windowsHide: true, encoding: 'utf8', timeout: 1500 });
@@ -654,8 +691,17 @@ class LocalJudge {
       outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 262144, 4096, 1048576),
       codeLimitBytes: 65536
     };
+    this.runtimeCommands = new Map();
     this.availableLanguages = Object.entries(this.toolchains)
-      .filter(([, toolchain]) => !Array.isArray(toolchain.commands) || toolchain.commands.every(commandAvailable))
+      .filter(([language, toolchain]) => {
+        if (Array.isArray(toolchain.commandCandidates)) {
+          const runtime = resolveRuntimeCandidate(toolchain.commandCandidates);
+          if (!runtime) return false;
+          this.runtimeCommands.set(language, runtime);
+          return true;
+        }
+        return !Array.isArray(toolchain.commands) || toolchain.commands.every(commandAvailable);
+      })
       .map(([language]) => language);
     this.active = 0;
     this.queue = [];
@@ -694,6 +740,7 @@ class LocalJudge {
     const requestedLanguage = String(payload.language || '').trim();
     const language = LANGUAGE_ALIASES[requestedLanguage.toLowerCase()] || requestedLanguage;
     const toolchain = this.toolchains[language];
+    const runtimeCommand = this.runtimeCommands.get(language);
     const source = String(payload.code || '');
     const tests = Array.isArray(payload.tests) ? payload.tests.map(test => ({
       input: String(test && test.input || ''), expected: String(test && (test.expected ?? test.expectedOutput) || ''),
@@ -702,6 +749,9 @@ class LocalJudge {
       checker: String(test && test.checker || '')
     })) : [];
     if (!toolchain) return unavailableResult(`自建评测机暂不支持 ${language || '该语言'}。`, tests, this.limits);
+    if (Array.isArray(toolchain.commandCandidates) && !runtimeCommand) {
+      return unavailableResult(`评测环境尚未安装可用的 ${language} 解释器。`, tests, this.limits);
+    }
     if (!source.trim()) return { ...unavailableResult('请先编写代码。', tests, this.limits), verdict: 'CompilationError' };
     if (!tests.length || tests.length > 20) return { ...unavailableResult('该题尚未配置有效测试点。', tests, this.limits), verdict: 'NotConfigured' };
     if (Buffer.byteLength(source, 'utf8') > this.limits.codeLimitBytes || tests.some(test => test.input.length > 10500000 || test.expected.length > 10500000)) {
@@ -717,7 +767,7 @@ class LocalJudge {
       await fs.writeFile(sourcePath, source, { encoding: 'utf8', mode: 0o600 });
       let compilerDiagnostics = '';
       if (toolchain.compile) {
-        const compileSpec = toolchain.compile(job);
+        const compileSpec = toolchain.compile(job, runtimeCommand);
         compileSpec.command = resolveCommand(compileSpec.command);
         const compilation = await runProcess(compileSpec, {
           cwd: workDir, input: '', timeoutMs: this.limits.compileTimeoutMs,
@@ -736,7 +786,7 @@ class LocalJudge {
       const testCases = [];
       for (let index = 0; index < tests.length; index++) {
         const test = tests[index];
-        const runSpec = toolchain.run(job);
+        const runSpec = toolchain.run(job, runtimeCommand);
         runSpec.command = resolveCommand(runSpec.command);
         const execution = await runProcess(runSpec, {
           cwd: workDir, input: test.input, timeoutMs: this.limits.runTimeoutMs,

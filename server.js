@@ -280,8 +280,22 @@ function configurePortableRuntime() {
       if (entry.isDirectory() && fsSync.existsSync(path.join(bin, process.platform === 'win32' ? 'javac.exe' : 'javac'))) bins.push(bin);
     }
   }
-  if (bins.length) process.env.PATH = `${bins.join(path.delimiter)}${path.delimiter}${process.env.PATH || ''}`;
-  return { detected: bins.length > 0, bins };
+  if (fsSync.existsSync(runtimeRoot)) {
+    const executableNames = process.platform === 'win32'
+      ? ['python2.exe', 'python2.7.exe', 'pypy.exe', 'pypy2.exe', 'pypy3.exe']
+      : ['python2', 'python2.7', 'pypy', 'pypy2', 'pypy3'];
+    const pythonDirs = [runtimeRoot, path.join(runtimeRoot, 'bin')];
+    for (const entry of fsSync.readdirSync(runtimeRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      pythonDirs.push(path.join(runtimeRoot, entry.name), path.join(runtimeRoot, entry.name, 'bin'));
+    }
+    for (const bin of pythonDirs) {
+      if (fsSync.existsSync(bin) && executableNames.some(name => fsSync.existsSync(path.join(bin, name)))) bins.push(bin);
+    }
+  }
+  const uniqueBins = [...new Set(bins)];
+  if (uniqueBins.length) process.env.PATH = `${uniqueBins.join(path.delimiter)}${path.delimiter}${process.env.PATH || ''}`;
+  return { detected: uniqueBins.length > 0, bins: uniqueBins };
 }
 
 function loadTestBank(exams) {
