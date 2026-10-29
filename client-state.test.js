@@ -103,8 +103,9 @@ test('sample response after switching questions cannot paint the new question', 
   await running; assert.equal(node('#compiler-output').textContent, ''); assert.equal(context.samplePending, false);
 });
 
-test('submission copy uses submitted snapshot rather than subsequently edited source', async () => {
+test('submission preserves the last real run output and copies the submitted snapshot', async () => {
   const { context, node, requests, clipboard } = judgeClient();
+  node('#compiler-output').textContent = 'last actual stdout';
   context.editorCode = () => 'submitted snapshot';
   const running = context.judge('submit'); context.editorCode = () => 'new unsent draft';
   requests[0]({ ok: true, json: async () => ({ verdict: 'Accepted', message: '所有测试均已通过。',
@@ -112,8 +113,20 @@ test('submission copy uses submitted snapshot rather than subsequently edited so
     testCases: [{ verdict: 'Accepted', score: 100, timeMs: 42 }], scoring: { score: 100, status: 'accepted' } }) });
   await running;
   await node('#copy-submission-code').handlers.click();
-  assert.deepEqual(clipboard, ['submitted snapshot']); assert.equal(context.tab, 'compiler');
-  assert.equal(node('#compiler-output').textContent, '所有测试均已通过。');
-  assert.doesNotMatch(node('#compiler-output').textContent, /测试点|42 ms/);
+  assert.deepEqual(clipboard, ['submitted snapshot']); assert.equal(context.tab, undefined);
+  assert.equal(node('#compiler-output').textContent, 'last actual stdout');
+  assert.doesNotMatch(node('#run-state').textContent, /测试点|1\/1/);
   assert.equal(context.submissionPending, false);
+});
+
+test('compilation failure replaces compiler output with real diagnostics', async () => {
+  const { context, node, requests } = judgeClient();
+  node('#compiler-output').textContent = 'old stdout';
+  const running = context.judge('submit');
+  requests[0]({ ok: true, json: async () => ({ verdict: 'CompilationError', message: '编译失败。',
+    compilerDiagnostics: 'main.cpp:1: error: expected ;', passedTests: 0, totalTests: 1,
+    testCases: [{ verdict: 'CompilationError', hint: '编译失败' }], scoring: { score: 0, status: 'wrong' } }) });
+  await running;
+  assert.equal(context.tab, 'compiler');
+  assert.equal(node('#compiler-output').textContent, 'main.cpp:1: error: expected ;');
 });

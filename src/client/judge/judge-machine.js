@@ -169,9 +169,13 @@
       // Do not replace a newer draft typed while the submitted snapshot was running.
       if (activeQuestionId === question.id) loadedCode = source;
       if (stillVisible()) {
-        $('#compiler-output').textContent = `${formatJudgeOutput(result, 'submit', {})}${result.progressSaved===false?'\n\n注意：本次成绩未能保存到服务器，请稍后重新提交。':''}`.trim();
-        setTab('compiler');
-        state.textContent = `自建评测完成 · ${status.label} · ${result.passedTests || 0}/${result.totalTests || 0}`;
+        // The compiler tab belongs to the current code run. Formal judging must not
+        // replace real stdout/stderr with hidden-test summaries.
+        if (result.verdict === 'CompilationError') {
+          $('#compiler-output').textContent = formatJudgeOutput(result, 'submit', {});
+          setTab('compiler');
+        }
+        state.textContent = `提交评测完成 · ${status.label}`;
         $('#submit-state').textContent = `刚刚提交 · ${status.label} · ${scoring.score}/${maxScore} 分${result.progressSaved===false?' · 未保存':''}`;
         showSubmissionResult(result, question, { source, language });
       }
