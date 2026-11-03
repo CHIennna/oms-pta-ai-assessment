@@ -122,11 +122,17 @@ function markdownToHtml(source){
 function sampleBlock(kind,value){const rows=String(value||'').split('\n');return `<div class="sample-block"><div class="sample-toolbar"><span>[ ${kind} ]</span><div><button type="button">复制内容</button><button type="button">格式</button><button type="button">全屏</button></div></div><div class="sample-rows">${rows.map((row,index)=>`<div><span>${index+1}</span><code>${escape(row)||' '}</code></div>`).join('')}</div></div>`;}
 let judgeRuntimeLimits=null,availableJudgeLanguages=null;
 function resourceLimits(){
-  const limits=judgeRuntimeLimits;
+  const limits=judgeRuntimeLimits||{};
   const size=value=>Number.isFinite(Number(value))&&Number(value)>0?Number(value):null;
-  const codeBytes=size(limits?.codeLimitBytes),timeMs=size(limits?.timeLimitMs),memoryKb=size(limits?.memoryLimitKb);
-  const unknown='以评测服务为准';
-  return `<section class="problem-limits" aria-label="资源限制"><div><span>代码长度限制</span><b>${codeBytes?codeBytes/1024+' KB':unknown}</b></div><div><span>时间限制</span><b>${timeMs?timeMs+' ms':unknown}</b></div><div title="当前环境不提供完整安全隔离；内存限制还受语言运行时影响"><span>内存限制</span><b>${limits?.memoryLimitEnforced&&memoryKb?memoryKb/1024+' MB':limits?'当前环境未强制限制':unknown}</b></div><div><span>栈限制</span><b>按语言运行时</b></div></section>`;
+  const codeBytes=size(limits.codeLimitBytes)||16*1024,stackKb=size(limits.stackLimitKb)||8192;
+  const defaults={
+    java:{label:'Java (javac)',timeLimitMs:1500,memoryLimitKb:128*1024},
+    python3:{label:'Python (python3)',timeLimitMs:1500,memoryLimitKb:64*1024},
+    other:{label:'其他编译器',timeLimitMs:500,memoryLimitKb:64*1024}
+  };
+  const profiles=limits.languageLimits||defaults;
+  const group=key=>{const profile={...defaults[key],...(profiles[key]||{})};return `<div class="problem-limit-group">${escape(profile.label)}</div><div><span>时间限制</span><b>${size(profile.timeLimitMs)||defaults[key].timeLimitMs} ms</b></div><div><span>内存限制</span><b>${(size(profile.memoryLimitKb)||defaults[key].memoryLimitKb)/1024} MB</b></div>`;};
+  return `<section class="problem-limits" aria-label="资源限制"><div><span>代码长度限制</span><b>${codeBytes/1024} KB</b></div>${group('java')}${group('python3')}${group('other')}<div><span>栈限制</span><b>${stackKb} KB</b></div></section>`;
 }
 async function refreshJudgeLimits(){
   try{
@@ -299,6 +305,7 @@ const publishedScoreboards=new Map([
 ]);
 function examParticipantCount(exam){const published=publishedScoreboards.get(exam.examVersion);if(published)return published.participantCount;const value=Number(exam.registered??exam.participants);return Number.isFinite(value)&&value>=0?value:1;}
 const PORTAL_ICONS={home:'<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.5 9.8V20h13V9.8M9.5 20v-6h5v6"/>',problems:'<rect x="5" y="3.5" width="14" height="17" rx="1.8"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4.5"/>',training:'<path d="m9 7-5 5 5 5M15 7l5 5-5 5M13 5l-2 14"/>',contest:'<path d="M8 4h8v3.5a4 4 0 0 1-8 0zM12 11.5V16M8.5 20h7M9 16h6"/><path d="M8 6H4.5v1.5A3.5 3.5 0 0 0 8 11M16 6h3.5v1.5A3.5 3.5 0 0 1 16 11"/>',assignment:'<path d="M8 5h11v16H5V8z"/><path d="M8 5v3H5M9 12h6M9 16h6"/>',judge:'<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="m3.5 6.5 1.3 1.3 2.3-2.6M3.5 12l1.3 1.3 2.3-2.6M3.5 17.5l1.3 1.3 2.3-2.6"/>',advice:'<path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16.1 14 18h-4c0-1.9-.5-2.7-1.5-3.5Z"/>',theme:'<path d="M20 15.2A8.4 8.4 0 0 1 8.8 4a8.4 8.4 0 1 0 11.2 11.2Z"/>',info:'<circle cx="12" cy="12" r="9"/><path d="M12 10.5V17M12 7.2h.01"/>',panel:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M8.5 3.5v17M11.5 8h5M11.5 12h5M11.5 16h3"/>',calendar:'<rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M7.5 3v5M16.5 3v5M3.5 10h17"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',users:'<path d="M8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2.5 20a6 6 0 0 1 12 0M16 12a3 3 0 1 0 0-6M16 14a5.5 5.5 0 0 1 5.5 5.5"/>',award:'<circle cx="12" cy="9" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/>',arrow:'<path d="m9 5 7 7-7 7"/>',chevron:'<path d="m7 14 5-5 5 5"/>'};
+PORTAL_ICONS.knowledge='<path d="M4.5 5.5A3.5 3.5 0 0 1 8 3h4v17H8a3.5 3.5 0 0 0-3.5 1V5.5Z"/><path d="M19.5 5.5A3.5 3.5 0 0 0 16 3h-4v17h4a3.5 3.5 0 0 1 3.5 1V5.5Z"/>';
 PORTAL_ICONS.user='<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>';
 function portalIcon(name){return `<svg class="portal-icon" viewBox="0 0 24 24" aria-hidden="true">${PORTAL_ICONS[name]||''}</svg>`;}
 function renderPortalHome(){
@@ -314,8 +321,8 @@ function renderFzuOjHome(activePage='home'){
   const exams=[primaryConfig,...archive]
     .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
     .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
-  const activeNavRoute=activePage==='problemset'?'problems':activePage==='practice'?'practice':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':activePage==='advice'?'advice':'home';
-  const navItems=[['home','首页','home'],['problems','题目','problemset'],['training','练习','practice'],['contest','考试','home-contests'],['judge','评测','home-submissions'],['advice','备考','advice']]
+  const activeNavRoute=activePage==='problemset'?'problems':activePage==='knowledge'?'knowledge':activePage==='practice'?'practice':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':activePage==='advice'?'advice':'home';
+  const navItems=[['home','首页','home'],['problems','题目','problemset'],['knowledge','知识库','knowledge'],['training','练习','practice'],['contest','考试','home-contests'],['judge','评测','home-submissions'],['advice','备考','advice']]
     .map(([icon,label,route])=>`<button type="button" class="fzuoj-nav-item ${route===activeNavRoute?'active':''}" data-portal-route="${route}" aria-label="${label}" title="${label}" ${route===activeNavRoute?'aria-current="page"':''}><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
   const contestTime=exam=>formatExamTime(exam.startAt||exam.date);
   const contests=exams.slice(0,5).map(exam=>{
@@ -353,6 +360,23 @@ function renderFzuOjHome(activePage='home'){
     </div>
   </div>`;
 }
+
+function renderKnowledgeLanding(filters={category:'all',keyword:''},selectedId=''){
+  const articles=Array.isArray(window.OMS_KNOWLEDGE_ARTICLES)?window.OMS_KNOWLEDGE_ARTICLES:[];
+  const selected=articles.find(article=>article.id===selectedId);
+  if(selected){
+    const sections=(selected.sections||[]).map((section,index)=>`<section id="knowledge-section-${index}"><h2>${escape(section.title)}</h2>${(section.paragraphs||[]).map(paragraph=>`<p>${escape(paragraph)}</p>`).join('')}${section.code?`<pre><code>${escape(section.code)}</code></pre>`:''}${section.bullets?`<ul>${section.bullets.map(item=>`<li>${escape(item)}</li>`).join('')}</ul>`:''}</section>`).join('');
+    return `<article class="knowledge-reader"><button type="button" class="knowledge-back" data-knowledge-back>${portalIcon('arrow')} 返回知识库</button><header><div><span>${escape(selected.category)}</span><span>${escape(selected.level)}</span></div><h1>${escape(selected.title)}</h1><p>${escape(selected.summary)}</p><small>约 ${Number(selected.minutes)||1} 分钟阅读 · 更新于 ${escape(selected.updatedAt)}</small></header><div class="knowledge-reader-layout"><nav aria-label="本文目录"><b>本文目录</b>${(selected.sections||[]).map((section,index)=>`<a href="#knowledge-section-${index}">${escape(section.title)}</a>`).join('')}</nav><div class="knowledge-article-body">${sections}</div></div></article>`;
+  }
+  const keyword=String(filters.keyword||'').trim().toLowerCase(),category=filters.category||'all';
+  const categories=[...new Set(articles.map(article=>article.category))];
+  const visible=articles.filter(article=>(category==='all'||article.category===category)&&(!keyword||[article.title,article.summary,...(article.tags||[])].join(' ').toLowerCase().includes(keyword)));
+  const featured=visible.find(article=>article.featured)||visible[0];
+  const cards=visible.filter(article=>article!==featured).map(article=>`<button type="button" class="knowledge-card" data-knowledge-open="${escape(article.id)}"><span>${escape(article.category)}</span><h3>${escape(article.title)}</h3><p>${escape(article.summary)}</p><footer><small>${escape(article.level)} · ${Number(article.minutes)||1} 分钟</small><i>${portalIcon('arrow')}</i></footer></button>`).join('');
+  const categoryButtons=[['all','全部'],...categories.map(item=>[item,item])].map(([value,label])=>`<button type="button" class="${category===value?'active':''}" data-knowledge-category="${escape(value)}" aria-pressed="${category===value}">${escape(label)}</button>`).join('');
+  return `<section class="knowledge-landing"><header class="knowledge-hero"><div class="knowledge-hero-copy"><span>KNOWLEDGE BASE</span><h1>知识讲解</h1><p>把算法、数据结构与编程语言拆成可查阅、可复习的短篇讲解。</p><form class="knowledge-search" data-knowledge-search><label><span class="sr-only">搜索知识讲解</span><input name="keyword" value="${escape(filters.keyword||'')}" placeholder="搜索标题、标签或关键词"></label><button type="submit">搜索</button></form></div><div class="knowledge-hero-stats"><strong>${articles.length}</strong><span>篇讲解</span><strong>${categories.length}</strong><span>个主题</span></div></header><div class="knowledge-category-bar" aria-label="知识分类">${categoryButtons}</div>${featured?`<button type="button" class="knowledge-featured" data-knowledge-open="${escape(featured.id)}"><div><span>精选讲解 · ${escape(featured.category)}</span><h2>${escape(featured.title)}</h2><p>${escape(featured.summary)}</p><small>${escape(featured.level)} · 约 ${Number(featured.minutes)||1} 分钟阅读</small></div><i>${portalIcon('knowledge')}</i></button>`:''}<section class="knowledge-section-head"><div><span>LIBRARY</span><h2>全部讲解</h2></div><small>${visible.length} 篇内容</small></section><div class="knowledge-grid">${cards||(!featured?'<p class="knowledge-empty">没有找到匹配的讲解，请尝试其他关键词。</p>':'')}</div></section>`;
+}
+
 function renderPtaHome(){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exams=[primaryConfig,...archive]
@@ -987,7 +1011,7 @@ async function route(name,allowGuest=false){
   if(initialRoutePending){initialRoutePending=false;name='home';}
   if(name==='center')name='home-contests';
   if(name==='solutions'&&!examHasEnded())name='info';
-  const guest=startup||(allowGuest&&name==='home');
+  const guest=startup||name==='knowledge'||(allowGuest&&name==='home');
   if(!guest){
     try{await refreshPortalSession();}catch{portalAuthMessage='账号服务暂不可用，请确认本地服务已启动后重试。';if(revision===routeRevision)openLogin(name);return;}
     if(revision!==routeRevision)return;
@@ -995,7 +1019,7 @@ async function route(name,allowGuest=false){
   }
   const previousRoute=activeRoute;activeRoute=name;renderOmsClientChrome(name);
   if(previousRoute==='exam'&&name!=='exam')persistActiveDraft();
-  const app=$('#pta-app'),isPortalPage=['home','problemset','practice','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
+  const app=$('#pta-app'),isPortalPage=['home','problemset','knowledge','practice','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
   const activeNavRoute=name==='problemset'?'exam':name==='home-submissions'?'submissions':name==='home-contests'?'center':name;
   document.querySelectorAll('.rail-button').forEach(button=>button.classList.toggle('active',button.dataset.route===activeNavRoute));
   $('.remain').hidden=name==='home-contests'||name==='problemset'||name==='home-submissions'||name==='advice'||isPortalPage;
@@ -1053,6 +1077,18 @@ async function route(name,allowGuest=false){
       difficultyMenu.querySelectorAll('[data-problem-difficulty]').forEach(button=>button.onclick=()=>{filters={...filters,...Object.fromEntries(new FormData(form)),difficulty:button.dataset.problemDifficulty};page=0;paint();});
       portalContent.querySelectorAll('[data-problem-page]').forEach(button=>button.onclick=()=>{page=Number(button.dataset.problemPage);paint();});
       portalContent.querySelectorAll('[data-problem-exam]').forEach(button=>button.onclick=()=>{if(activateExam(button.dataset.problemExam,Number(button.dataset.problemIndex)))route('exam');});
+    };
+    paint();
+  }
+  if(name==='knowledge'){
+    let filters={category:'all',keyword:''},selectedId='';
+    const paint=()=>{
+      paintPortalPage(renderKnowledgeLanding(filters,selectedId));
+      const form=portalContent.querySelector('[data-knowledge-search]');
+      if(form)form.onsubmit=event=>{event.preventDefault();filters={...filters,keyword:new FormData(form).get('keyword')||''};selectedId='';paint();};
+      portalContent.querySelectorAll('[data-knowledge-category]').forEach(button=>button.onclick=()=>{filters={...filters,category:button.dataset.knowledgeCategory};selectedId='';paint();});
+      portalContent.querySelectorAll('[data-knowledge-open]').forEach(button=>button.onclick=()=>{selectedId=button.dataset.knowledgeOpen;paint();portalContent.closest('.fzuoj-page')?.scrollTo({top:0,behavior:'smooth'});});
+      portalContent.querySelector('[data-knowledge-back]')?.addEventListener('click',()=>{selectedId='';paint();});
     };
     paint();
   }

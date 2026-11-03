@@ -34,8 +34,8 @@ const DEFAULT_TOOLCHAINS = {
   Java: {
     commands: ['javac', 'java'],
     file: 'Main.java',
-    compile: job => ({ command: 'javac', args: ['-J-Xms16m', '-J-Xmx256m', '-J-XX:MaxMetaspaceSize=128m', '-encoding', 'UTF-8', job.sourcePath], skipAddressLimit: true }),
-    run: job => ({ command: 'java', args: ['-Xms16m', '-Xss16m', '-Xmx192m', '-XX:MaxMetaspaceSize=96m', '-cp', job.workDir, 'Main'], skipAddressLimit: true })
+    compile: job => ({ command: 'javac', args: ['-J-Xms16m', '-J-Xmx256m', '-J-XX:MaxMetaspaceSize=128m', '-encoding', 'UTF-8', job.sourcePath], skipAddressLimit: true, skipStackLimit: true }),
+    run: job => ({ command: 'java', args: ['-Xms16m', '-Xss8m', '-Xmx96m', '-XX:MaxMetaspaceSize=64m', '-cp', job.workDir, 'Main'], skipAddressLimit: true, skipStackLimit: true })
   },
   'Python 3': {
     commands: [process.platform === 'win32' ? 'python' : 'python3'],
@@ -72,6 +72,12 @@ const LANGUAGE_ALIASES = {
   java: 'Java', python: 'Python 3', python3: 'Python 3', py: 'Python 3',
   python2: 'Python 2', py2: 'Python 2', pypy2: 'Python 2', pypy: 'PyPy', pypy3: 'PyPy'
 };
+
+const DEFAULT_LANGUAGE_LIMITS = Object.freeze({
+  Java: Object.freeze({ runTimeoutMs: 1500, memoryLimitKb: 128 * 1024 }),
+  'Python 3': Object.freeze({ runTimeoutMs: 1500, memoryLimitKb: 64 * 1024 }),
+  other: Object.freeze({ runTimeoutMs: 500, memoryLimitKb: 64 * 1024 })
+});
 
 const clamp = (value, fallback, minimum, maximum) => {
   const number = Number(value);
@@ -613,6 +619,7 @@ function limitedCommand(spec, limits, usePrlimit) {
   const args = [];
   if (limits.cpuSeconds) args.push(`--cpu=${limits.cpuSeconds}`);
   if (limits.addressBytes && !spec.skipAddressLimit) args.push(`--as=${limits.addressBytes}`);
+  if (limits.stackBytes && !spec.skipStackLimit) args.push(`--stack=${limits.stackBytes}`);
   if (limits.fileBytes) args.push(`--fsize=${limits.fileBytes}`);
   args.push(`--nproc=${limits.processes || 32}`, `--nofile=${limits.openFiles || 64}`, '--', spec.command, ...(spec.args || []));
   return { command: 'prlimit', args };
@@ -684,12 +691,26 @@ class LocalJudge {
     );
     this.maxConcurrency = renderRuntime ? 1 : requestedConcurrency;
     this.maxQueue = clamp(options.maxQueue ?? process.env.JUDGE_MAX_QUEUE, 20, 1, 100);
+    const hasRunTimeoutOverride = options.runTimeoutMs != null || process.env.JUDGE_RUN_TIMEOUT_MS != null;
+    const hasMemoryLimitOverride = options.memoryLimitKb != null || process.env.JUDGE_MEMORY_LIMIT_KB != null;
     this.limits = {
       compileTimeoutMs: renderRuntime ? Math.max(60000, requestedCompileTimeout) : requestedCompileTimeout,
-      runTimeoutMs: clamp(options.runTimeoutMs ?? process.env.JUDGE_RUN_TIMEOUT_MS, 2000, 100, 10000),
-      memoryLimitKb: clamp(options.memoryLimitKb ?? process.env.JUDGE_MEMORY_LIMIT_KB, 262144, 65536, 1048576),
+      runTimeoutMs: clamp(options.runTimeoutMs ?? process.env.JUDGE_RUN_TIMEOUT_MS, DEFAULT_LANGUAGE_LIMITS.other.runTimeoutMs, 100, 10000),
+      memoryLimitKb: clamp(options.memoryLimitKb ?? process.env.JUDGE_MEMORY_LIMIT_KB, DEFAULT_LANGUAGE_LIMITS.other.memoryLimitKb, 65536, 1048576),
       outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 262144, 4096, 1048576),
-      codeLimitBytes: 65536
+      codeLimitBytes: clamp(options.codeLimitBytes ?? process.env.JUDGE_CODE_LIMIT_BYTES, 16 * 1024, 1024, 1048576),
+      stackLimitKb: clamp(options.stackLimitKb ?? process.env.JUDGE_STACK_LIMIT_KB, 8192, 1024, 1048576)
+    };
+    this.languageLimits = {
+      Java: {
+        runTimeoutMs: hasRunTimeoutOverride ? this.limits.runTimeoutMs : DEFAULT_LANGUAGE_LIMITS.Java.runTimeoutMs,
+        memoryLimitKb: hasMemoryLimitOverride ? this.limits.memoryLimitKb : DEFAULT_LANGUAGE_LIMITS.Java.memoryLimitKb
+      },
+      'Python 3': {
+        runTimeoutMs: hasRunTimeoutOverride ? this.limits.runTimeoutMs : DEFAULT_LANGUAGE_LIMITS['Python 3'].runTimeoutMs,
+        memoryLimitKb: hasMemoryLimitOverride ? this.limits.memoryLimitKb : DEFAULT_LANGUAGE_LIMITS['Python 3'].memoryLimitKb
+      },
+      other: { runTimeoutMs: this.limits.runTimeoutMs, memoryLimitKb: this.limits.memoryLimitKb }
     };
     this.runtimeCommands = new Map();
     this.availableLanguages = Object.entries(this.toolchains)
@@ -708,20 +729,40 @@ class LocalJudge {
   }
 
   info() {
+    const java = this.limitsFor('Java');
+    const python3 = this.limitsFor('Python 3');
+    const other = this.limitsFor('other');
     return {
       runner: 'local', configured: this.availableLanguages.length > 0,
       languages: this.availableLanguages,
       unavailableLanguages: Object.keys(this.toolchains).filter(language => !this.availableLanguages.includes(language)),
       isolation: process.platform === 'linux' && this.usePrlimit ? 'prlimit (not a security sandbox)' : 'process timeout (not a security sandbox)',
-      limits: { timeLimitMs: this.limits.runTimeoutMs, memoryLimitKb: this.limits.memoryLimitKb, codeLimitBytes: this.limits.codeLimitBytes, stackLimitKb: null, memoryLimitEnforced: process.platform === 'linux' && this.usePrlimit },
+      limits: {
+        timeLimitMs: other.runTimeoutMs,
+        memoryLimitKb: other.memoryLimitKb,
+        codeLimitBytes: this.limits.codeLimitBytes,
+        stackLimitKb: this.limits.stackLimitKb,
+        memoryLimitEnforced: process.platform === 'linux' && this.usePrlimit,
+        languageLimits: {
+          java: { label: 'Java (javac)', timeLimitMs: java.runTimeoutMs, memoryLimitKb: java.memoryLimitKb },
+          python3: { label: 'Python (python3)', timeLimitMs: python3.runTimeoutMs, memoryLimitKb: python3.memoryLimitKb },
+          other: { label: '其他编译器', timeLimitMs: other.runTimeoutMs, memoryLimitKb: other.memoryLimitKb }
+        }
+      },
       queue: { active: this.active, waiting: this.queue.length, concurrency: this.maxConcurrency }
     };
+  }
+
+  limitsFor(requestedLanguage) {
+    const language = LANGUAGE_ALIASES[String(requestedLanguage || '').trim().toLowerCase()] || String(requestedLanguage || '').trim();
+    const profile = this.languageLimits[language] || this.languageLimits.other;
+    return { ...this.limits, ...profile };
   }
 
   judge(payload) {
     if (this.queue.length >= this.maxQueue) {
       const tests = Array.isArray(payload.tests) ? payload.tests : [];
-      return Promise.resolve(unavailableResult('评测队列已满，请稍后重试。', tests, this.limits));
+      return Promise.resolve(unavailableResult('评测队列已满，请稍后重试。', tests, this.limitsFor(payload.language)));
     }
     return new Promise((resolve, reject) => {
       this.queue.push({ payload, resolve, reject });
@@ -739,6 +780,7 @@ class LocalJudge {
   async execute(payload) {
     const requestedLanguage = String(payload.language || '').trim();
     const language = LANGUAGE_ALIASES[requestedLanguage.toLowerCase()] || requestedLanguage;
+    const limits = this.limitsFor(language);
     const toolchain = this.toolchains[language];
     const runtimeCommand = this.runtimeCommands.get(language);
     const source = String(payload.code || '');
@@ -748,14 +790,14 @@ class LocalJudge {
       compared: payload.mode !== 'sample' || test?.compared !== false,
       checker: String(test && test.checker || '')
     })) : [];
-    if (!toolchain) return unavailableResult(`自建评测机暂不支持 ${language || '该语言'}。`, tests, this.limits);
+    if (!toolchain) return unavailableResult(`自建评测机暂不支持 ${language || '该语言'}。`, tests, limits);
     if (Array.isArray(toolchain.commandCandidates) && !runtimeCommand) {
-      return unavailableResult(`评测环境尚未安装可用的 ${language} 解释器。`, tests, this.limits);
+      return unavailableResult(`评测环境尚未安装可用的 ${language} 解释器。`, tests, limits);
     }
-    if (!source.trim()) return { ...unavailableResult('请先编写代码。', tests, this.limits), verdict: 'CompilationError' };
-    if (!tests.length || tests.length > 20) return { ...unavailableResult('该题尚未配置有效测试点。', tests, this.limits), verdict: 'NotConfigured' };
-    if (Buffer.byteLength(source, 'utf8') > this.limits.codeLimitBytes || tests.some(test => test.input.length > 10500000 || test.expected.length > 10500000)) {
-      return { ...unavailableResult('代码或测试点超过评测机限制。', tests, this.limits), verdict: 'CompilationError' };
+    if (!source.trim()) return { ...unavailableResult('请先编写代码。', tests, limits), verdict: 'CompilationError' };
+    if (!tests.length || tests.length > 20) return { ...unavailableResult('该题尚未配置有效测试点。', tests, limits), verdict: 'NotConfigured' };
+    if (Buffer.byteLength(source, 'utf8') > limits.codeLimitBytes || tests.some(test => test.input.length > 10500000 || test.expected.length > 10500000)) {
+      return { ...unavailableResult('代码或测试点超过评测机限制。', tests, limits), verdict: 'CompilationError' };
     }
 
     const prefix = path.join(os.tmpdir(), 'fzupta-judge-');
@@ -770,16 +812,16 @@ class LocalJudge {
         const compileSpec = toolchain.compile(job, runtimeCommand);
         compileSpec.command = resolveCommand(compileSpec.command);
         const compilation = await runProcess(compileSpec, {
-          cwd: workDir, input: '', timeoutMs: this.limits.compileTimeoutMs,
-          outputLimitBytes: this.limits.outputLimitBytes * 2, usePrlimit: this.usePrlimit,
-          limits: { cpuSeconds: Math.ceil(this.limits.compileTimeoutMs / 1000) + 1, addressBytes: 1024 * 1024 * 1024, fileBytes: 20 * 1024 * 1024, processes: 64, openFiles: 128 }
+          cwd: workDir, input: '', timeoutMs: limits.compileTimeoutMs,
+          outputLimitBytes: limits.outputLimitBytes * 2, usePrlimit: this.usePrlimit,
+          limits: { cpuSeconds: Math.ceil(limits.compileTimeoutMs / 1000) + 1, addressBytes: 1024 * 1024 * 1024, stackBytes: limits.stackLimitKb * 1024, fileBytes: 20 * 1024 * 1024, processes: 64, openFiles: 128 }
         });
         if (compilation.error || (compilation.code === 127 && /not found|failed to execute|no such file/i.test(compilation.stderr))) {
-          return unavailableResult(`评测环境缺少 ${compileSpec.command} 编译器。`, tests, this.limits);
+          return unavailableResult(`评测环境缺少 ${compileSpec.command} 编译器。`, tests, limits);
         }
-        if (compilation.timedOut) return this.compileFailure('编译超时。', compilation, tests);
-        if (compilation.outputExceeded) return this.compileFailure('编译器输出超过限制。', compilation, tests);
-        if (compilation.code !== 0) return this.compileFailure('编译失败，请查看编译器输出。', compilation, tests);
+        if (compilation.timedOut) return this.compileFailure('编译超时。', compilation, tests, limits);
+        if (compilation.outputExceeded) return this.compileFailure('编译器输出超过限制。', compilation, tests, limits);
+        if (compilation.code !== 0) return this.compileFailure('编译失败，请查看编译器输出。', compilation, tests, limits);
         compilerDiagnostics = clipped(compilation.stdout + compilation.stderr);
       }
 
@@ -789,13 +831,13 @@ class LocalJudge {
         const runSpec = toolchain.run(job, runtimeCommand);
         runSpec.command = resolveCommand(runSpec.command);
         const execution = await runProcess(runSpec, {
-          cwd: workDir, input: test.input, timeoutMs: this.limits.runTimeoutMs,
-          outputLimitBytes: Math.max(this.limits.outputLimitBytes, Math.min(10500000, Buffer.byteLength(test.expected, 'utf8') + (test.expected.match(/\n/g) || []).length + 65536)), usePrlimit: this.usePrlimit,
-          limits: { cpuSeconds: Math.ceil(this.limits.runTimeoutMs / 1000) + 1, addressBytes: this.limits.memoryLimitKb * 1024, fileBytes: 1024 * 1024, processes: 32, openFiles: 64 }
+          cwd: workDir, input: test.input, timeoutMs: limits.runTimeoutMs,
+          outputLimitBytes: Math.max(limits.outputLimitBytes, Math.min(10500000, Buffer.byteLength(test.expected, 'utf8') + (test.expected.match(/\n/g) || []).length + 65536)), usePrlimit: this.usePrlimit,
+          limits: { cpuSeconds: Math.ceil(limits.runTimeoutMs / 1000) + 1, addressBytes: limits.memoryLimitKb * 1024, stackBytes: limits.stackLimitKb * 1024, fileBytes: 1024 * 1024, processes: 32, openFiles: 64 }
         });
         let verdict = 'Accepted', hint = '无提示', detail = '';
         if (execution.error || (execution.code === 127 && /not found|failed to execute|no such file/i.test(execution.stderr))) {
-          return unavailableResult(`评测环境无法启动 ${runSpec.command}。`, tests, this.limits);
+          return unavailableResult(`评测环境无法启动 ${runSpec.command}。`, tests, limits);
         } else if (execution.timedOut) {
           verdict = 'TimeLimitExceeded'; hint = '运行时间超过限制。'; detail = clipped(execution.stderr);
         } else if (execution.outputExceeded) {
@@ -812,7 +854,7 @@ class LocalJudge {
           ...(payload.mode === 'sample' ? { actualOutput: clipped(execution.stdout), stderr: clipped(execution.stderr), compared: test.compared, ...(test.compared ? { expectedOutput: test.expected } : {}) } : {})
         });
       }
-      return { ...this.result(testCases, tests, payload.mode), compilerDiagnostics };
+      return { ...this.result(testCases, tests, payload.mode, limits), compilerDiagnostics };
     } finally {
       const resolved = path.resolve(workDir);
       const allowedPrefix = `${path.resolve(os.tmpdir())}${path.sep}fzupta-judge-`;
@@ -820,18 +862,18 @@ class LocalJudge {
     }
   }
 
-  compileFailure(message, compilation, tests) {
+  compileFailure(message, compilation, tests, limits) {
     const detail = clipped(compilation.stderr || compilation.stdout || message);
     return {
       verdict: 'CompilationError', message, compilerOutput: detail,
       testCases: tests.map((test, index) => ({ index, verdict: 'CompilationError', hint: message, score: test.score, memoryKb: null, timeMs: compilation.durationMs })),
       passedTests: 0, totalTests: tests.length,
-      timeLimitMs: this.limits.runTimeoutMs, memoryLimitKb: this.limits.memoryLimitKb,
+      timeLimitMs: limits.runTimeoutMs, memoryLimitKb: limits.memoryLimitKb,
       runner: 'local'
     };
   }
 
-  result(testCases, tests, mode) {
+  result(testCases, tests, mode, limits) {
     const priority = ['RuntimeError', 'TimeLimitExceeded', 'WrongAnswer'];
     const verdict = priority.find(value => testCases.some(test => test.verdict === value)) || 'Accepted';
     const passedTests = testCases.filter(test => test.verdict === 'Accepted').length;
@@ -844,14 +886,14 @@ class LocalJudge {
     return {
       verdict, message, compilerOutput, compared,
       testCases: testCases.map(({ detail, ...test }) => test), passedTests, totalTests: tests.length,
-      timeLimitMs: this.limits.runTimeoutMs, memoryLimitKb: this.limits.memoryLimitKb,
+      timeLimitMs: limits.runTimeoutMs, memoryLimitKb: limits.memoryLimitKb,
       runner: 'local'
     };
   }
 }
 
 module.exports = {
-  LocalJudge, DEFAULT_TOOLCHAINS, checkSeilorPermutation,
+  LocalJudge, DEFAULT_TOOLCHAINS, DEFAULT_LANGUAGE_LIMITS, checkSeilorPermutation,
   checkTriangleEuler, checkOperationConstruction, checkFzuSubsequence,
   checkNonattackingRooks, checkTreeEccentricity, checkSpecialOutput
 };

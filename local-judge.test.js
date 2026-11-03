@@ -34,6 +34,20 @@ test('submission cannot opt out of comparison and source limit is measured in by
   assert.equal(oversized.verdict, 'CompilationError'); assert.match(oversized.message, /超过/);
 });
 
+test('judge reports and applies the configured per-language resource limits', () => {
+  const judge = new LocalJudge({ usePrlimit: false, toolchains: {} });
+  const limits = judge.info().limits;
+
+  assert.equal(limits.codeLimitBytes, 16 * 1024);
+  assert.equal(limits.stackLimitKb, 8192);
+  assert.deepEqual(limits.languageLimits.java, { label: 'Java (javac)', timeLimitMs: 1500, memoryLimitKb: 128 * 1024 });
+  assert.deepEqual(limits.languageLimits.python3, { label: 'Python (python3)', timeLimitMs: 1500, memoryLimitKb: 64 * 1024 });
+  assert.deepEqual(limits.languageLimits.other, { label: '其他编译器', timeLimitMs: 500, memoryLimitKb: 64 * 1024 });
+  assert.equal(judge.limitsFor('java').runTimeoutMs, 1500);
+  assert.equal(judge.limitsFor('python3').memoryLimitKb, 64 * 1024);
+  assert.equal(judge.limitsFor('PyPy').runTimeoutMs, 500);
+});
+
 test('native C and C++ compilers avoid pipe mode to reduce peak memory', () => {
   const workDir = path.resolve('temporary-judge-test');
   const sourcePath = path.join(workDir, 'main.cpp');
