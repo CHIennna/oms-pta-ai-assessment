@@ -1,6 +1,6 @@
 import {Compartment, EditorSelection, EditorState} from '@codemirror/state';
 import {EditorView, Decoration, ViewPlugin, drawSelection, highlightActiveLine, highlightActiveLineGutter, highlightSpecialChars, lineNumbers, rectangularSelection} from '@codemirror/view';
-import {HighlightStyle, syntaxHighlighting} from '@codemirror/language';
+import {HighlightStyle, bracketMatching, syntaxHighlighting} from '@codemirror/language';
 import {cpp} from '@codemirror/lang-cpp';
 import {python} from '@codemirror/lang-python';
 import {java} from '@codemirror/lang-java';
@@ -123,6 +123,8 @@ const ptaTheme = EditorView.theme({
   '.cm-activeLineGutter': {backgroundColor: 'var(--code-active-line, #444)'},
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {backgroundColor: 'transparent !important'},
   '.cm-precise-selection': {backgroundColor: 'var(--code-selection, rgba(49,135,235,.55)) !important'},
+  '.cm-matchingBracket': {backgroundColor: 'var(--code-bracket-match, rgba(47, 143, 255, .34))', outline: '1px solid var(--code-bracket-outline, #2f8fff)', borderRadius: '2px'},
+  '.cm-nonmatchingBracket': {backgroundColor: 'var(--code-bracket-error, rgba(238, 76, 76, .32))', outline: '1px solid var(--code-bracket-error-outline, #ee4c4c)', borderRadius: '2px'},
   '.cm-cursor, .cm-dropCursor': {borderLeftColor: 'var(--code-caret, #f2f2f2)'}
 }, {dark: true});
 
@@ -138,19 +140,45 @@ const ptaHighlight = HighlightStyle.define([
 
 let replacing = false;
 const editingHistory = {undo: [], redo: []};
-function replaceDocument(text) {
+function editorSnapshot(editor) {
+  return {
+    text: editor.state.doc.toString(),
+    selection: editor.state.selection.toJSON(),
+    scrollTop: editor.scrollDOM.scrollTop,
+    scrollLeft: editor.scrollDOM.scrollLeft
+  };
+}
+function pushHistory(stack, snapshot) {
+  stack.push(snapshot);
+  if (stack.length > 200) stack.shift();
+}
+function snapshotForCurrentViewport(editor, snapshot) {
+  const selection = EditorSelection.fromJSON(snapshot.selection);
+  const head = selection.main.head;
+  return head >= editor.viewport.from && head <= editor.viewport.to
+    ? {...snapshot, scrollTop: editor.scrollDOM.scrollTop, scrollLeft: editor.scrollDOM.scrollLeft}
+    : snapshot;
+}
+function replaceDocument(snapshot) {
   replacing = true;
-  view.dispatch({changes: {from: 0, to: view.state.doc.length, insert: text}});
-  input.value = text;
+  view.dispatch({
+    changes: {from: 0, to: view.state.doc.length, insert: snapshot.text},
+    selection: EditorSelection.fromJSON(snapshot.selection)
+  });
+  input.value = snapshot.text;
   input.dispatchEvent(new Event('input', {bubbles: true}));
   replacing = false;
+  requestAnimationFrame(() => {
+    view.scrollDOM.scrollTop = snapshot.scrollTop;
+    view.scrollDOM.scrollLeft = snapshot.scrollLeft;
+  });
 }
 function handleShortcut(event, editor) {
     if (!(event.ctrlKey || event.metaKey) || event.altKey) return false;
     const key = event.key.toLowerCase();
     if (key === 'a') { editor.dispatch({selection: {anchor: 0, head: editor.state.doc.length}}); event.preventDefault(); return true; }
-    if (key === 'z' && !event.shiftKey && editingHistory.undo.length) { editingHistory.redo.push(editor.state.doc.toString()); replaceDocument(editingHistory.undo.pop()); event.preventDefault(); return true; }
-    if ((key === 'y' || (key === 'z' && event.shiftKey)) && editingHistory.redo.length) { editingHistory.undo.push(editor.state.doc.toString()); replaceDocument(editingHistory.redo.pop()); event.preventDefault(); return true; }
+    if (key === 'z' && !event.shiftKey && editingHistory.undo.length) { pushHistory(editingHistory.redo, editorSnapshot(editor)); replaceDocument(snapshotForCurrentViewport(editor, editingHistory.undo.pop())); event.preventDefault(); return true; }
+    if ((key === 'y' || (key === 'z' && event.shiftKey)) && editingHistory.redo.length) { pushHistory(editingHistory.undo, editorSnapshot(editor)); replaceDocument(snapshotForCurrentViewport(editor, editingHistory.redo.pop())); event.preventDefault(); return true; }
     if (!event.shiftKey && (key === '/' || event.code === 'Slash')) {
       const token = isPythonLanguage() ? '#' : '//';
       const ranges = editor.state.selection.ranges.map(range => ({from: range.from, to: range.to}));
@@ -164,9 +192,35 @@ function handleShortcut(event, editor) {
 }
 function insertIndentation(event, editor) {
   if (event.key !== 'Tab' || event.ctrlKey || event.metaKey || event.altKey) return false;
+  const ranges = editor.state.selection.ranges;
+  if (event.shiftKey || ranges.some(range => !range.empty)) {
+    const lineNumbers = new Set();
+    for (const range of ranges) {
+      const fromLine = editor.state.doc.lineAt(range.from).number;
+      const effectiveTo = range.to > range.from && editor.state.doc.lineAt(range.to).from === range.to
+        ? range.to - 1
+        : range.to;
+      const toLine = editor.state.doc.lineAt(effectiveTo).number;
+      for (let number = fromLine; number <= toLine; number++) lineNumbers.add(number);
+    }
+    const changes = [...lineNumbers].sort((left, right) => left - right).flatMap(number => {
+      const line = editor.state.doc.line(number);
+      if (!event.shiftKey) return [{from: line.from, insert: indentation}];
+      if (line.text.startsWith('\t')) return [{from: line.from, to: line.from + 1, insert: ''}];
+      const spaces = Math.min(indentation.length, (line.text.match(/^ +/) || [''])[0].length);
+      return spaces ? [{from: line.from, to: line.from + spaces, insert: ''}] : [];
+    });
+    if (changes.length) editor.dispatch({changes});
+    event.preventDefault();
+    return true;
+  }
   const transaction = editor.state.changeByRange(range => ({
-    changes: {from: range.from, to: range.to, insert: indentation},
-    range: EditorSelection.cursor(range.from + indentation.length)
+    changes: {
+      from: range.from,
+      to: range.to,
+      insert: indentation.slice((range.from - editor.state.doc.lineAt(range.from).from) % indentation.length)
+    },
+    range: EditorSelection.cursor(range.from + (indentation.length - ((range.from - editor.state.doc.lineAt(range.from).from) % indentation.length)))
   }));
   editor.dispatch(transaction);
   event.preventDefault();
@@ -267,11 +321,15 @@ const view = new EditorView({
     doc: input.value,
     extensions: [
       lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), drawSelection(), preciseSelectionPlugin, rectangularSelection(), highlightActiveLine(), indentationDotPlugin, localLoopVariablePlugin, includeHeaderPlugin, commonShortcuts,
-      ptaTheme, syntaxHighlighting(ptaHighlight), language.of(languageFor()),
+      ptaTheme, syntaxHighlighting(ptaHighlight), language.of(languageFor()), bracketMatching({afterCursor: true}),
       EditorView.updateListener.of(update => {
         if (!update.docChanged || replacing) return;
-        editingHistory.undo.push(update.startState.doc.toString());
-        if (editingHistory.undo.length > 200) editingHistory.undo.shift();
+        pushHistory(editingHistory.undo, {
+          text: update.startState.doc.toString(),
+          selection: update.startState.selection.toJSON(),
+          scrollTop: update.view.scrollDOM.scrollTop,
+          scrollLeft: update.view.scrollDOM.scrollLeft
+        });
         editingHistory.redo.length = 0;
         input.value = update.state.doc.toString();
         input.dispatchEvent(new Event('input', {bubbles: true}));
@@ -323,8 +381,15 @@ input.hidden = true;
 legacyGutter.hidden = true;
 input.addEventListener('input', () => {
   if (replacing || input.value === view.state.doc.toString()) return;
+  editingHistory.undo.length = 0;
+  editingHistory.redo.length = 0;
   replacing = true;
-  view.dispatch({changes: {from: 0, to: view.state.doc.length, insert: input.value}});
+  view.dispatch({
+    changes: {from: 0, to: view.state.doc.length, insert: input.value},
+    selection: {anchor: 0}
+  });
+  view.scrollDOM.scrollTop = 0;
+  view.scrollDOM.scrollLeft = 0;
   replacing = false;
 });
 languageSelect.addEventListener('change', () => view.dispatch({effects: language.reconfigure(languageFor())}));

@@ -15880,6 +15880,114 @@
       ext.push(highlighterFacet.of(highlighter));
     return ext;
   }
+  function defaultRenderMatch(match) {
+    let decorations2 = [];
+    let mark = match.matched ? matchingMark : nonmatchingMark;
+    decorations2.push(mark.range(match.start.from, match.start.to));
+    if (match.end)
+      decorations2.push(mark.range(match.end.from, match.end.to));
+    return decorations2;
+  }
+  function bracketDeco(state) {
+    let decorations2 = [];
+    let config = state.facet(bracketMatchingConfig);
+    for (let range of state.selection.ranges) {
+      if (!range.empty)
+        continue;
+      let match = matchBrackets(state, range.head, -1, config) || range.head > 0 && matchBrackets(state, range.head - 1, 1, config) || config.afterCursor && (matchBrackets(state, range.head, 1, config) || range.head < state.doc.length && matchBrackets(state, range.head + 1, -1, config));
+      if (match)
+        decorations2 = decorations2.concat(config.renderMatch(match, state));
+    }
+    return Decoration.set(decorations2, true);
+  }
+  function bracketMatching(config = {}) {
+    return [bracketMatchingConfig.of(config), bracketMatchingUnique];
+  }
+  function matchingNodes(node, dir, brackets) {
+    let byProp = node.prop(dir < 0 ? NodeProp.openedBy : NodeProp.closedBy);
+    if (byProp)
+      return byProp;
+    if (node.name.length == 1) {
+      let index = brackets.indexOf(node.name);
+      if (index > -1 && index % 2 == (dir < 0 ? 1 : 0))
+        return [brackets[index + dir]];
+    }
+    return null;
+  }
+  function findHandle(node) {
+    let hasHandle = node.type.prop(bracketMatchingHandle);
+    return hasHandle ? hasHandle(node.node) : node;
+  }
+  function matchBrackets(state, pos, dir, config = {}) {
+    let maxScanDistance = config.maxScanDistance || DefaultScanDist, brackets = config.brackets || DefaultBrackets;
+    let tree = syntaxTree(state), node = tree.resolveInner(pos, dir);
+    for (let cur = node; cur; cur = cur.parent) {
+      let matches = matchingNodes(cur.type, dir, brackets);
+      if (matches && cur.from < cur.to) {
+        let handle = findHandle(cur);
+        if (handle && (dir > 0 ? pos >= handle.from && pos < handle.to : pos > handle.from && pos <= handle.to))
+          return matchMarkedBrackets(state, pos, dir, cur, handle, matches, brackets);
+      }
+    }
+    return matchPlainBrackets(state, pos, dir, tree, node.type, maxScanDistance, brackets);
+  }
+  function matchMarkedBrackets(_state, _pos, dir, token, handle, matching, brackets) {
+    let parent = token.parent, firstToken = { from: handle.from, to: handle.to };
+    let depth = 0, cursor = parent === null || parent === void 0 ? void 0 : parent.cursor();
+    if (cursor && (dir < 0 ? cursor.childBefore(token.from) : cursor.childAfter(token.to)))
+      do {
+        if (dir < 0 ? cursor.to <= token.from : cursor.from >= token.to) {
+          if (depth == 0 && matching.indexOf(cursor.type.name) > -1 && cursor.from < cursor.to) {
+            let endHandle = findHandle(cursor);
+            return { start: firstToken, end: endHandle ? { from: endHandle.from, to: endHandle.to } : void 0, matched: true };
+          } else if (matchingNodes(cursor.type, dir, brackets)) {
+            depth++;
+          } else if (matchingNodes(cursor.type, -dir, brackets)) {
+            if (depth == 0) {
+              let endHandle = findHandle(cursor);
+              return {
+                start: firstToken,
+                end: endHandle && endHandle.from < endHandle.to ? { from: endHandle.from, to: endHandle.to } : void 0,
+                matched: false
+              };
+            }
+            depth--;
+          }
+        }
+      } while (dir < 0 ? cursor.prevSibling() : cursor.nextSibling());
+    return { start: firstToken, matched: false };
+  }
+  function matchPlainBrackets(state, pos, dir, tree, tokenType, maxScanDistance, brackets) {
+    if (dir < 0 ? !pos : pos == state.doc.length)
+      return null;
+    let startCh = dir < 0 ? state.sliceDoc(pos - 1, pos) : state.sliceDoc(pos, pos + 1);
+    let bracket2 = brackets.indexOf(startCh);
+    if (bracket2 < 0 || bracket2 % 2 == 0 != dir > 0)
+      return null;
+    let startToken = { from: dir < 0 ? pos - 1 : pos, to: dir > 0 ? pos + 1 : pos };
+    let iter = state.doc.iterRange(pos, dir > 0 ? state.doc.length : 0), depth = 0;
+    for (let distance = 0; !iter.next().done && distance <= maxScanDistance; ) {
+      let text = iter.value;
+      if (dir < 0)
+        distance += text.length;
+      let basePos = pos + distance * dir;
+      for (let pos2 = dir > 0 ? 0 : text.length - 1, end = dir > 0 ? text.length : -1; pos2 != end; pos2 += dir) {
+        let found = brackets.indexOf(text[pos2]);
+        if (found < 0 || tree.resolveInner(basePos + pos2, 1).type != tokenType)
+          continue;
+        if (found % 2 == 0 == dir > 0) {
+          depth++;
+        } else if (depth == 1) {
+          return { start: startToken, end: { from: basePos + pos2, to: basePos + pos2 + 1 }, matched: found >> 1 == bracket2 >> 1 };
+        } else {
+          depth--;
+        }
+      }
+      if (dir > 0)
+        distance += text.length;
+    }
+    return iter.done ? { start: startToken, matched: false } : null;
+  }
   function warnForPart(part, msg) {
     if (warned.indexOf(part) > -1)
       return;
@@ -15923,7 +16031,7 @@
     typeArray.push(type);
     return type.id;
   }
-  var _a, languageDataProp, sublanguageProp, Language, LRLanguage, DocInput, currentContext, ParseContext, LanguageState, requestIdle, isInputPending, parseWorker, language, LanguageSupport, indentUnit, indentNodeProp, flatIndent, foldNodeProp, HighlightStyle, highlighterFacet, fallbackHighlighter, TreeHighlighter, treeHighlighter, defaultHighlightStyle, noTokens, typeArray, warned, byTag, defaultTable, marks;
+  var _a, languageDataProp, sublanguageProp, Language, LRLanguage, DocInput, currentContext, ParseContext, LanguageState, requestIdle, isInputPending, parseWorker, language, LanguageSupport, indentUnit, indentNodeProp, flatIndent, foldNodeProp, HighlightStyle, highlighterFacet, fallbackHighlighter, TreeHighlighter, treeHighlighter, defaultHighlightStyle, baseTheme2, DefaultScanDist, DefaultBrackets, bracketMatchingConfig, matchingMark, nonmatchingMark, bracketMatcher, bracketMatchingUnique, bracketMatchingHandle, noTokens, typeArray, warned, byTag, defaultTable, marks;
   var init_dist5 = __esm({
     "node_modules/@codemirror/language/dist/index.js"() {
       init_dist3();
@@ -16614,6 +16722,48 @@
           color: "#f00"
         }
       ]);
+      baseTheme2 = /* @__PURE__ */ EditorView.baseTheme({
+        "&.cm-focused .cm-matchingBracket": { backgroundColor: "#328c8252" },
+        "&.cm-focused .cm-nonmatchingBracket": { backgroundColor: "#bb555544" }
+      });
+      DefaultScanDist = 1e4;
+      DefaultBrackets = "()[]{}";
+      bracketMatchingConfig = /* @__PURE__ */ Facet.define({
+        combine(configs) {
+          return combineConfig(configs, {
+            afterCursor: true,
+            brackets: DefaultBrackets,
+            maxScanDistance: DefaultScanDist,
+            renderMatch: defaultRenderMatch
+          });
+        }
+      });
+      matchingMark = /* @__PURE__ */ Decoration.mark({ class: "cm-matchingBracket" });
+      nonmatchingMark = /* @__PURE__ */ Decoration.mark({ class: "cm-nonmatchingBracket" });
+      bracketMatcher = /* @__PURE__ */ ViewPlugin.fromClass(class {
+        constructor(view) {
+          this.paused = false;
+          this.decorations = bracketDeco(view.state);
+        }
+        update(update) {
+          if (update.docChanged || update.selectionSet || this.paused) {
+            if (update.view.composing) {
+              this.decorations = this.decorations.map(update.changes);
+              this.paused = true;
+            } else {
+              this.decorations = bracketDeco(update.state);
+              this.paused = false;
+            }
+          }
+        }
+      }, {
+        decorations: (v) => v.decorations
+      });
+      bracketMatchingUnique = [
+        bracketMatcher,
+        baseTheme2
+      ];
+      bracketMatchingHandle = /* @__PURE__ */ new NodeProp();
       noTokens = /* @__PURE__ */ Object.create(null);
       typeArray = [NodeType.none];
       warned = [];
@@ -18994,7 +19144,7 @@
         let active = new ActiveSnippet(ranges, 0);
         let effects = spec.effects = [setActive.of(active)];
         if (editor.state.field(snippetState, false) === void 0)
-          effects.push(StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme2]));
+          effects.push(StateEffect.appendConfig.of([snippetState, addSnippetKeymap, snippetPointerHandler, baseTheme3]));
       }
       editor.dispatch(editor.state.update(spec));
     };
@@ -19016,7 +19166,7 @@
   function snippetCompletion(template, completion) {
     return { ...completion, apply: snippet(template) };
   }
-  var pickedCompletion, windows, baseTheme2, FieldPos, FieldRange, Snippet, fieldMarker, fieldRange, ActiveSnippet, setActive, moveToField, snippetState, clearSnippet, nextSnippetField, prevSnippetField, defaultSnippetKeymap, snippetKeymap, addSnippetKeymap, snippetPointerHandler, closedBracket, android;
+  var pickedCompletion, windows, baseTheme3, FieldPos, FieldRange, Snippet, fieldMarker, fieldRange, ActiveSnippet, setActive, moveToField, snippetState, clearSnippet, nextSnippetField, prevSnippetField, defaultSnippetKeymap, snippetKeymap, addSnippetKeymap, snippetPointerHandler, closedBracket, android;
   var init_dist10 = __esm({
     "node_modules/@codemirror/autocomplete/dist/index.js"() {
       init_dist();
@@ -19024,7 +19174,7 @@
       init_dist5();
       pickedCompletion = /* @__PURE__ */ Annotation.define();
       windows = typeof navigator == "object" && /* @__PURE__ */ /Win/.test(navigator.platform);
-      baseTheme2 = /* @__PURE__ */ EditorView.baseTheme({
+      baseTheme3 = /* @__PURE__ */ EditorView.baseTheme({
         ".cm-tooltip.cm-tooltip-autocomplete": {
           "& > ul": {
             fontFamily: "monospace",
@@ -20080,6 +20230,8 @@
         ".cm-activeLineGutter": { backgroundColor: "var(--code-active-line, #444)" },
         ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "transparent !important" },
         ".cm-precise-selection": { backgroundColor: "var(--code-selection, rgba(49,135,235,.55)) !important" },
+        ".cm-matchingBracket": { backgroundColor: "var(--code-bracket-match, rgba(47, 143, 255, .34))", outline: "1px solid var(--code-bracket-outline, #2f8fff)", borderRadius: "2px" },
+        ".cm-nonmatchingBracket": { backgroundColor: "var(--code-bracket-error, rgba(238, 76, 76, .32))", outline: "1px solid var(--code-bracket-error-outline, #ee4c4c)", borderRadius: "2px" },
         ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--code-caret, #f2f2f2)" }
       }, { dark: true });
       var ptaHighlight = HighlightStyle.define([
@@ -20093,12 +20245,36 @@
       ]);
       var replacing = false;
       var editingHistory = { undo: [], redo: [] };
-      function replaceDocument(text) {
+      function editorSnapshot(editor) {
+        return {
+          text: editor.state.doc.toString(),
+          selection: editor.state.selection.toJSON(),
+          scrollTop: editor.scrollDOM.scrollTop,
+          scrollLeft: editor.scrollDOM.scrollLeft
+        };
+      }
+      function pushHistory(stack, snapshot) {
+        stack.push(snapshot);
+        if (stack.length > 200) stack.shift();
+      }
+      function snapshotForCurrentViewport(editor, snapshot) {
+        const selection = EditorSelection.fromJSON(snapshot.selection);
+        const head = selection.main.head;
+        return head >= editor.viewport.from && head <= editor.viewport.to ? { ...snapshot, scrollTop: editor.scrollDOM.scrollTop, scrollLeft: editor.scrollDOM.scrollLeft } : snapshot;
+      }
+      function replaceDocument(snapshot) {
         replacing = true;
-        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
-        input.value = text;
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: snapshot.text },
+          selection: EditorSelection.fromJSON(snapshot.selection)
+        });
+        input.value = snapshot.text;
         input.dispatchEvent(new Event("input", { bubbles: true }));
         replacing = false;
+        requestAnimationFrame(() => {
+          view.scrollDOM.scrollTop = snapshot.scrollTop;
+          view.scrollDOM.scrollLeft = snapshot.scrollLeft;
+        });
       }
       function handleShortcut(event, editor) {
         if (!(event.ctrlKey || event.metaKey) || event.altKey) return false;
@@ -20109,14 +20285,14 @@
           return true;
         }
         if (key === "z" && !event.shiftKey && editingHistory.undo.length) {
-          editingHistory.redo.push(editor.state.doc.toString());
-          replaceDocument(editingHistory.undo.pop());
+          pushHistory(editingHistory.redo, editorSnapshot(editor));
+          replaceDocument(snapshotForCurrentViewport(editor, editingHistory.undo.pop()));
           event.preventDefault();
           return true;
         }
         if ((key === "y" || key === "z" && event.shiftKey) && editingHistory.redo.length) {
-          editingHistory.undo.push(editor.state.doc.toString());
-          replaceDocument(editingHistory.redo.pop());
+          pushHistory(editingHistory.undo, editorSnapshot(editor));
+          replaceDocument(snapshotForCurrentViewport(editor, editingHistory.redo.pop()));
           event.preventDefault();
           return true;
         }
@@ -20137,9 +20313,33 @@
       }
       function insertIndentation(event, editor) {
         if (event.key !== "Tab" || event.ctrlKey || event.metaKey || event.altKey) return false;
+        const ranges = editor.state.selection.ranges;
+        if (event.shiftKey || ranges.some((range) => !range.empty)) {
+          const lineNumbers2 = /* @__PURE__ */ new Set();
+          for (const range of ranges) {
+            const fromLine = editor.state.doc.lineAt(range.from).number;
+            const effectiveTo = range.to > range.from && editor.state.doc.lineAt(range.to).from === range.to ? range.to - 1 : range.to;
+            const toLine = editor.state.doc.lineAt(effectiveTo).number;
+            for (let number2 = fromLine; number2 <= toLine; number2++) lineNumbers2.add(number2);
+          }
+          const changes = [...lineNumbers2].sort((left, right) => left - right).flatMap((number2) => {
+            const line = editor.state.doc.line(number2);
+            if (!event.shiftKey) return [{ from: line.from, insert: indentation2 }];
+            if (line.text.startsWith("	")) return [{ from: line.from, to: line.from + 1, insert: "" }];
+            const spaces = Math.min(indentation2.length, (line.text.match(/^ +/) || [""])[0].length);
+            return spaces ? [{ from: line.from, to: line.from + spaces, insert: "" }] : [];
+          });
+          if (changes.length) editor.dispatch({ changes });
+          event.preventDefault();
+          return true;
+        }
         const transaction = editor.state.changeByRange((range) => ({
-          changes: { from: range.from, to: range.to, insert: indentation2 },
-          range: EditorSelection.cursor(range.from + indentation2.length)
+          changes: {
+            from: range.from,
+            to: range.to,
+            insert: indentation2.slice((range.from - editor.state.doc.lineAt(range.from).from) % indentation2.length)
+          },
+          range: EditorSelection.cursor(range.from + (indentation2.length - (range.from - editor.state.doc.lineAt(range.from).from) % indentation2.length))
         }));
         editor.dispatch(transaction);
         event.preventDefault();
@@ -20251,10 +20451,15 @@ ${firstIndent}`;
             ptaTheme,
             syntaxHighlighting(ptaHighlight),
             language2.of(languageFor()),
+            bracketMatching({ afterCursor: true }),
             EditorView.updateListener.of((update) => {
               if (!update.docChanged || replacing) return;
-              editingHistory.undo.push(update.startState.doc.toString());
-              if (editingHistory.undo.length > 200) editingHistory.undo.shift();
+              pushHistory(editingHistory.undo, {
+                text: update.startState.doc.toString(),
+                selection: update.startState.selection.toJSON(),
+                scrollTop: update.view.scrollDOM.scrollTop,
+                scrollLeft: update.view.scrollDOM.scrollLeft
+              });
               editingHistory.redo.length = 0;
               input.value = update.state.doc.toString();
               input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -20297,8 +20502,15 @@ ${firstIndent}`;
       legacyGutter.hidden = true;
       input.addEventListener("input", () => {
         if (replacing || input.value === view.state.doc.toString()) return;
+        editingHistory.undo.length = 0;
+        editingHistory.redo.length = 0;
         replacing = true;
-        view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: input.value } });
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: input.value },
+          selection: { anchor: 0 }
+        });
+        view.scrollDOM.scrollTop = 0;
+        view.scrollDOM.scrollLeft = 0;
         replacing = false;
       });
       languageSelect.addEventListener("change", () => view.dispatch({ effects: language2.reconfigure(languageFor()) }));
