@@ -46,6 +46,20 @@ test('same-question repaint preserves custom input; question and identity change
   assert.equal(input.value, 'public');
 });
 
+test('route hashes preserve pages and exam question context across refreshes', () => {
+  const context = {};
+  vm.createContext(context);
+  vm.runInContext(extract('const APP_ROUTE_NAMES=', 'function resolveInitialRoute('), context);
+  assert.equal(context.parseRouteHash('#problemset').name, 'problemset');
+  assert.equal(context.parseRouteHash('#exam-1168').name, 'exam');
+  assert.equal(context.parseRouteHash('#exam-1168').questionId, '1168');
+  assert.equal(context.parseRouteHash('#info-1163').questionId, '1163');
+  assert.equal(context.parseRouteHash('#not-a-page').name, 'home');
+  assert.equal(context.formatRouteHash('practice', '1168'), '#practice');
+  assert.equal(context.formatRouteHash('exam', '1168'), '#exam-1168');
+  assert.equal(context.formatRouteHash('info', '题目 1'), '#info-%E9%A2%98%E7%9B%AE%201');
+});
+
 test('an older cloud save with a later server timestamp does not replace unsynced local edits', () => {
   let restored = false;
   const pending = [];
