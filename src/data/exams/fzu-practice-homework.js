@@ -34,21 +34,34 @@
       {"name":"质数拼接计数（Easy Version）","sourceUrl":"https://oj.fzu.edu.cn/p/517?tid=6aae8b3ae943a1ff033c9de5","sourceLabel":"2026·9 月 · J","difficulty":"普及+/提高-","training":"质数筛/枚举/去重","requirement":"两个质数十进制拼接；同一结果不能重复计数","optional":false},
       {"name":"已取餐","sourceUrl":"https://oj.fzu.edu.cn/p/152?tid=694fe89396f9881b418daffb","sourceLabel":"2025·12 月 · I","difficulty":"普及+/提高-","training":"排序/贪心/调度","requirement":"处理订单就绪时刻、往返时间和最后一次单程","optional":false},
       {"name":"Teamfight Tactics","sourceUrl":"https://oj.fzu.edu.cn/p/144?tid=694fe89396f9881b418daffb","sourceLabel":"2025·12 月 · D","difficulty":"普及+/提高-或以上","training":"长模拟/多规则","requirement":"八人对战全流程模拟；可拆成多个实现子任务","optional":true}
+    ] },
+    { examVersion: "fzu-transfer-homework-6", title: "第 6 次作业｜第三次质量检测候选题", questions: [
+      {"name":"赛博叫号台","sourceLabel":"第三次质量检测候选题 · A2","difficulty":"普及+/提高-","training":"事件模拟、排序、优先队列","requirement":"按到达时间推进事件，用优先队列维护等待者并正确处理空闲跳时","optional":false},
+      {"name":"记录撤回键","sourceLabel":"第三次质量检测候选题 · A4","difficulty":"普及+/提高-","training":"栈、状态维护、最大子段和","requirement":"每次追加时保存可撤回状态，查询必须支持全负数与空账本","optional":false},
+      {"name":"Citywalk打卡章","sourceLabel":"第三次质量检测候选题 · A7","difficulty":"普及","training":"区间排序、区间合并","requirement":"端点相邻的整数区间也要合并，并按左端点处理最长段并列","optional":false},
+      {"name":"心情值取模","sourceLabel":"第三次质量检测候选题 · B3","difficulty":"普及","training":"前缀和、取模、哈希计数","requirement":"统一处理负余数，使用 64 位整数统计答案","optional":false},
+      {"name":"奶绿波补给地图","sourceLabel":"第三次质量检测候选题 · B4","difficulty":"普及+/提高-","training":"多源 BFS、网格最短路","requirement":"把所有 S 同时入队，统计可达 T 的最大距离和不可达数量","optional":false}
     ] }
   ];
   const normalize = value => String(value || '').replace(/^[A-Z]\.\s*/, '').trim();
-  const build = exams => collections.map(collection => ({
+  const build = exams => {
+    const sources = [window.OMS_QC3_HOMEWORK_SOURCE, ...exams]
+      .filter(Boolean)
+      .filter((exam, index, list) => list.findIndex(item => item.examVersion === exam.examVersion) === index);
+    return collections.map(collection => ({
     examVersion: collection.examVersion, title: collection.title, category: 'practice',
     rule: 'IOI', type: 'IOI', duration: 0, registered: 0,
     introduction: '每次 4 道核心题＋1 道选做题，不限时，可按自己的节奏完成。',
     questions: collection.questions.map(item => {
-      const matches = exams.flatMap(exam => (exam.questions || []).filter(question =>
+      const matches = sources.flatMap(exam => (exam.questions || []).filter(question =>
         normalize(question.name) === item.name || normalize(question.title) === item.name
       ).map(question => ({ exam, question })));
       if (matches.length > 1) throw new Error('作业题目来源不唯一：' + item.name);
       const source = matches[0];
       const homework = { homeworkOptional: item.optional, homeworkTraining: item.training,
-        homeworkRequirement: item.requirement, difficulty: item.difficulty, sourceUrl: item.sourceUrl };
+        homeworkRequirement: item.requirement, homeworkSourceLabel: item.sourceLabel,
+        difficulty: item.difficulty, sourceUrl: item.sourceUrl };
+      if (!source && !item.sourceUrl) throw new Error('作业题目没有可评测来源：' + item.name);
       if (!source) return { ...homework, id: item.sourceUrl.match(/\/p\/(\d+)/)[1],
         name: item.name, score: 100, externalOnly: true, judgeable: false,
         statement: '## 原站练习\n\n本题尚未导入本站，请在 [FZU 原题](' + item.sourceUrl + ') 作答。\n\n作业要求：' + item.requirement,
@@ -57,6 +70,11 @@
       return { ...source.question, ...homework, name: item.name, sourceExamVersion: source.exam.examVersion };
     })
   }));
+  };
   window.OMS_BUILD_PRACTICE_EXAMS = build;
-  window.OMS_PRACTICE_EXAMS = build([window.OMS_EXAM_DATA, ...(window.OMS_EXAM_ARCHIVE || [])].filter(Boolean));
+  window.OMS_PRACTICE_EXAMS = build([
+    window.OMS_EXAM_DATA,
+    window.OMS_QC3_HOMEWORK_SOURCE,
+    ...(window.OMS_EXAM_ARCHIVE || [])
+  ].filter(Boolean));
 })();

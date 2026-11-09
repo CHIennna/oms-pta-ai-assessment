@@ -48,6 +48,7 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
   }
 
   const exams = [current, ...archives];
+  const practiceSourceExams = [context.window.OMS_QC3_HOMEWORK_SOURCE].filter(Boolean);
   attachPrivateTestData(exams, testDataPaths);
   const practiceExams = typeof context.window.OMS_BUILD_PRACTICE_EXAMS === 'function'
     ? context.window.OMS_BUILD_PRACTICE_EXAMS(exams) : [];
@@ -169,7 +170,7 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
     for (const question of practice.questions || []) {
       if (question.externalOnly) {
         if (question.judgeable !== false || !/^https:\/\/oj\.fzu\.edu\.cn\/p\/\d+(?:\?[^\s]*)?$/.test(question.sourceUrl)) errors.push('作业原题入口无效：' + question.name);
-      } else if (!exams.some(exam => exam.examVersion === question.sourceExamVersion && exam.questions.some(source => source.id === question.id && source.judgeable !== false))) {
+      } else if (![...exams, ...practiceSourceExams].some(exam => exam.examVersion === question.sourceExamVersion && exam.questions.some(source => source.id === question.id && source.judgeable !== false))) {
         errors.push('作业题目来源无效：' + question.name);
       }
     }
@@ -194,8 +195,11 @@ if (require.main === module) {
           path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'),
           path.join(examDataRoot, 'shenzhuo-round3-20260920.js'),
           path.join(examDataRoot, 'gplt-homework-2024-2026.js'),
+          path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'),
           path.join(examDataRoot, 'fzu-practice-homework.js'),
-          path.join(examDataRoot, 'third-stage-weekly-20261025.js')
+          path.join(examDataRoot, 'third-stage-weekly-20261025.js'),
+          path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'),
+          path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
