@@ -8,6 +8,23 @@
   const calculateScore = (result, question) => window.OMS_JUDGE_SCORE.calculate(result, question);
   const shownOutput = value => String(value ?? '').length ? String(value) : '(无输出)';
   let submissionSource = '';
+  async function readJudgeResponse(response) {
+    const body = await response.text();
+    if (!body.trim()) {
+      throw Error(response.ok ? '评测服务未返回运行结果，请稍后重试。' : '评测服务正在启动或暂时不可用，请稍后重试。');
+    }
+    let result;
+    try { result = JSON.parse(body); }
+    catch {
+      throw Error(response.status >= 500
+        ? '评测服务正在启动或暂时不可用，请稍后重试。'
+        : '评测服务返回了无法识别的响应，请稍后重试。');
+    }
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw Error('评测服务返回了无效结果，请稍后重试。');
+    }
+    return result;
+  }
   function formatJudgeOutput(result, mode, sample) {
     const cases = Array.isArray(result.testCases) ? result.testCases : [];
     if (mode === 'sample') {
@@ -66,7 +83,7 @@
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
       const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, problemId:question.id, examVersion, input:sample.input, mode, tests }) });
-      const result = await response.json();
+      const result = await readJudgeResponse(response);
       if (!stillVisible()) return;
       if (!response.ok) throw Error(result.message || '自建评测机暂不可用。');
       $('#compiler-output').textContent = formatJudgeOutput(result, mode, sample); setTab('compiler');
@@ -142,7 +159,7 @@
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
       const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language, problemId:question.id, examVersion, mode:'submit', tests, problem:{ id:question.id, title:question.name, statement:question.statement || '' } }) });
-      const result = await response.json();
+      const result = await readJudgeResponse(response);
       if (!sameIdentity()) return;
       if (!response.ok) throw Error(result.detail || result.message || '自建评测机暂不可用。');
       if (!['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded'].includes(result.verdict)) {

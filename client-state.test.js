@@ -95,6 +95,7 @@ function judgeClient() {
   vm.runInContext(fs.readFileSync('./src/client/judge/judge-machine.js', 'utf8'), context);
   return { context, node, requests, clipboard };
 }
+const judgeResponse = (data, options = {}) => ({ ok: options.ok !== false, status: options.status || 200, text: async () => JSON.stringify(data) });
 
 test('only one sample runs at once; custom input renders actual stdout/stderr without stale expected output', async () => {
   const { context, node, requests } = judgeClient();
@@ -102,7 +103,7 @@ test('only one sample runs at once; custom input renders actual stdout/stderr wi
   const running = context.judge('sample');
   assert.equal(context.samplePending, true);
   await context.judge('sample'); assert.equal(requests.length, 1);
-  requests[0]({ ok: true, json: async () => ({ verdict: 'Accepted', compared: false, message: '运行完成', testCases: [{ compared: false, actualOutput: 'actual', stderr: 'warning' }] }) });
+  requests[0](judgeResponse({ verdict: 'Accepted', compared: false, message: '运行完成', testCases: [{ compared: false, actualOutput: 'actual', stderr: 'warning' }] }));
   await running;
   assert.equal(context.samplePending, false); assert.equal(context.tab, 'compiler');
   assert.match(node('#compiler-output').textContent, /actual/); assert.match(node('#compiler-output').textContent, /warning/);
@@ -113,7 +114,7 @@ test('only one sample runs at once; custom input renders actual stdout/stderr wi
 test('sample response after switching questions cannot paint the new question', async () => {
   const { context, node, requests } = judgeClient();
   const running = context.judge('sample'); context.config.questions = [{ id: 'other' }];
-  requests[0]({ ok: true, json: async () => ({ verdict: 'Accepted', message: 'old result' }) });
+  requests[0](judgeResponse({ verdict: 'Accepted', message: 'old result' }));
   await running; assert.equal(node('#compiler-output').textContent, ''); assert.equal(context.samplePending, false);
 });
 
@@ -122,9 +123,9 @@ test('submission preserves the last real run output and copies the submitted sna
   node('#compiler-output').textContent = 'last actual stdout';
   context.editorCode = () => 'submitted snapshot';
   const running = context.judge('submit'); context.editorCode = () => 'new unsent draft';
-  requests[0]({ ok: true, json: async () => ({ verdict: 'Accepted', message: '所有测试均已通过。',
+  requests[0](judgeResponse({ verdict: 'Accepted', message: '所有测试均已通过。',
     compilerOutput: '自建评测机运行完成\n通过测试点：1/1', passedTests: 1, totalTests: 1,
-    testCases: [{ verdict: 'Accepted', score: 100, timeMs: 42 }], scoring: { score: 100, status: 'accepted' } }) });
+    testCases: [{ verdict: 'Accepted', score: 100, timeMs: 42 }], scoring: { score: 100, status: 'accepted' } }));
   await running;
   await node('#copy-submission-code').handlers.click();
   assert.deepEqual(clipboard, ['submitted snapshot']); assert.equal(context.tab, undefined);
@@ -137,9 +138,9 @@ test('compilation failure replaces compiler output with real diagnostics', async
   const { context, node, requests } = judgeClient();
   node('#compiler-output').textContent = 'old stdout';
   const running = context.judge('submit');
-  requests[0]({ ok: true, json: async () => ({ verdict: 'CompilationError', message: '编译失败。',
+  requests[0](judgeResponse({ verdict: 'CompilationError', message: '编译失败。',
     compilerDiagnostics: 'main.cpp:1: error: expected ;', passedTests: 0, totalTests: 1,
-    testCases: [{ verdict: 'CompilationError', hint: '编译失败' }], scoring: { score: 0, status: 'wrong' } }) });
+    testCases: [{ verdict: 'CompilationError', hint: '编译失败' }], scoring: { score: 0, status: 'wrong' } }));
   await running;
   assert.equal(context.tab, 'compiler');
   assert.equal(node('#compiler-output').textContent, 'main.cpp:1: error: expected ;');

@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('./server.js', 'utf8');
+const clientJudgeSource = fs.readFileSync('./src/client/judge/judge-machine.js', 'utf8');
 const extract = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 
 function boundary() {
@@ -39,4 +40,15 @@ test('storage failure preserves the real verdict and returns unsaved status inst
   vm.createContext(context); vm.runInContext(extract('async function recordSubmission(', 'const progressReady'), context);
   const result = await context.recordSubmission({ user: { id: 'test' } }, { examVersion: 'exam', problemId: 'q' }, { verdict: 'Accepted' }, {});
   assert.equal(result.progressSaved, false); assert.equal(result.submission.verdict, 'Accepted'); assert.equal(result.scoring.score, 100);
+});
+
+test('client judge reports interrupted or invalid responses without leaking JSON parser errors', async () => {
+  const start = clientJudgeSource.indexOf('async function readJudgeResponse(');
+  const end = clientJudgeSource.indexOf('function formatJudgeOutput(', start);
+  const context = {};
+  vm.createContext(context); vm.runInContext(clientJudgeSource.slice(start, end), context);
+  await assert.rejects(context.readJudgeResponse({ ok: true, status: 200, text: async () => '' }), /未返回运行结果/);
+  await assert.rejects(context.readJudgeResponse({ ok: false, status: 502, text: async () => '<html>Bad gateway</html>' }), /正在启动或暂时不可用/);
+  await assert.rejects(context.readJudgeResponse({ ok: true, status: 200, text: async () => '{' }), /无法识别/);
+  assert.equal((await context.readJudgeResponse({ ok: true, status: 200, text: async () => '{"verdict":"Accepted"}' })).verdict, 'Accepted');
 });
