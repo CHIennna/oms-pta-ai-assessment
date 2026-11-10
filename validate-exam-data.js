@@ -199,7 +199,8 @@ if (require.main === module) {
           path.join(examDataRoot, 'fzu-practice-homework.js'),
           path.join(examDataRoot, 'third-stage-weekly-20261025.js'),
           path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'),
-          path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js')
+          path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'),
+          path.join(examDataRoot, 'zongjuesai-day2-20261115.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
