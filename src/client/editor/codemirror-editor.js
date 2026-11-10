@@ -20227,8 +20227,8 @@
         }
       }, { decorations: (value) => value.decorations });
       var ptaTheme = EditorView.theme({
-        "&": { height: "100%", color: "var(--code-text, #d9d9d9)", backgroundColor: "var(--code-bg, #404040)" },
-        ".cm-scroller": { fontFamily: mono, lineHeight: "1.55" },
+        "&": { height: "100%", width: "100%", maxWidth: "100%", minWidth: "0", flex: "1 1 auto", color: "var(--code-text, #d9d9d9)", backgroundColor: "var(--code-bg, #404040)" },
+        ".cm-scroller": { minWidth: "0", maxWidth: "100%", overflow: "auto", fontFamily: mono, lineHeight: "1.55" },
         ".cm-content": { padding: "0.5rem 0", caretColor: "var(--code-caret, #f2f2f2)" },
         ".cm-line": { paddingLeft: "0.5rem" },
         ".cm-indent-marker": { backgroundImage: "radial-gradient(circle, var(--code-indent, #797979) 1px, transparent 1.2px)", backgroundPosition: "0 52%", backgroundRepeat: "repeat-x", backgroundSize: "8.4px 4px" },
