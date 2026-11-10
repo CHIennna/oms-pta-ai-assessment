@@ -25,6 +25,12 @@
     }
     return result;
   }
+  function judgeFailureMessage(error) {
+    const message = String(error?.message || '');
+    return /failed to fetch|fetch failed|networkerror|network request failed|load failed/i.test(message)
+      ? '无法连接评测服务，请确认本地服务已启动后重试。'
+      : message || '评测服务暂时不可用，请稍后重试。';
+  }
   function formatJudgeOutput(result, mode, sample) {
     const cases = Array.isArray(result.testCases) ? result.testCases : [];
     if (mode === 'sample') {
@@ -89,7 +95,7 @@
       $('#compiler-output').textContent = formatJudgeOutput(result, mode, sample); setTab('compiler');
       const label = { Accepted:'答案正确', WrongAnswer:'答案错误', CompilationError:'编译错误', RuntimeError:'运行时错误', TimeLimitExceeded:'运行超时', NotConfigured:'未配置测试点' }[result.verdict] || '评测失败';
       state.textContent = result.compared === false && result.verdict === 'Accepted' ? '运行完成 · 自定义输入未进行答案比较' : `${label} · ${result.passedTests ?? 0}/${result.totalTests ?? tests.length}`;
-    } catch (error) { if (stillVisible()) { $('#compiler-output').textContent = error.message; setTab('compiler'); state.textContent = '评测失败'; } }
+    } catch (error) { if (stillVisible()) { $('#compiler-output').textContent = judgeFailureMessage(error); setTab('compiler'); state.textContent = '评测失败'; } }
     finally { samplePending = false; updateCountdown(); }
   };
 
@@ -199,7 +205,7 @@
       render();
     } catch (error) {
       if (stillVisible()) {
-        $('#compiler-output').textContent = error.message;
+        $('#compiler-output').textContent = judgeFailureMessage(error);
         setTab('compiler');
         state.textContent = '评测未完成 · 本次不计成绩';
         $('#submit-state').textContent = '评测未完成，请重试';

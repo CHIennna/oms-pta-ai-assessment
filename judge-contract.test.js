@@ -52,3 +52,12 @@ test('client judge reports interrupted or invalid responses without leaking JSON
   await assert.rejects(context.readJudgeResponse({ ok: true, status: 200, text: async () => '{' }), /无法识别/);
   assert.equal((await context.readJudgeResponse({ ok: true, status: 200, text: async () => '{"verdict":"Accepted"}' })).verdict, 'Accepted');
 });
+
+test('client judge translates browser network failures into an actionable message', () => {
+  const start = clientJudgeSource.indexOf('function judgeFailureMessage(');
+  const end = clientJudgeSource.indexOf('function formatJudgeOutput(', start);
+  const context = {};
+  vm.createContext(context); vm.runInContext(clientJudgeSource.slice(start, end), context);
+  assert.match(context.judgeFailureMessage(new Error('Failed to fetch')), /无法连接评测服务/);
+  assert.doesNotMatch(context.judgeFailureMessage(new Error('Failed to fetch')), /Failed to fetch/i);
+});

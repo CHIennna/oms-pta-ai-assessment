@@ -145,3 +145,11 @@ test('compilation failure replaces compiler output with real diagnostics', async
   assert.equal(context.tab, 'compiler');
   assert.equal(node('#compiler-output').textContent, 'main.cpp:1: error: expected ;');
 });
+
+test('network failures show an actionable judge connection message', async () => {
+  const { context, node } = judgeClient();
+  context.fetch = async () => { throw new TypeError('Failed to fetch'); };
+  await context.judge('sample');
+  assert.match(node('#compiler-output').textContent, /无法连接评测服务/);
+  assert.doesNotMatch(node('#compiler-output').textContent, /Failed to fetch/i);
+});
