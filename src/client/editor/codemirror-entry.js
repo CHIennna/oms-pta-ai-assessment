@@ -133,8 +133,8 @@ const ptaTheme = EditorView.theme({
   '.cm-activeLineGutter': {backgroundColor: 'var(--code-active-line, #444)'},
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {backgroundColor: 'transparent !important'},
   '.cm-precise-selection': {backgroundColor: 'var(--code-selection, rgba(49,135,235,.55)) !important'},
-  '.cm-matchingBracket': {backgroundColor: 'var(--code-bracket-match, rgba(47, 143, 255, .34))', outline: '1px solid var(--code-bracket-outline, #2f8fff)', borderRadius: '2px'},
-  '.cm-nonmatchingBracket': {backgroundColor: 'var(--code-bracket-error, rgba(238, 76, 76, .32))', outline: '1px solid var(--code-bracket-error-outline, #ee4c4c)', borderRadius: '2px'},
+  '.cm-matchingBracket': {backgroundColor: 'var(--code-bracket-match, rgba(47, 143, 255, .42))', outline: 'none', boxShadow: 'none', borderBottom: 'none', borderRadius: '1px'},
+  '.cm-nonmatchingBracket': {backgroundColor: 'var(--code-bracket-error, rgba(238, 76, 76, .32))', outline: 'none', boxShadow: 'none', borderBottom: 'none', borderRadius: '1px'},
   '.cm-cursor, .cm-dropCursor': {borderLeftColor: 'var(--code-caret, #f2f2f2)'}
 }, {dark: true});
 
@@ -451,9 +451,31 @@ function fillSettingsForm() {
 }
 
 applyEditorSettings(readSavedSettings());
-settingsButton?.addEventListener('click', () => {
+function positionSettingsDialog() {
+  if (!settingsButton || !settingsDialog) return;
+  const anchor = settingsButton.getBoundingClientRect();
+  const width = settingsDialog.offsetWidth || 470;
+  const height = settingsDialog.offsetHeight || 390;
+  const gap = 8;
+  const left = Math.min(Math.max(12, anchor.right - width), window.innerWidth - width - 12);
+  const below = anchor.bottom + gap;
+  const top = below + height <= window.innerHeight - 12
+    ? below
+    : Math.max(12, anchor.top - height - gap);
+  settingsDialog.style.left = `${left}px`;
+  settingsDialog.style.top = `${top}px`;
+}
+
+settingsButton?.addEventListener('click', event => {
+  event.stopPropagation();
+  if (settingsDialog?.open) {
+    settingsDialog.close('toggle');
+    view.focus();
+    return;
+  }
   fillSettingsForm();
-  settingsDialog?.showModal();
+  settingsDialog?.show();
+  positionSettingsDialog();
 });
 settingsForm?.addEventListener('submit', event => {
   event.preventDefault();
@@ -469,8 +491,18 @@ settingsForm?.addEventListener('submit', event => {
   view.focus();
 });
 settingsForm?.querySelector('[data-editor-settings-cancel]')?.addEventListener('click', () => settingsDialog?.close('cancel'));
-settingsDialog?.addEventListener('click', event => {
-  if (event.target === settingsDialog) settingsDialog.close('cancel');
+document.addEventListener('pointerdown', event => {
+  if (!settingsDialog?.open || settingsDialog.contains(event.target) || settingsButton?.contains(event.target)) return;
+  settingsDialog.close('outside');
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && settingsDialog?.open) {
+    settingsDialog.close('escape');
+    view.focus();
+  }
+});
+window.addEventListener('resize', () => {
+  if (settingsDialog?.open) positionSettingsDialog();
 });
 window.omsCodeEditor = {
   getValue: () => view.state.doc.toString(),
