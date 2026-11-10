@@ -11,13 +11,23 @@ import {lineCommentChanges} from './line-comment.js';
 const input = document.querySelector('#code');
 const legacyGutter = document.querySelector('#lines');
 const languageSelect = document.querySelector('#language');
+const settingsButton = document.querySelector('#editor-settings-button');
+const settingsDialog = document.querySelector('#editor-settings-dialog');
+const settingsForm = document.querySelector('#editor-settings-form');
+const codingPanel = document.querySelector('.coding');
 if (!input || !legacyGutter || !languageSelect) throw new Error('未找到代码编辑器容器。');
 
 const mono = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-const indentation = '    ';
+const settingsStorageKey = 'oms-editor-settings-v2';
+const defaultSettings = {fontSize: 14, tabSize: 4, theme: 'follow-page', keymap: 'default', showWhitespace: true};
+let editorSettings = {...defaultSettings};
+let indentation = ' '.repeat(editorSettings.tabSize);
 const bracketPairs = {'(': ')', '[': ']', '{': '}', "'": "'", '"': '"'};
 const closingBrackets = new Set(Object.values(bracketPairs));
 const language = new Compartment();
+const tabSize = new Compartment();
+const whitespace = new Compartment();
+const fontSize = new Compartment();
 const languageFor = () => ({
   'C++ (g++)': cpp(),
   'C++ (clang++)': cpp(),
@@ -316,12 +326,16 @@ function deleteIndentation(event, editor) {
   return true;
 }
 const commonShortcuts = EditorView.domEventHandlers({keydown: handleShortcut});
+const fontSizeExtension = value => EditorView.theme({
+  '&': {fontSize: `${value}px`},
+  '.cm-scroller': {fontFamily: mono}
+});
 const view = new EditorView({
   state: EditorState.create({
     doc: input.value,
     extensions: [
-      lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), drawSelection(), preciseSelectionPlugin, rectangularSelection(), highlightActiveLine(), indentationDotPlugin, localLoopVariablePlugin, includeHeaderPlugin, commonShortcuts,
-      ptaTheme, syntaxHighlighting(ptaHighlight), language.of(languageFor()), bracketMatching({afterCursor: true}),
+      lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), drawSelection(), preciseSelectionPlugin, rectangularSelection(), highlightActiveLine(), localLoopVariablePlugin, includeHeaderPlugin, commonShortcuts,
+      ptaTheme, syntaxHighlighting(ptaHighlight), language.of(languageFor()), tabSize.of(EditorState.tabSize.of(editorSettings.tabSize)), whitespace.of(indentationDotPlugin), fontSize.of(fontSizeExtension(editorSettings.fontSize)), bracketMatching({afterCursor: true}),
       EditorView.updateListener.of(update => {
         if (!update.docChanged || replacing) return;
         pushHistory(editingHistory.undo, {
@@ -393,4 +407,73 @@ input.addEventListener('input', () => {
   replacing = false;
 });
 languageSelect.addEventListener('change', () => view.dispatch({effects: language.reconfigure(languageFor())}));
-window.omsCodeEditor = {getValue: () => view.state.doc.toString(), focus: () => view.focus()};
+
+function normalizedSettings(value = {}) {
+  const font = Number(value.fontSize);
+  const tab = Number(value.tabSize);
+  return {
+    fontSize: [12, 14, 16, 18, 20].includes(font) ? font : defaultSettings.fontSize,
+    tabSize: [2, 4, 8].includes(tab) ? tab : defaultSettings.tabSize,
+    theme: ['follow-page', 'github-dark', 'github-light'].includes(value.theme) ? value.theme : defaultSettings.theme,
+    keymap: 'default',
+    showWhitespace: value.showWhitespace !== false
+  };
+}
+
+function readSavedSettings() {
+  try { return normalizedSettings(JSON.parse(localStorage.getItem(settingsStorageKey) || '{}')); }
+  catch { return {...defaultSettings}; }
+}
+
+function applyEditorSettings(nextSettings, persist = false) {
+  editorSettings = normalizedSettings(nextSettings);
+  indentation = ' '.repeat(editorSettings.tabSize);
+  codingPanel?.classList.toggle('editor-theme-github-dark', editorSettings.theme === 'github-dark');
+  codingPanel?.classList.toggle('editor-theme-github-light', editorSettings.theme === 'github-light');
+  view.dispatch({effects: [
+    tabSize.reconfigure(EditorState.tabSize.of(editorSettings.tabSize)),
+    whitespace.reconfigure(editorSettings.showWhitespace ? indentationDotPlugin : []),
+    fontSize.reconfigure(fontSizeExtension(editorSettings.fontSize))
+  ]});
+  if (persist) {
+    try { localStorage.setItem(settingsStorageKey, JSON.stringify(editorSettings)); }
+    catch { /* 设置仍在当前页面生效；隐私模式下允许存储失败。 */ }
+  }
+}
+
+function fillSettingsForm() {
+  if (!settingsForm) return;
+  settingsForm.elements.fontSize.value = String(editorSettings.fontSize);
+  settingsForm.elements.tabSize.value = String(editorSettings.tabSize);
+  settingsForm.elements.theme.value = editorSettings.theme;
+  settingsForm.elements.keymap.value = editorSettings.keymap;
+  settingsForm.elements.showWhitespace.checked = editorSettings.showWhitespace;
+}
+
+applyEditorSettings(readSavedSettings());
+settingsButton?.addEventListener('click', () => {
+  fillSettingsForm();
+  settingsDialog?.showModal();
+});
+settingsForm?.addEventListener('submit', event => {
+  event.preventDefault();
+  const data = new FormData(settingsForm);
+  applyEditorSettings({
+    fontSize: data.get('fontSize'),
+    tabSize: data.get('tabSize'),
+    theme: data.get('theme'),
+    keymap: data.get('keymap'),
+    showWhitespace: settingsForm.elements.showWhitespace.checked
+  }, true);
+  settingsDialog?.close('confirm');
+  view.focus();
+});
+settingsForm?.querySelector('[data-editor-settings-cancel]')?.addEventListener('click', () => settingsDialog?.close('cancel'));
+settingsDialog?.addEventListener('click', event => {
+  if (event.target === settingsDialog) settingsDialog.close('cancel');
+});
+window.omsCodeEditor = {
+  getValue: () => view.state.doc.toString(),
+  focus: () => view.focus(),
+  getSettings: () => ({...editorSettings})
+};

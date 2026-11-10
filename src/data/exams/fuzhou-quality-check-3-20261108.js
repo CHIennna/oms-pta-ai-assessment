@@ -151,7 +151,7 @@
       "letter": "1-8",
       "name": "DDL拼图局",
       "title": "DDL拼图局",
-      "difficultyEstimate": "提高+/省选-",
+      "difficultyEstimate": "普及+/提高-",
       "score": 100,
       "tests": 10,
       "sampleInput": "4 2\n1 3 5\n3 5 5\n1 5 10\n5 7 0",

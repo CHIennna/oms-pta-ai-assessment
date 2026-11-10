@@ -20107,12 +20107,22 @@
       var input = document.querySelector("#code");
       var legacyGutter = document.querySelector("#lines");
       var languageSelect = document.querySelector("#language");
+      var settingsButton = document.querySelector("#editor-settings-button");
+      var settingsDialog = document.querySelector("#editor-settings-dialog");
+      var settingsForm = document.querySelector("#editor-settings-form");
+      var codingPanel = document.querySelector(".coding");
       if (!input || !legacyGutter || !languageSelect) throw new Error("\u672A\u627E\u5230\u4EE3\u7801\u7F16\u8F91\u5668\u5BB9\u5668\u3002");
       var mono = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-      var indentation2 = "    ";
+      var settingsStorageKey = "oms-editor-settings-v2";
+      var defaultSettings = { fontSize: 14, tabSize: 4, theme: "follow-page", keymap: "default", showWhitespace: true };
+      var editorSettings = { ...defaultSettings };
+      var indentation2 = " ".repeat(editorSettings.tabSize);
       var bracketPairs = { "(": ")", "[": "]", "{": "}", "'": "'", '"': '"' };
       var closingBrackets = new Set(Object.values(bracketPairs));
       var language2 = new Compartment();
+      var tabSize = new Compartment();
+      var whitespace = new Compartment();
+      var fontSize = new Compartment();
       var languageFor = () => ({
         "C++ (g++)": cpp(),
         "C++ (clang++)": cpp(),
@@ -20433,6 +20443,10 @@ ${firstIndent}`;
         return true;
       }
       var commonShortcuts = EditorView.domEventHandlers({ keydown: handleShortcut });
+      var fontSizeExtension = (value) => EditorView.theme({
+        "&": { fontSize: `${value}px` },
+        ".cm-scroller": { fontFamily: mono }
+      });
       var view = new EditorView({
         state: EditorState.create({
           doc: input.value,
@@ -20444,13 +20458,15 @@ ${firstIndent}`;
             preciseSelectionPlugin,
             rectangularSelection(),
             highlightActiveLine(),
-            indentationDotPlugin,
             localLoopVariablePlugin,
             includeHeaderPlugin,
             commonShortcuts,
             ptaTheme,
             syntaxHighlighting(ptaHighlight),
             language2.of(languageFor()),
+            tabSize.of(EditorState.tabSize.of(editorSettings.tabSize)),
+            whitespace.of(indentationDotPlugin),
+            fontSize.of(fontSizeExtension(editorSettings.fontSize)),
             bracketMatching({ afterCursor: true }),
             EditorView.updateListener.of((update) => {
               if (!update.docChanged || replacing) return;
@@ -20514,7 +20530,76 @@ ${firstIndent}`;
         replacing = false;
       });
       languageSelect.addEventListener("change", () => view.dispatch({ effects: language2.reconfigure(languageFor()) }));
-      window.omsCodeEditor = { getValue: () => view.state.doc.toString(), focus: () => view.focus() };
+      function normalizedSettings(value = {}) {
+        const font = Number(value.fontSize);
+        const tab2 = Number(value.tabSize);
+        return {
+          fontSize: [12, 14, 16, 18, 20].includes(font) ? font : defaultSettings.fontSize,
+          tabSize: [2, 4, 8].includes(tab2) ? tab2 : defaultSettings.tabSize,
+          theme: ["follow-page", "github-dark", "github-light"].includes(value.theme) ? value.theme : defaultSettings.theme,
+          keymap: "default",
+          showWhitespace: value.showWhitespace !== false
+        };
+      }
+      function readSavedSettings() {
+        try {
+          return normalizedSettings(JSON.parse(localStorage.getItem(settingsStorageKey) || "{}"));
+        } catch {
+          return { ...defaultSettings };
+        }
+      }
+      function applyEditorSettings(nextSettings, persist = false) {
+        editorSettings = normalizedSettings(nextSettings);
+        indentation2 = " ".repeat(editorSettings.tabSize);
+        codingPanel?.classList.toggle("editor-theme-github-dark", editorSettings.theme === "github-dark");
+        codingPanel?.classList.toggle("editor-theme-github-light", editorSettings.theme === "github-light");
+        view.dispatch({ effects: [
+          tabSize.reconfigure(EditorState.tabSize.of(editorSettings.tabSize)),
+          whitespace.reconfigure(editorSettings.showWhitespace ? indentationDotPlugin : []),
+          fontSize.reconfigure(fontSizeExtension(editorSettings.fontSize))
+        ] });
+        if (persist) {
+          try {
+            localStorage.setItem(settingsStorageKey, JSON.stringify(editorSettings));
+          } catch {
+          }
+        }
+      }
+      function fillSettingsForm() {
+        if (!settingsForm) return;
+        settingsForm.elements.fontSize.value = String(editorSettings.fontSize);
+        settingsForm.elements.tabSize.value = String(editorSettings.tabSize);
+        settingsForm.elements.theme.value = editorSettings.theme;
+        settingsForm.elements.keymap.value = editorSettings.keymap;
+        settingsForm.elements.showWhitespace.checked = editorSettings.showWhitespace;
+      }
+      applyEditorSettings(readSavedSettings());
+      settingsButton?.addEventListener("click", () => {
+        fillSettingsForm();
+        settingsDialog?.showModal();
+      });
+      settingsForm?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const data = new FormData(settingsForm);
+        applyEditorSettings({
+          fontSize: data.get("fontSize"),
+          tabSize: data.get("tabSize"),
+          theme: data.get("theme"),
+          keymap: data.get("keymap"),
+          showWhitespace: settingsForm.elements.showWhitespace.checked
+        }, true);
+        settingsDialog?.close("confirm");
+        view.focus();
+      });
+      settingsForm?.querySelector("[data-editor-settings-cancel]")?.addEventListener("click", () => settingsDialog?.close("cancel"));
+      settingsDialog?.addEventListener("click", (event) => {
+        if (event.target === settingsDialog) settingsDialog.close("cancel");
+      });
+      window.omsCodeEditor = {
+        getValue: () => view.state.doc.toString(),
+        focus: () => view.focus(),
+        getSettings: () => ({ ...editorSettings })
+      };
     }
   });
   require_codemirror_entry();
