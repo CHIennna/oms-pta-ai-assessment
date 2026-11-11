@@ -133,8 +133,8 @@ const ptaTheme = EditorView.theme({
   '.cm-activeLineGutter': {backgroundColor: 'var(--code-active-line, #444)'},
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection': {backgroundColor: 'transparent !important'},
   '.cm-precise-selection': {backgroundColor: 'var(--code-selection, rgba(49,135,235,.55)) !important'},
-  '.cm-matchingBracket': {backgroundColor: 'var(--code-bracket-match, rgba(47, 143, 255, .42))', outline: 'none', boxShadow: 'none', borderBottom: 'none', borderRadius: '1px'},
-  '.cm-nonmatchingBracket': {backgroundColor: 'var(--code-bracket-error, rgba(238, 76, 76, .32))', outline: 'none', boxShadow: 'none', borderBottom: 'none', borderRadius: '1px'},
+  '.cm-matchingBracket': {backgroundColor: 'var(--code-bracket-match, rgba(47, 143, 255, .2))', outline: 'none', boxShadow: 'inset 0 0 0 1px var(--code-bracket-outline, #2f8fff)', borderBottom: 'none', borderRadius: '1px', padding: '0', margin: '0'},
+  '.cm-nonmatchingBracket': {backgroundColor: 'var(--code-bracket-error, rgba(238, 76, 76, .2))', outline: 'none', boxShadow: 'inset 0 0 0 1px var(--code-bracket-error-outline, #ee4c4c)', borderBottom: 'none', borderRadius: '1px', padding: '0', margin: '0'},
   '.cm-cursor, .cm-dropCursor': {borderLeftColor: 'var(--code-caret, #f2f2f2)'}
 }, {dark: true});
 

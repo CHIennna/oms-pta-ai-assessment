@@ -126,19 +126,24 @@
     const timeValues = testCases.map(test => test.timeMs).filter(value => value != null && Number.isFinite(Number(value))).map(Number);
     $('#submission-problem').textContent = question.id;
     $('#submission-user').textContent = $('#candidate').textContent || '考生';
-    $('#submission-time').textContent = displayTime(new Date());
+    const submittedAt = submissionContext.createdAt || result.createdAt || new Date();
+    $('#submission-time').textContent = displayTime(new Date(submittedAt));
     $('#submission-language').textContent = submissionContext.language || $('#language').value;
-    $('#submission-reviewed-at').textContent = displayTime(new Date());
+    $('#submission-reviewed-at').textContent = displayTime(new Date(submittedAt));
     $('#submission-memory').textContent = `${memoryValues.length ? Math.max(...memoryValues) : '--'} / ${Number(result.memoryLimitKb) || 262144} KB`;
     $('#submission-duration').textContent = `${timeValues.length ? Math.max(...timeValues) : '--'} / ${Number(result.timeLimitMs) || 2000} ms`;
     $('#submission-verdict').textContent = verdict;
     $('#submission-verdict').className = status.tone;
     $('#submission-score').textContent = `${Number.isInteger(finalScore) ? finalScore : finalScore.toFixed(1)} / ${maxScore}`;
-    $('#submission-test-rows').innerHTML = (testCases.length ? testCases : [{ hint:result.message || result.compilerOutput || '评测未完成', verdict:result.verdict }]).map((test, index) => {
+    const detailRows = testCases.length ? testCases : [{
+      index:'汇总', hint:Number(result.totalTests) > 0 ? `通过测试点：${Number(result.passedTests) || 0}/${Number(result.totalTests)}` : (result.message || result.compilerOutput || '历史提交仅保留结果摘要'),
+      verdict:result.verdict, summaryScore:finalScore, summaryMaxScore:maxScore
+    }];
+    $('#submission-test-rows').innerHTML = detailRows.map((test, index) => {
       const caseStatus = aiVerdict(test.verdict || result.verdict);
       const casePassed = test.verdict === 'Accepted';
-      const caseMaxScore = scoreForCase(index);
-      const score = casePassed ? caseMaxScore : 0;
+      const caseMaxScore = test.summaryMaxScore ?? scoreForCase(index);
+      const score = test.summaryScore ?? (casePassed ? caseMaxScore : 0);
       const memory = test.memoryKb != null && Number.isFinite(Number(test.memoryKb)) ? Number(test.memoryKb) : '--';
       const duration = test.timeMs != null && Number.isFinite(Number(test.timeMs)) ? Number(test.timeMs) : '--';
       const caseLabel = result.verdict === 'CompilationError' ? '编译' : (test.index ?? index);
@@ -151,8 +156,17 @@
     $('#submission-code').innerHTML = submissionSource.split('\n').map((line, index) => `<span class="submission-code-line"><i>${index + 1}</i><code>${escapeHtml(line) || ' '}</code></span>`).join('');
     if (!dialog.open) dialog.showModal();
   }
+  window.OMS_SHOW_SUBMISSION_RESULT = showSubmissionResult;
   document.querySelector('#close-submission-dialog')?.addEventListener('click', () => document.querySelector('#submission-dialog')?.close());
   document.querySelector('#submission-dialog')?.addEventListener('click', event => { if (event.target === event.currentTarget) event.currentTarget.close(); });
+  document.querySelector('#view-last-submission')?.addEventListener('click', () => {
+    const question = config.questions[current];
+    const submission = lastSubmissionFor(question);
+    if (!submission) return;
+    showSubmissionResult({ ...submission, verdict:submission.rawVerdict || submission.verdict }, question, {
+      source:submittedCodeForQuestion(question.id), language:submission.language, createdAt:submission.createdAt
+    });
+  });
   async function aiJudgeSubmit() {
     if (submissionPending || samplePending) { $('#submit-state').textContent = '当前代码仍在评测，请稍候'; return; }
     const state = $('#run-state'), questionIndex = current, examVersion = config.examVersion, question = config.questions[questionIndex];
@@ -200,7 +214,7 @@
         }
         state.textContent = `提交评测完成 · ${status.label}`;
         $('#submit-state').textContent = `刚刚提交 · ${status.label} · ${scoring.score}/${maxScore} 分${result.progressSaved===false?' · 未保存':''}`;
-        showSubmissionResult(result, question, { source, language });
+        showSubmissionResult(result, question, { source, language, createdAt:result.submission?.createdAt });
       }
       render();
     } catch (error) {

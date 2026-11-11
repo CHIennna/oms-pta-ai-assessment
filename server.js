@@ -182,6 +182,16 @@ async function recordSubmission(current, payload, result, question) {
     language: String(payload.language || '').slice(0, 40), verdict: String(result.verdict || ''),
     status: scoring.status, score: scoring.score, maxScore: scoring.maxScore,
     passedTests: Number(result.passedTests) || 0, totalTests: Number(result.totalTests) || 0,
+    testCases: (Array.isArray(result.testCases) ? result.testCases : []).slice(0, 100).map((test, index) => ({
+      index: Number.isFinite(Number(test.index)) ? Number(test.index) : index,
+      hint: String(test.hint || '').slice(0, 500), verdict: String(test.verdict || result.verdict || ''),
+      memoryKb: Number.isFinite(Number(test.memoryKb)) ? Number(test.memoryKb) : null,
+      timeMs: Number.isFinite(Number(test.timeMs)) ? Number(test.timeMs) : null
+    })),
+    timeLimitMs: Number(result.timeLimitMs) || undefined,
+    memoryLimitKb: Number(result.memoryLimitKb) || undefined,
+    message: String(result.message || '').slice(0, 2000),
+    compilerOutput: String(result.compilerOutput || '').slice(0, 12000),
     createdAt: new Date().toISOString()
   };
   try {
