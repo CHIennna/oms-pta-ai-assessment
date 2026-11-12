@@ -60,6 +60,25 @@ test('route hashes preserve pages and exam question context across refreshes', (
   assert.equal(context.formatRouteHash('info', '题目 1'), '#info-%E9%A2%98%E7%9B%AE%201');
 });
 
+test('contest directory offers a past-paper tab that excludes ended mock exams', () => {
+  const context = {
+    window: { OMS_EXAM_ARCHIVE: [
+      { examVersion: 'past', title: '历年真题', category: 'past', questions: [], startAt: '2024-01-01' },
+      { examVersion: 'mock', title: '已结束模拟卷', category: 'mock', questions: [], startAt: '2025-01-01' }
+    ] },
+    primaryConfig: { examVersion: 'current', title: '当前考试', category: 'mock', questions: [], startAt: '2026-01-01' },
+    portalExamStatus: exam => exam.category === 'past' ? '已结束' : '未开始',
+    contestRuleOf: () => 'IOI', escape: String, examParticipantCount: () => 1,
+    contestRuleLabel: String, portalIcon: () => '', formatExamTime: String, portalDuration: String
+  };
+  vm.createContext(context);
+  vm.runInContext(extract('function renderPortalContests(', 'function renderHomeworkCards('), context);
+  const html = context.renderPortalContests({ status: 'past', rule: '', keyword: '' });
+  assert.match(html, /data-contest-status="past"[^>]*>真题</);
+  assert.match(html, /历年真题/);
+  assert.doesNotMatch(html, /已结束模拟卷/);
+});
+
 test('an older cloud save with a later server timestamp does not replace unsynced local edits', () => {
   let restored = false;
   const pending = [];

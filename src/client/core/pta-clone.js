@@ -509,7 +509,8 @@ function renderPortalContests(filters={status:'all',rule:'',keyword:''},page=0){
   const ruleOf=contestRuleOf;
   const filtered=exams.filter(exam=>{
     const status=portalExamStatus(exam);
-    return (filters.status==='all'||status===filters.status)&&(!filters.rule||ruleOf(exam)===filters.rule)&&(!filters.keyword||String(exam.title||'').toLowerCase().includes(filters.keyword.toLowerCase()));
+    const matchesStatus=filters.status==='all'||(filters.status==='past'?exam.category==='past':status===filters.status);
+    return matchesStatus&&(!filters.rule||ruleOf(exam)===filters.rule)&&(!filters.keyword||String(exam.title||'').toLowerCase().includes(filters.keyword.toLowerCase()));
   });
   const pageSize=10,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),safePage=Math.min(Math.max(0,page),pageCount-1);
   const rows=filtered.slice(safePage*pageSize,(safePage+1)*pageSize).map(exam=>{
@@ -518,8 +519,8 @@ function renderPortalContests(filters={status:'all',rule:'',keyword:''},page=0){
     const registered=examParticipantCount(exam)>0?`${examParticipantCount(exam)} 人`:'—';
     return `<button type="button" class="contest-directory-row" data-contest-open="${escape(exam.examVersion)}"><span class="fzuoj-status ${tone}">${status}</span><span class="contest-directory-copy"><b>${escape(title)}</b><small><span>${portalIcon('award')}${escape(contestRuleLabel(ruleOf(exam)))}</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${registered}</span></small></span><i>${portalIcon('arrow')}</i></button>`;
   }).join('');
-  const statuses=['all','进行中','未开始','已结束'];
-  const statusLabels={all:'全部',进行中:'进行中',未开始:'未开始',已结束:'已结束'};
+  const statuses=['all','进行中','未开始','已结束','past'];
+  const statusLabels={all:'全部',进行中:'进行中',未开始:'未开始',已结束:'已结束',past:'真题'};
   const activeRules=[...new Set(exams.map(ruleOf))];
   return `<section class="contest-directory"><header class="contest-directory-head"><div><h1>考试</h1></div><span>${filtered.length} 场考试</span></header><form class="contest-directory-filters" data-contest-filter-form><div class="contest-status-tabs" role="group" aria-label="考试状态">${statuses.map(status=>`<button type="button" data-contest-status="${status}" class="${filters.status===status?'active':''}">${statusLabels[status]}</button>`).join('')}</div><div class="contest-directory-search"><select name="rule" aria-label="考试规则"><option value="">全部规则</option>${activeRules.map(rule=>`<option value="${escape(rule)}" ${filters.rule===rule?'selected':''}>${escape(contestRuleLabel(rule))}</option>`).join('')}</select><input name="keyword" value="${escape(filters.keyword)}" placeholder="搜索考试名称" aria-label="搜索考试名称"><button type="submit">搜索</button><button type="button" data-contest-reset>重置</button></div></form><section class="contest-directory-list" aria-label="考试列表">${rows||`<div class="contest-directory-empty"><b>${exams.length?'没有符合条件的考试':'暂无考试'}</b><span>可以调整筛选条件后再试。</span></div>`}</section><nav class="contest-directory-pagination" aria-label="考试列表分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-contest-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-contest-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
 }
