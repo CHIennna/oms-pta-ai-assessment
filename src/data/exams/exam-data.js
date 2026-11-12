@@ -1056,6 +1056,7 @@ window.OMS_EXAM_ARCHIVE.push({
     {
       "id": "2024-6",
       "name": "引水入城",
+      "difficultyEstimate": "提高",
       "score": 100,
       "tests": 1,
       "sampleInput": "3 3\n9 8 7\n6 5 4\n3 2 1",
