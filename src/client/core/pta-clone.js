@@ -353,8 +353,8 @@ function renderFzuOjHome(activePage='home'){
   const exams=[primaryConfig,...archive]
     .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
     .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
-  const activeNavRoute=activePage==='problemset'?'problems':activePage==='knowledge'?'knowledge':activePage==='practice'?'practice':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':activePage==='advice'?'advice':'home';
-  const navItems=[['home','首页','home'],['problems','题目','problemset'],['knowledge','知识库','knowledge'],['training','练习','practice'],['contest','考试','home-contests'],['judge','评测','home-submissions'],['advice','备考','advice']]
+  const activeNavRoute=activePage==='problemset'?'problems':activePage==='knowledge'||activePage==='advice'?'advice':activePage==='practice'?'practice':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':'home';
+  const navItems=[['home','首页','home'],['contest','考试','home-contests'],['problems','题目','problemset'],['training','练习','practice'],['judge','评测','home-submissions'],['knowledge','备考','advice']]
     .map(([icon,label,route])=>`<button type="button" class="fzuoj-nav-item ${route===activeNavRoute?'active':''}" data-portal-route="${route}" aria-label="${label}" title="${label}" ${route===activeNavRoute?'aria-current="page"':''}><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
   const contestTime=exam=>formatExamTime(exam.startAt||exam.date);
   const contests=exams.slice(0,5).map(exam=>{
