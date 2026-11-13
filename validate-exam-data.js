@@ -187,6 +187,7 @@ if (require.main === module) {
     const supplementalPaths = process.argv.length > 3
       ? process.argv.slice(3).map(value => path.resolve(value))
       : (process.argv[2] ? [] : [
+          path.join(examDataRoot, 'fzu-2025-freshman-cs.js'),
           path.join(examDataRoot, 'zixun-contest-data.js'),
           path.join(examDataRoot, 'weekly-practice-2.js'),
           path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'),

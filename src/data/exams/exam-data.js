@@ -501,7 +501,7 @@ window.OMS_EXAM_DATA = {
 window.OMS_EXAM_ARCHIVE = [
   {
     "examVersion": "2025-transfer-major-exam",
-    "title": "2025 计算机转专业机试",
+    "title": "2025 计算机转专业机试（大二）",
     "duration": 120,
     "totalScore": 800,
     "participants": 39,
@@ -959,7 +959,7 @@ window.OMS_EXAM_ARCHIVE = [
 ];
 window.OMS_EXAM_ARCHIVE.push({
   "examVersion": "2024-transfer-major-exam",
-  "title": "2024 计算机转专业机试",
+  "title": "2024 计算机转专业机试（大二）",
   "duration": 120,
   "totalScore": 1000,
   "participants": 42,
@@ -1369,7 +1369,7 @@ window.OMS_EXPERIENCE_POSTS=[
 ];
 window.OMS_EXAM_ARCHIVE.push({
   "examVersion": "2023-transfer-major-exam",
-  "title": "2023 计算机转专业机试",
+  "title": "2023 计算机转专业机试（大二）",
   "duration": 120,
   "totalScore": 800,
   "participants": 42,
@@ -1835,7 +1835,7 @@ window.OMS_EXAM_ARCHIVE.push({
 });
 window.OMS_EXAM_ARCHIVE.push({
   "examVersion": "2022-transfer-major-exam",
-  "title": "2022 计算机转专业机试",
+  "title": "2022 计算机转专业机试（大二）",
   "duration": 120,
   "totalScore": 800,
   "participants": 50,
@@ -2313,10 +2313,10 @@ window.OMS_NUMBER_EXAM = function numberExam(exam, registry, options = {}) {
   let start;
   if (past) {
     if (!Number.isInteger(year) || year < 2022) throw new Error('真题年份必须从 2022 年开始。');
-    if (others.some(item => item.category === 'past' && yearOf(item) === year)) {
-      throw new Error('同一年真题已存在，请更新原试卷，避免题号重复。');
-    }
-    start = 1 + others.filter(item => item.category === 'past' && yearOf(item) < year)
+    const currentIndex = registry.findIndex(item => item.examVersion === exam.examVersion);
+    start = 1 + others.filter((item, index) => item.category === 'past' && (
+      yearOf(item) < year || (yearOf(item) === year && (currentIndex < 0 || index < currentIndex))
+    ))
       .reduce((sum, item) => sum + item.questions.length, 0);
     if (start + exam.questions.length > 1001) throw new Error('真题题号不能占用模拟题的 1001 起编号。');
   } else {
