@@ -324,6 +324,7 @@ function checkBrooksParty(input, output) {
 }
 
 function checkSpecialOutput(checker, input, output, expected) {
+  if (checker === 'float') return checkFloatOutput(output, expected);
   if (checker === 'fzu-prefix-multiple-permutation') return checkPrefixMultiplePermutation(input, output, expected);
   if (checker === 'fzu-adjacent-swap-construction') return checkAdjacentSwapConstruction(input, output);
   if (checker === 'fzu-grid-smaller-neighbors') return checkGridSmallerNeighbors(input, output);
@@ -341,6 +342,18 @@ function checkSpecialOutput(checker, input, output, expected) {
   if (checker === 'fzu-floating-resistance') return checkFloatingResistance(input, output, expected);
   if (checker === 'fzu-brooks-party') return checkBrooksParty(input, output);
   return normalized(output) === normalized(expected);
+}
+
+function checkFloatOutput(output, expected, tolerance = 5e-6) {
+  const numberPattern = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+  const actualTokens = String(output || '').trim().split(/\s+/).filter(Boolean);
+  const expectedTokens = String(expected || '').trim().split(/\s+/).filter(Boolean);
+  if (actualTokens.length !== expectedTokens.length || !actualTokens.length) return false;
+  return actualTokens.every((token, index) => {
+    if (!numberPattern.test(token) || !numberPattern.test(expectedTokens[index])) return false;
+    const actual = Number(token), target = Number(expectedTokens[index]);
+    return Number.isFinite(actual) && Number.isFinite(target) && Math.abs(actual - target) <= tolerance;
+  });
 }
 
 function checkFenceConstruction(input, output) {
@@ -895,5 +908,5 @@ class LocalJudge {
 module.exports = {
   LocalJudge, DEFAULT_TOOLCHAINS, DEFAULT_LANGUAGE_LIMITS, checkSeilorPermutation,
   checkTriangleEuler, checkOperationConstruction, checkFzuSubsequence,
-  checkNonattackingRooks, checkTreeEccentricity, checkSpecialOutput
+  checkNonattackingRooks, checkTreeEccentricity, checkSpecialOutput, checkFloatOutput
 };

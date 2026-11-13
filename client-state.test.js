@@ -79,6 +79,23 @@ test('contest directory offers a past-paper tab that excludes ended mock exams',
   assert.doesNotMatch(html, /已结束模拟卷/);
 });
 
+test('ended exams show one plain Chinese difficulty line in problem analysis', () => {
+  const context = {
+    PROBLEM_DIFFICULTY: new Map([['6', '普及']]),
+    examHasEnded: () => true,
+    difficultyTone: () => 'popular',
+    escape: String
+  };
+  vm.createContext(context);
+  vm.runInContext(extract('function problemDifficultyFor(', 'function renderProblemContent('), context);
+  const html = context.renderProblemAnalysis({ id: '6' });
+  assert.equal(html, '<p class="problem-analysis-line">题目难度：<span class="problem-analysis-difficulty difficulty-popular">普及</span></p>');
+  assert.doesNotMatch(html, /solution-card|gradient/i);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ''), /[A-Za-z]/);
+  context.examHasEnded = () => false;
+  assert.match(context.renderProblemAnalysis({ id: '6' }), /无题解/);
+});
+
 test('an older cloud save with a later server timestamp does not replace unsynced local edits', () => {
   let restored = false;
   const pending = [];

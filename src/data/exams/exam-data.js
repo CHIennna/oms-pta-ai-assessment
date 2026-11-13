@@ -1440,14 +1440,21 @@ window.OMS_EXAM_ARCHIVE.push({
     },
     {
       "id": "2023-2",
-      "name": "第 2 题（资料缺失）",
+      "name": "求解四次方程组",
       "score": 100,
-      "tests": 0,
-      "sampleInput": "",
-      "sampleOutput": "",
-      "statement": "## 资料说明\n\n原始资料未保留本题题面，暂不支持评测。",
-      "testCases": [],
-      "judgeable": false
+      "tests": 10,
+      "sampleInput": "0 -5 0 4\n-3 -1.5\n-1.5 -0.5\n0.5 1.5\n1.5 3",
+      "sampleOutput": "-2.000000 -1.000000 1.000000 2.000000",
+      "sampleChecker": "float",
+      "statement": "## 题目描述\n\n给定四次方程 $x^4+ax^3+bx^2+cx+d=0$，以及四个按从左到右排列、两两不相交的闭区间 $[L_i,R_i]$。\n\n保证每个区间内恰好存在一个实数根，且区间两端的函数值严格异号。请按从小到大的顺序输出这四个根。\n\n## 输入格式\n\n第一行四个实数 `a b c d`。\n\n接下来四行，每行两个实数 `L R`，表示一个根所在的区间。\n\n## 输出格式\n\n一行输出四个实数，均保留 6 位小数，使用空格分隔。\n\n## 数据范围\n\n系数和区间端点的绝对值不超过 $10^6$；保证题述条件成立。评测采用绝对误差不超过 $5\\times10^{-6}$ 的浮点容差比较。\n\n## 样例输入\n\n```text\n0 -5 0 4\n-3 -1.5\n-1.5 -0.5\n0.5 1.5\n1.5 3\n```\n\n## 样例输出\n\n```text\n-2.000000 -1.000000 1.000000 2.000000\n```",
+      "testArchive": {
+        "file": "transfer-major-2022-2023-floating-tests.zip",
+        "prefix": "P2",
+        "count": 10,
+        "score": 10,
+        "checker": "float"
+      },
+      "judgeable": true
     },
     {
       "id": "2023-3",
@@ -2273,12 +2280,19 @@ window.OMS_EXAM_ARCHIVE.push({
       "id": "2022-8",
       "name": "解方程",
       "score": 100,
-      "tests": 0,
-      "sampleInput": "",
-      "sampleOutput": "",
-      "statement": "## 题目描述\n\n给定一个一元四次方程，使用浮点二分方法求解。\n\n现有资料未保留本题完整的输入格式、求根区间、根的数量要求以及输出精度，暂不提供评测数据。",
-      "testCases": [],
-      "judgeable": false
+      "tests": 10,
+      "sampleInput": "1 0 0 0 0 81\n0 10",
+      "sampleOutput": "3.000000",
+      "sampleChecker": "float",
+      "statement": "## 题目描述\n\n给定四次函数 $f(x)=ax^4+bx^3+cx^2+dx+e$，以及目标值 $Y$，求满足 $f(x)=Y$ 的实数 $x$。\n\n保证 $a\\ne0$，$f(x)$ 在给定区间 $[L,R]$ 上严格单调，且该区间内存在唯一解。\n\n## 输入格式\n\n第一行六个实数 `a b c d e Y`。\n\n第二行两个实数 `L R`。\n\n## 输出格式\n\n输出唯一实数解，保留 6 位小数。\n\n## 数据范围\n\n所有输入实数的绝对值不超过 $10^6$，$-1000\\le L<R\\le1000$；保证题述条件成立。评测采用绝对误差不超过 $5\\times10^{-6}$ 的浮点容差比较。\n\n## 样例输入\n\n```text\n1 0 0 0 0 81\n0 10\n```\n\n## 样例输出\n\n```text\n3.000000\n```",
+      "testArchive": {
+        "file": "transfer-major-2022-2023-floating-tests.zip",
+        "prefix": "P1",
+        "count": 10,
+        "score": 10,
+        "checker": "float"
+      },
+      "judgeable": true
     }
   ],
   "category": "past",

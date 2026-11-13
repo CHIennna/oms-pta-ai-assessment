@@ -272,7 +272,7 @@ function resolveTestCases(source) {
   if (archivedTestCases.has(key)) return archivedTestCases.get(key);
   const tests = Array.from({ length: source.count }, (_, index) => {
     const stem = `${source.prefix}/${String(index + 1).padStart(2, '0')}`;
-    return { input: readZipText(source.file, `${stem}.in`), expected: readZipText(source.file, `${stem}.out`), score: source.score };
+    return { input: readZipText(source.file, `${stem}.in`), expected: readZipText(source.file, `${stem}.out`), score: source.score, checker: source.checker || '' };
   });
   archivedTestCases.set(key, tests);
   return tests;

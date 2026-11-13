@@ -7,8 +7,6 @@ const examDataRoot = path.join(__dirname, 'src', 'data', 'exams');
 
 const LEGACY_UNJUDGEABLE = new Set([
   '2024-transfer-major-exam:20',
-  '2023-transfer-major-exam:10',
-  '2022-transfer-major-exam:8',
   // These imported problems require an interactor or a checker that the local
   // judge cannot reproduce safely. Keep the exception list explicit so a new
   // incomplete problem still fails validation by default.

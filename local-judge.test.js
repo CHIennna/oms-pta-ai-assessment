@@ -3,11 +3,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { LocalJudge, DEFAULT_TOOLCHAINS } = require('./src/server/judge/local-judge');
+const { LocalJudge, DEFAULT_TOOLCHAINS, checkFloatOutput } = require('./src/server/judge/local-judge');
 
 const nodeJudge = () => new LocalJudge({ usePrlimit: false, toolchains: { NodeFixture: {
   file: 'main.js', run: job => ({ command: process.execPath, args: [job.sourcePath] })
 } } });
+
+test('float checker accepts values within 5e-6 and rejects invalid or extra output', () => {
+  assert.equal(checkFloatOutput('3.000004', '3.000000'), true);
+  assert.equal(checkFloatOutput('-2 -0.999996 1 2', '-2 -1 1 2'), true);
+  assert.equal(checkFloatOutput('3.000006', '3.000000'), false);
+  assert.equal(checkFloatOutput('3.000000 extra', '3.000000'), false);
+  assert.equal(checkFloatOutput('NaN', '3.000000'), false);
+});
 
 test('custom input returns actual stdout and stderr without falsely comparing against a sample', async () => {
   const result = await nodeJudge().judge({ language: 'NodeFixture', mode: 'sample',
