@@ -22,6 +22,7 @@ logs
 !rabbit-poison-encoding-20261112-tests.zip
 !transfer-major-2022-2023-floating-tests.zip
 !fzu-2025-freshman-cs-tests.zip
+!fzu-2025-freshman-extra-tests.zip
 *.rar
 *.7z
 *.png
