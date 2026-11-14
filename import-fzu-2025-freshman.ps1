@@ -38,6 +38,26 @@ try {
 
   $tests = [System.IO.Compression.ZipFile]::OpenRead($testArchivePath)
   try {
+    $difficultyById = @{
+      P1 = '入门'
+      P2 = '普及-'
+      P3 = '入门'
+      P4 = '普及-'
+      P5 = '普及-'
+      P6 = '普及-'
+      P7 = '普及'
+      P8 = '普及-'
+    }
+    $tagsById = @{
+      P1 = @('基础算术')
+      P2 = @('日期模拟', '闰年')
+      P3 = @('顺序模拟', '环形数组')
+      P4 = @('二维枚举', '前缀和', '排序')
+      P5 = @('排序', '基础贪心')
+      P6 = @('蛇形遍历', '排序')
+      P7 = @('字符串解析', '表达式模拟')
+      P8 = @('排序', '贪心不变量')
+    }
     $questions = @()
     foreach ($question in $config.questions) {
       $statement = Read-ZipEntryText $package $question.statementFile
@@ -65,7 +85,8 @@ try {
         timeLimitMs = [int]$question.timeLimitMs
         memoryLimitMB = [int]$question.memoryLimitMB
         judgeable = $true
-        difficulty = '待定'
+        difficulty = [string]$difficultyById[[string]$question.id]
+        tags = @($tagsById[[string]$question.id])
       }
     }
   } finally {
