@@ -1,6 +1,7 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$PackagePath,
+  [string]$SupplementPackagePath,
   [string]$ProjectRoot = $PSScriptRoot
 )
 
@@ -31,10 +32,19 @@ function Copy-ZipEntry {
 }
 
 $package = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $PackagePath))
+$supplement = if ($SupplementPackagePath) {
+  [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $SupplementPackagePath))
+} else { $null }
 try {
   $readmeEntry = $package.Entries | Where-Object { $_.FullName -match '/README\.md$' } | Select-Object -First 1
   if (-not $readmeEntry) { throw '导入包缺少 README.md' }
   $rootPrefix = $readmeEntry.FullName.Substring(0, $readmeEntry.FullName.Length - 'README.md'.Length)
+  $supplementRootPrefix = $null
+  if ($supplement) {
+    $supplementReadmeEntry = $supplement.Entries | Where-Object { $_.FullName -match '/README\.md$' } | Select-Object -First 1
+    if (-not $supplementReadmeEntry) { throw 'P10/P11 补充包缺少 README.md' }
+    $supplementRootPrefix = $supplementReadmeEntry.FullName.Substring(0, $supplementReadmeEntry.FullName.Length - 'README.md'.Length)
+  }
 
   $testArchiveName = 'fzu-2025-freshman-extra-tests.zip'
   $testArchivePath = Join-Path $ProjectRoot $testArchiveName
@@ -51,6 +61,8 @@ try {
       P07 = '普及-'
       P08 = '普及-'
       P09 = '普及+/提高-'
+      P10 = '普及-'
+      P11 = '普及'
     }
     $titleById = @{
       P06 = 'fuzhouU 大写转换'
@@ -58,7 +70,7 @@ try {
     $questions = @()
     for ($position = 1; $position -le 11; $position++) {
       $code = 'P{0:D2}' -f $position
-      if ($position -ge 10) {
+      if ($position -ge 10 -and -not $supplement) {
         $noticeEntry = $package.Entries | Where-Object { $_.FullName -match "^$([regex]::Escape($rootPrefix))$code`_[^/]+/说明\.md$" } | Select-Object -First 1
         if (-not $noticeEntry) { throw "导入包缺少 $code 的资料缺失说明" }
         $questions += [ordered]@{
@@ -76,26 +88,28 @@ try {
         }
         continue
       }
-      $folderEntry = $package.Entries | Where-Object { $_.FullName -match "^$([regex]::Escape($rootPrefix))$code`_[^/]+/配置\.json$" } | Select-Object -First 1
+      $sourcePackage = if ($position -ge 10) { $supplement } else { $package }
+      $sourceRootPrefix = if ($position -ge 10) { $supplementRootPrefix } else { $rootPrefix }
+      $folderEntry = $sourcePackage.Entries | Where-Object { $_.FullName -match "^$([regex]::Escape($sourceRootPrefix))$code`_[^/]+/配置\.json$" } | Select-Object -First 1
       if (-not $folderEntry) { throw "导入包缺少 $code 的配置文件" }
       $folderPrefix = $folderEntry.FullName.Substring(0, $folderEntry.FullName.Length - '配置.json'.Length)
-      $config = (Read-ZipEntryText $package $folderEntry.FullName) | ConvertFrom-Json
+      $config = (Read-ZipEntryText $sourcePackage $folderEntry.FullName) | ConvertFrom-Json
       $title = if ($titleById.ContainsKey($code)) { [string]$titleById[$code] } else { [string]$config.title }
-      $statement = Read-ZipEntryText $package "${folderPrefix}题面.md"
+      $statement = Read-ZipEntryText $sourcePackage "${folderPrefix}题面.md"
       $cases = @()
       for ($testIndex = 1; $testIndex -le [int]$config.testcases; $testIndex++) {
         $number = '{0:D2}' -f $testIndex
         $inputEntryName = "${folderPrefix}tests/$number.in"
         $outputEntryName = "${folderPrefix}tests/$number.out"
-        $input = (Read-ZipEntryText $package $inputEntryName).TrimEnd()
-        $expected = (Read-ZipEntryText $package $outputEntryName).TrimEnd()
+        $input = (Read-ZipEntryText $sourcePackage $inputEntryName).TrimEnd()
+        $expected = (Read-ZipEntryText $sourcePackage $outputEntryName).TrimEnd()
         $cases += [ordered]@{
           input = $input
           expected = $expected
           score = [int]$config.points_per_testcase
         }
-        Copy-ZipEntry $package.GetEntry($inputEntryName) $targetArchive "$code/$number.in"
-        Copy-ZipEntry $package.GetEntry($outputEntryName) $targetArchive "$code/$number.out"
+        Copy-ZipEntry $sourcePackage.GetEntry($inputEntryName) $targetArchive "$code/$number.in"
+        Copy-ZipEntry $sourcePackage.GetEntry($outputEntryName) $targetArchive "$code/$number.out"
       }
       $questions += [ordered]@{
         id = $code
@@ -118,6 +132,7 @@ try {
     $targetStream.Dispose()
   }
 } finally {
+  if ($supplement) { $supplement.Dispose() }
   $package.Dispose()
 }
 
@@ -125,7 +140,7 @@ $exam = [ordered]@{
   examVersion = '2025-transfer-major-freshman-extra-exam'
   title = '2025计算机转专业机试（大一加赛）'
   duration = 90
-  totalScore = 900
+  totalScore = 1100
   participants = 2
   startAt = '2025-12-01T19:00'
   endAt = '2025-12-01T20:30'
