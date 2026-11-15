@@ -15,6 +15,20 @@ const examDataRoot = path.join(root, 'src', 'data', 'exams');
 const port = Number(process.env.PORT || process.env.OMS_PTA_PORT || 4173);
 const portableRuntime = configurePortableRuntime();
 const localJudge = new LocalJudge();
+let judgeStartupProbe = process.env.RENDER ? { status: 'pending', message: '正在验证 C++ 编译器。' } : { status: 'skipped', message: '' };
+const judgeStartupReady = process.env.RENDER
+  ? localJudge.judge({
+      language: 'C++ (g++)', mode: 'sample',
+      code: '#include <bits/stdc++.h>\nusing namespace std;\nint main(){ cout << "judge-ready\\n"; }\n',
+      tests: [{ input: '', expected: 'judge-ready\n', compared: true }]
+    }).then(result => {
+      judgeStartupProbe = result.verdict === 'Accepted'
+        ? { status: 'ready', message: '' }
+        : { status: 'failed', message: String(result.compilerOutput || result.message || result.verdict).slice(0, 500) };
+    }).catch(error => {
+      judgeStartupProbe = { status: 'failed', message: String(error?.message || error).slice(0, 500) };
+    })
+  : Promise.resolve();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(examDataRoot, 'exam-data.js'),
   [path.join(examDataRoot, 'fzu-2025-freshman-cs.js'), path.join(examDataRoot, 'fzu-2025-freshman-extra.js'), path.join(examDataRoot, 'fzu-2025-freshman-difficulty.js'), path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'), path.join(examDataRoot, 'fzu-practice-homework.js'), path.join(examDataRoot, 'third-stage-weekly-20261025.js'), path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'), path.join(examDataRoot, 'zongjuesai-qc4-day1-20261114.js'), path.join(examDataRoot, 'zongjuesai-day2-20261115.js')]
@@ -546,7 +560,10 @@ const server = http.createServer(async (req, res) => {
       return reply(res, 400, { message: '草稿请求格式无效。' });
     }
   }
-  if (req.method === 'GET' && url.pathname === '/api/health') return reply(res, 200, { ok: true, ...localJudge.info(), authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, progressPersistence: progressStoreAvailable, storageBackend: stateStore ? 'postgres' : auth.storageKind, portableRuntime: portableRuntime.detected });
+  if (req.method === 'GET' && url.pathname === '/api/health') {
+    const healthy = judgeStartupProbe.status === 'ready' || judgeStartupProbe.status === 'skipped';
+    return reply(res, healthy ? 200 : 503, { ok: healthy, ...localJudge.info(), startupProbe: judgeStartupProbe, buildCommit: process.env.RENDER_GIT_COMMIT || '', authoritativeProblems: testBankByExam.size, authoritativeTests: examValidation.testCases, unjudgeableProblems: examValidation.unjudgeableProblems, examDataValidated: true, progressPersistence: progressStoreAvailable, storageBackend: stateStore ? 'postgres' : auth.storageKind, portableRuntime: portableRuntime.detected });
+  }
   if (req.method === 'POST' && url.pathname === '/api/judge') {
     const current = auth.authorize(req, res);
     if (!current) return;
@@ -567,4 +584,4 @@ if (require.main === module) {
   server.listen(port, '0.0.0.0', () => console.log(`FZUPTA local judge: http://0.0.0.0:${port}`));
 }
 
-module.exports = { server, localJudge, testBank, testBankByExam, trustedPayload };
+module.exports = { server, localJudge, judgeStartupReady, testBank, testBankByExam, trustedPayload };
