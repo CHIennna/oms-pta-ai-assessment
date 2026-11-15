@@ -31,6 +31,29 @@
       ? '无法连接评测服务，请确认本地服务已启动后重试。'
       : message || '评测服务暂时不可用，请稍后重试。';
   }
+  const transientJudgeStatuses = new Set([502, 503, 504]);
+  const wait = milliseconds => typeof setTimeout === 'function'
+    ? new Promise(resolve => setTimeout(resolve, milliseconds))
+    : Promise.reject(Error('无法连接评测服务，请稍后重试。'));
+  async function fetchJudgeWithRecovery(endpoint, options, onWaiting) {
+    let response;
+    try { response = await fetch(endpoint, options); }
+    catch { response = null; }
+    if (response && !transientJudgeStatuses.has(response.status)) return response;
+
+    onWaiting?.();
+    for (let attempt = 0; attempt < 15; attempt++) {
+      await wait(3000);
+      try {
+        const health = await fetch('/api/health', { cache:'no-store' });
+        if (!health.ok) continue;
+        const retried = await fetch(endpoint, options);
+        if (!transientJudgeStatuses.has(retried.status)) return retried;
+      } catch {}
+    }
+    if (response) return response;
+    throw Error('无法连接评测服务，请稍后重试。');
+  }
   function formatJudgeOutput(result, mode, sample) {
     const cases = Array.isArray(result.testCases) ? result.testCases : [];
     if (mode === 'sample') {
@@ -88,7 +111,8 @@
     syncTesterToggle();
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
-      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, problemId:question.id, examVersion, input:sample.input, mode, tests }) });
+      const request = { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:editorCode(), language:$('#language').value, problemId:question.id, examVersion, input:sample.input, mode, tests }) };
+      const response = await fetchJudgeWithRecovery(endpoint, request, () => { state.textContent = '评测服务正在恢复，恢复后将自动运行…'; });
       const result = await readJudgeResponse(response);
       if (!stillVisible()) return;
       if (!response.ok) throw Error(result.message || '自建评测机暂不可用。');

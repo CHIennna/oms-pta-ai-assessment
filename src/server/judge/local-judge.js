@@ -704,6 +704,12 @@ class LocalJudge {
     );
     this.maxConcurrency = renderRuntime ? 1 : requestedConcurrency;
     this.maxQueue = clamp(options.maxQueue ?? process.env.JUDGE_MAX_QUEUE, 20, 1, 100);
+    // Render's free instance has a small shared memory budget.  Letting a C/C++
+    // compiler address 1 GiB can make the kernel kill the whole web service,
+    // which leaves the browser with an empty 502 response.  Keep local judging
+    // generous, but make hosted compilation fail inside the child process
+    // instead of taking the server down with it.
+    this.compileMemoryLimitBytes = renderRuntime ? 256 * 1024 * 1024 : 1024 * 1024 * 1024;
     const hasRunTimeoutOverride = options.runTimeoutMs != null || process.env.JUDGE_RUN_TIMEOUT_MS != null;
     const hasMemoryLimitOverride = options.memoryLimitKb != null || process.env.JUDGE_MEMORY_LIMIT_KB != null;
     this.limits = {
@@ -827,7 +833,7 @@ class LocalJudge {
         const compilation = await runProcess(compileSpec, {
           cwd: workDir, input: '', timeoutMs: limits.compileTimeoutMs,
           outputLimitBytes: limits.outputLimitBytes * 2, usePrlimit: this.usePrlimit,
-          limits: { cpuSeconds: Math.ceil(limits.compileTimeoutMs / 1000) + 1, addressBytes: 1024 * 1024 * 1024, stackBytes: limits.stackLimitKb * 1024, fileBytes: 20 * 1024 * 1024, processes: 64, openFiles: 128 }
+          limits: { cpuSeconds: Math.ceil(limits.compileTimeoutMs / 1000) + 1, addressBytes: this.compileMemoryLimitBytes, stackBytes: limits.stackLimitKb * 1024, fileBytes: 20 * 1024 * 1024, processes: 64, openFiles: 128 }
         });
         if (compilation.error || (compilation.code === 127 && /not found|failed to execute|no such file/i.test(compilation.stderr))) {
           return unavailableResult(`评测环境缺少 ${compileSpec.command} 编译器。`, tests, limits);
