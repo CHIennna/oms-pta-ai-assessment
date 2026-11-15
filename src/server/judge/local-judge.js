@@ -6,29 +6,30 @@ const { StringDecoder } = require('string_decoder');
 
 const isWindows = process.platform === 'win32';
 const executable = name => path.join(name.workDir, isWindows ? 'program.exe' : 'program');
+const nativeOptimization = () => process.env.RENDER ? '-O1' : '-O2';
 const DEFAULT_TOOLCHAINS = {
   'C++ (g++)': {
     commands: ['g++'],
     file: 'main.cpp',
-    compile: job => ({ command: 'g++', args: ['-O2', '-std=c++17', job.sourcePath, '-o', executable(job)] }),
+    compile: job => ({ command: 'g++', args: [nativeOptimization(), '-std=c++17', job.sourcePath, '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   'C++ (clang++)': {
     commands: ['clang++'],
     file: 'main.cpp',
-    compile: job => ({ command: 'clang++', args: ['-O2', '-std=c++17', job.sourcePath, '-o', executable(job)] }),
+    compile: job => ({ command: 'clang++', args: [nativeOptimization(), '-std=c++17', job.sourcePath, '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   'C (gcc)': {
     commands: ['gcc'],
     file: 'main.c',
-    compile: job => ({ command: 'gcc', args: ['-O2', '-std=c11', job.sourcePath, '-lm', '-o', executable(job)] }),
+    compile: job => ({ command: 'gcc', args: [nativeOptimization(), '-std=c11', job.sourcePath, '-lm', '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   'C (clang)': {
     commands: ['clang'],
     file: 'main.c',
-    compile: job => ({ command: 'clang', args: ['-O2', '-std=c11', job.sourcePath, '-lm', '-o', executable(job)] }),
+    compile: job => ({ command: 'clang', args: [nativeOptimization(), '-std=c11', job.sourcePath, '-lm', '-o', executable(job)] }),
     run: job => ({ command: executable(job), args: [] })
   },
   Java: {

@@ -66,6 +66,20 @@ test('native C and C++ compilers avoid pipe mode to reduce peak memory', () => {
   }
 });
 
+test('hosted native compilation uses a lower-memory optimization pass', t => {
+  const previousRender = process.env.RENDER;
+  t.after(() => {
+    if (previousRender === undefined) delete process.env.RENDER;
+    else process.env.RENDER = previousRender;
+  });
+
+  const job = { workDir: path.resolve('temporary-judge-test'), sourcePath: path.resolve('temporary-judge-test', 'main.cpp') };
+  delete process.env.RENDER;
+  assert.equal(DEFAULT_TOOLCHAINS['C++ (g++)'].compile(job).args[0], '-O2');
+  process.env.RENDER = 'true';
+  assert.equal(DEFAULT_TOOLCHAINS['C++ (g++)'].compile(job).args[0], '-O1');
+});
+
 test('Python 2 and PyPy toolchains are registered with version-checked runtime candidates', () => {
   for (const language of ['Python 2', 'PyPy']) {
     const toolchain = DEFAULT_TOOLCHAINS[language];

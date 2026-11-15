@@ -30,8 +30,8 @@ COPY --chown=fzupta:fzupta weekly-practice-2-tests.zip fuzhou-quality-check-2026
 
 ENV NODE_ENV=production \
     PORT=10000 \
-    NODE_OPTIONS=--max-old-space-size=256 \
-    JUDGE_MAX_CONCURRENCY=2 \
+    NODE_OPTIONS=--max-old-space-size=192 \
+    JUDGE_MAX_CONCURRENCY=1 \
     JUDGE_MAX_QUEUE=20 \
     JUDGE_COMPILE_TIMEOUT_MS=15000 \
     JUDGE_RUN_TIMEOUT_MS=2000 \
