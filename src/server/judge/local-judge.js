@@ -6,7 +6,7 @@ const { StringDecoder } = require('string_decoder');
 
 const isWindows = process.platform === 'win32';
 const executable = name => path.join(name.workDir, isWindows ? 'program.exe' : 'program');
-const nativeOptimization = () => process.env.RENDER ? '-O1' : '-O2';
+const nativeOptimization = () => process.env.RENDER ? '-O0' : '-O2';
 const DEFAULT_TOOLCHAINS = {
   'C++ (g++)': {
     commands: ['g++'],
@@ -699,7 +699,7 @@ class LocalJudge {
     const requestedConcurrency = clamp(options.maxConcurrency ?? process.env.JUDGE_MAX_CONCURRENCY, 2, 1, 8);
     const requestedCompileTimeout = clamp(
       options.compileTimeoutMs ?? process.env.JUDGE_COMPILE_TIMEOUT_MS,
-      renderRuntime ? 60000 : 15000,
+      renderRuntime ? 20000 : 15000,
       1000,
       60000
     );
@@ -710,11 +710,14 @@ class LocalJudge {
     // which leaves the browser with an empty 502 response.  Keep local judging
     // generous, but make hosted compilation fail inside the child process
     // instead of taking the server down with it.
-    this.compileMemoryLimitBytes = renderRuntime ? 256 * 1024 * 1024 : 1024 * 1024 * 1024;
+    this.compileMemoryLimitBytes = renderRuntime ? 192 * 1024 * 1024 : 1024 * 1024 * 1024;
     const hasRunTimeoutOverride = options.runTimeoutMs != null || process.env.JUDGE_RUN_TIMEOUT_MS != null;
     const hasMemoryLimitOverride = options.memoryLimitKb != null || process.env.JUDGE_MEMORY_LIMIT_KB != null;
     this.limits = {
-      compileTimeoutMs: renderRuntime ? Math.max(60000, requestedCompileTimeout) : requestedCompileTimeout,
+      // Render's proxy can stop waiting before a 60-second compiler timeout.
+      // Bound hosted compiles so every request completes with JSON instead of
+      // leaving the browser with an empty 502/504 response.
+      compileTimeoutMs: renderRuntime ? Math.min(25000, requestedCompileTimeout) : requestedCompileTimeout,
       runTimeoutMs: clamp(options.runTimeoutMs ?? process.env.JUDGE_RUN_TIMEOUT_MS, DEFAULT_LANGUAGE_LIMITS.other.runTimeoutMs, 100, 10000),
       memoryLimitKb: clamp(options.memoryLimitKb ?? process.env.JUDGE_MEMORY_LIMIT_KB, DEFAULT_LANGUAGE_LIMITS.other.memoryLimitKb, 65536, 1048576),
       outputLimitBytes: clamp(options.outputLimitBytes ?? process.env.JUDGE_OUTPUT_LIMIT_BYTES, 262144, 4096, 1048576),

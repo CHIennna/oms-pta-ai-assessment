@@ -19,7 +19,7 @@ services:
       - key: JUDGE_MAX_QUEUE
         value: "20"
       - key: JUDGE_COMPILE_TIMEOUT_MS
-        value: "15000"
+        value: "20000"
       - key: JUDGE_RUN_TIMEOUT_MS
         value: "2000"
       - key: JUDGE_MEMORY_LIMIT_KB

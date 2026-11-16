@@ -31,28 +31,16 @@
       ? '无法连接评测服务，请确认本地服务已启动后重试。'
       : message || '评测服务暂时不可用，请稍后重试。';
   }
-  const transientJudgeStatuses = new Set([502, 503, 504]);
-  const wait = milliseconds => typeof setTimeout === 'function'
-    ? new Promise(resolve => setTimeout(resolve, milliseconds))
-    : Promise.reject(Error('无法连接评测服务，请稍后重试。'));
   async function fetchJudgeWithRecovery(endpoint, options, onWaiting) {
-    let response;
-    try { response = await fetch(endpoint, options); }
-    catch { response = null; }
-    if (response && !transientJudgeStatuses.has(response.status)) return response;
-
-    onWaiting?.();
-    for (let attempt = 0; attempt < 15; attempt++) {
-      await wait(3000);
-      try {
-        const health = await fetch('/api/health', { cache:'no-store' });
-        if (!health.ok) continue;
-        const retried = await fetch(endpoint, options);
-        if (!transientJudgeStatuses.has(retried.status)) return retried;
-      } catch {}
-    }
-    if (response) return response;
-    throw Error('无法连接评测服务，请稍后重试。');
+    // A judge POST can still be running after an upstream timeout. Retrying the
+    // POST creates duplicate compiles and can permanently fill the single-slot
+    // queue used by small hosted instances. Wake/check the service first, then
+    // submit exactly once and let the user explicitly retry if it fails.
+    try {
+      const health = await fetch('/api/health', { cache:'no-store' });
+      if (!health.ok) onWaiting?.();
+    } catch { onWaiting?.(); }
+    return fetch(endpoint, options);
   }
   function formatJudgeOutput(result, mode, sample) {
     const cases = Array.isArray(result.testCases) ? result.testCases : [];
