@@ -33,6 +33,20 @@ test('server owns public-sample comparison; client cannot inject answers or chec
   assert.equal(submit.tests[0].expected, '2\n'); assert.equal(submit.tests[0].compared, true);
 });
 
+test('formal submit payload excludes browser test data and problem statements', () => {
+  const start = clientJudgeSource.indexOf('function submitRequestPayload(');
+  const end = clientJudgeSource.indexOf('let submissionSource', start);
+  const context = {};
+  vm.createContext(context); vm.runInContext(clientJudgeSource.slice(start, end), context);
+  const question = { id: '37', statement: 'x'.repeat(300000), testCases: [{ input: 'y'.repeat(300000), expected: 'z' }] };
+  const payload = context.submitRequestPayload('int main(){}', 'C++ (g++)', question, 'exam');
+
+  assert.deepEqual(Object.keys(payload), ['code', 'language', 'problemId', 'examVersion', 'mode']);
+  assert.equal(payload.problemId, '37');
+  assert.equal(payload.mode, 'submit');
+  assert.ok(JSON.stringify(payload).length < 1024);
+});
+
 test('storage failure preserves the real verdict and returns unsaved status instead of ReferenceError', async () => {
   const context = { progressStoreAvailable: true, calculateScore: () => ({ score: 100, maxScore: 100, status: 'accepted' }),
     crypto: { randomUUID: () => 'synthetic-submission' }, queueUserProgress: async (_, action) => action(),

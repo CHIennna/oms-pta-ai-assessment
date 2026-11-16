@@ -7,6 +7,12 @@
   const makeDefaultCases = question => Array.from({ length: Math.max(1, Number(question.tests) || 1) }, (_, index) => question.testCases && question.testCases[index] || { input:'', expected:'' });
   const calculateScore = (result, question) => window.OMS_JUDGE_SCORE.calculate(result, question);
   const shownOutput = value => String(value ?? '').length ? String(value) : '(无输出)';
+  function submitRequestPayload(source, language, question, examVersion) {
+    // Formal tests are selected by the server from its trusted test bank. Do
+    // not upload the browser copy: large hidden cases can exceed the request
+    // body limit before judging even starts.
+    return { code: source, language, problemId: question.id, examVersion, mode: 'submit' };
+  }
   let submissionSource = '';
   async function readJudgeResponse(response) {
     const body = await response.text();
@@ -182,7 +188,7 @@
   async function aiJudgeSubmit() {
     if (submissionPending || samplePending) { $('#submit-state').textContent = '当前代码仍在评测，请稍候'; return; }
     const state = $('#run-state'), questionIndex = current, examVersion = config.examVersion, question = config.questions[questionIndex];
-    const tests = question.testCases || [], source = editorCode(), language = $('#language').value;
+    const source = editorCode(), language = $('#language').value;
     const owner = portalUser?.id, identityRevision = portalIdentityRevision;
     const sameIdentity = () => Boolean(owner && portalAuthenticated && portalUser?.id === owner && portalIdentityRevision === identityRevision);
     const stillVisible = () => sameIdentity() && config.examVersion === examVersion && config.questions[current]?.id === question.id && activeRoute === 'exam';
@@ -190,7 +196,7 @@
     state.textContent = '正在评测服务编译并运行测试点…';
     try {
       const endpoint = document.querySelector('meta[name="oms-judge-endpoint"]')?.content.trim() || '/api/judge';
-      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ code:source, language, problemId:question.id, examVersion, mode:'submit', tests, problem:{ id:question.id, title:question.name, statement:question.statement || '' } }) });
+      const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(submitRequestPayload(source, language, question, examVersion)) });
       const result = await readJudgeResponse(response);
       if (!sameIdentity()) return;
       if (!response.ok) throw Error(result.detail || result.message || '自建评测机暂不可用。');
