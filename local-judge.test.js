@@ -94,7 +94,7 @@ test('hosted compilation finishes before the upstream request timeout', t => {
   process.env.JUDGE_COMPILE_TIMEOUT_MS = '60000';
   const judge = new LocalJudge({ usePrlimit: false, toolchains: {} });
   assert.equal(judge.limits.compileTimeoutMs, 25000);
-  assert.equal(judge.compileMemoryLimitBytes, 192 * 1024 * 1024);
+  assert.equal(judge.compileMemoryLimitBytes, 256 * 1024 * 1024);
 });
 
 test('Python 2 and PyPy toolchains are registered with version-checked runtime candidates', () => {

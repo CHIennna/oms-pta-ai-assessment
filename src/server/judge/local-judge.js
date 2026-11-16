@@ -710,7 +710,7 @@ class LocalJudge {
     // which leaves the browser with an empty 502 response.  Keep local judging
     // generous, but make hosted compilation fail inside the child process
     // instead of taking the server down with it.
-    this.compileMemoryLimitBytes = renderRuntime ? 192 * 1024 * 1024 : 1024 * 1024 * 1024;
+    this.compileMemoryLimitBytes = renderRuntime ? 256 * 1024 * 1024 : 1024 * 1024 * 1024;
     const hasRunTimeoutOverride = options.runTimeoutMs != null || process.env.JUDGE_RUN_TIMEOUT_MS != null;
     const hasMemoryLimitOverride = options.memoryLimitKb != null || process.env.JUDGE_MEMORY_LIMIT_KB != null;
     this.limits = {
