@@ -96,6 +96,22 @@ test('ended exams show one plain Chinese difficulty line in problem analysis', (
   assert.match(context.renderProblemAnalysis({ id: '6' }), /无题解/);
 });
 
+test('problem directory reads submission status from each problem exam', () => {
+  const context = {
+    progressByExam: new Map([
+      ['archive', { statuses: { '1191': 'accepted', '1192': 'wrong' }, submissions: [] }]
+    ]),
+    config: { examVersion: 'current', questions: [] },
+    submissions: [], results: {}
+  };
+  vm.createContext(context);
+  vm.runInContext(extract('function problemDirectoryStatus(', 'function renderProblemDirectory('), context);
+  const archive = { examVersion: 'archive' };
+  assert.equal(context.problemDirectoryStatus(archive, { id: '1191' }), '已通过');
+  assert.equal(context.problemDirectoryStatus(archive, { id: '1192' }), '未通过');
+  assert.equal(context.problemDirectoryStatus(archive, { id: '1193' }), '未提交');
+});
+
 test('an older cloud save with a later server timestamp does not replace unsynced local edits', () => {
   let restored = false;
   const pending = [];

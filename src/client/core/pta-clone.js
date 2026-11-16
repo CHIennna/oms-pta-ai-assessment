@@ -576,6 +576,15 @@ const difficultyTone=rating=>({
   '入门':'beginner','普及-':'basic','普及':'popular','普及+/提高-':'improving',
   '提高':'advanced','提高+/省选-':'provincial','省选/NOI-':'noi','NOI/NOI+/CTS':'expert','待定':'pending'
 }[rating]||'pending');
+function problemDirectoryStatus(exam,question){
+  if(question.judgeable===false)return '暂不可评测';
+  const progress=progressByExam.get(exam.examVersion),persistedStatus=progress?.statuses?.[question.id];
+  const persistedSubmission=Array.isArray(progress?.submissions)?progress.submissions.find(item=>item.problemId===question.id):null;
+  const currentIndex=config.examVersion===exam.examVersion?config.questions.findIndex(item=>item.id===question.id):-1;
+  const currentSubmission=config.examVersion===exam.examVersion?submissions.find(item=>item.problemId===question.id):null;
+  if((currentIndex>=0&&results[currentIndex]==='accepted')||persistedStatus==='accepted'||currentSubmission?.verdict==='答案正确'||currentSubmission?.verdict==='Accepted'||persistedSubmission?.verdict==='Accepted')return '已通过';
+  return persistedStatus||persistedSubmission||currentSubmission?'未通过':'未提交';
+}
 function renderProblemDirectory(filters={status:'all',difficulty:'all',keyword:''},page=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exams=[primaryConfig,...archive]
@@ -587,13 +596,7 @@ function renderProblemDirectory(filters={status:'all',difficulty:'all',keyword:'
     if(seen.has(key))return;
     seen.add(key);problems.push({exam,question,index,key});
   }));
-  const statusFor=({exam,question})=>{
-    if(question.judgeable===false)return '暂不可评测';
-    const latest=submissions.find(item=>item.problemId===question.id);
-    const currentIndex=config.questions.findIndex(item=>item.id===question.id);
-    if((currentIndex>=0&&results[currentIndex]==='accepted')||latest?.verdict==='答案正确'||latest?.verdict==='Accepted')return '已通过';
-    return latest?'未通过':'未提交';
-  };
+  const statusFor=({exam,question})=>problemDirectoryStatus(exam,question);
   const filtered=problems.filter(item=>{
     const difficulty=item.question.difficulty||item.question.difficultyEstimate||PROBLEM_DIFFICULTY.get(String(item.question.id||''))||'';
     const tags=Array.isArray(item.question.tags)?item.question.tags.join(' '):String(item.question.tags||'');
