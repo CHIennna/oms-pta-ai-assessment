@@ -42,6 +42,28 @@ test('submission cannot opt out of comparison and source limit is measured in by
   assert.equal(oversized.verdict, 'CompilationError'); assert.match(oversized.message, /超过/);
 });
 
+test('formal tests use bounded concurrency and keep their original result order', async () => {
+  const judge = new LocalJudge({
+    usePrlimit: false,
+    testConcurrency: 2,
+    toolchains: { NodeFixture: {
+      file: 'main.js', run: job => ({ command: process.execPath, args: [job.sourcePath] })
+    } }
+  });
+  const tests = [1, 2, 3, 4].map(value => ({ input: String(value), expected: String(value), score: 25 }));
+  const startedAt = Date.now();
+  const result = await judge.judge({
+    language: 'NodeFixture', mode: 'submit',
+    code: 'let s=""; process.stdin.on("data",c=>s+=c).on("end",()=>setTimeout(()=>process.stdout.write(s),200));',
+    tests
+  });
+  const elapsedMs = Date.now() - startedAt;
+
+  assert.equal(result.verdict, 'Accepted');
+  assert.deepEqual(result.testCases.map(item => item.index), [0, 1, 2, 3]);
+  assert.ok(elapsedMs < 750, `expected two workers to finish in under 750 ms, got ${elapsedMs} ms`);
+});
+
 test('judge reports and applies the configured per-language resource limits', () => {
   const judge = new LocalJudge({ usePrlimit: false, toolchains: {} });
   const limits = judge.info().limits;
@@ -140,5 +162,6 @@ test('Render uses a single worker and honors a safe compile budget', t => {
 
   const judge = new LocalJudge({ toolchains: {} });
   assert.equal(judge.maxConcurrency, 1);
+  assert.equal(judge.testConcurrency, 2);
   assert.equal(judge.limits.compileTimeoutMs, 15000);
 });

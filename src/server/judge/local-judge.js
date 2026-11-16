@@ -704,6 +704,16 @@ class LocalJudge {
       60000
     );
     this.maxConcurrency = renderRuntime ? 1 : requestedConcurrency;
+    // Keep compilation jobs serialized on the hosted instance, but let a
+    // single formal submission use two short-lived runners.  Hidden tests used
+    // to run one after another, so 20 near-time-limit cases could outlive the
+    // upstream HTTP request even though the judge itself was healthy.
+    this.testConcurrency = clamp(
+      options.testConcurrency ?? process.env.JUDGE_TEST_CONCURRENCY,
+      2,
+      1,
+      4
+    );
     this.maxQueue = clamp(options.maxQueue ?? process.env.JUDGE_MAX_QUEUE, 20, 1, 100);
     // Render's free instance has a small shared memory budget.  Letting a C/C++
     // compiler address 1 GiB can make the kernel kill the whole web service,
@@ -848,8 +858,10 @@ class LocalJudge {
         compilerDiagnostics = clipped(compilation.stdout + compilation.stderr);
       }
 
-      const testCases = [];
-      for (let index = 0; index < tests.length; index++) {
+      const testCases = new Array(tests.length);
+      let nextTestIndex = 0;
+      let unavailable = null;
+      const runTest = async index => {
         const test = tests[index];
         const runSpec = toolchain.run(job, runtimeCommand);
         runSpec.command = resolveCommand(runSpec.command);
@@ -860,7 +872,8 @@ class LocalJudge {
         });
         let verdict = 'Accepted', hint = '无提示', detail = '';
         if (execution.error || (execution.code === 127 && /not found|failed to execute|no such file/i.test(execution.stderr))) {
-          return unavailableResult(`评测环境无法启动 ${runSpec.command}。`, tests, limits);
+          unavailable ||= unavailableResult(`评测环境无法启动 ${runSpec.command}。`, tests, limits);
+          return;
         } else if (execution.timedOut) {
           verdict = 'TimeLimitExceeded'; hint = '运行时间超过限制。'; detail = clipped(execution.stderr);
         } else if (execution.outputExceeded) {
@@ -872,11 +885,23 @@ class LocalJudge {
           hint = test.checker ? '输出不满足题目要求或构造条件。' : '输出与预期不一致';
           detail = test.checker ? `你的输出：\n${execution.stdout || '(空)'}` : `你的输出：\n${execution.stdout || '(空)'}\n\n预期输出：\n${test.expected}`;
         }
-        testCases.push({
+        testCases[index] = {
           index, verdict, hint, score: test.score, memoryKb: null, timeMs: execution.durationMs, detail,
           ...(payload.mode === 'sample' ? { actualOutput: clipped(execution.stdout), stderr: clipped(execution.stderr), compared: test.compared, ...(test.compared ? { expectedOutput: test.expected } : {}) } : {})
-        });
-      }
+        };
+      };
+      const runWorker = async () => {
+        while (!unavailable) {
+          const index = nextTestIndex++;
+          if (index >= tests.length) return;
+          await runTest(index);
+        }
+      };
+      const workerCount = payload.mode === 'sample'
+        ? 1
+        : Math.min(this.testConcurrency, tests.length);
+      await Promise.all(Array.from({ length: workerCount }, runWorker));
+      if (unavailable) return unavailable;
       return { ...this.result(testCases, tests, payload.mode, limits), compilerDiagnostics };
     } finally {
       const resolved = path.resolve(workDir);
