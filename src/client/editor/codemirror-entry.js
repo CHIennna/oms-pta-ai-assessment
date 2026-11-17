@@ -7,6 +7,7 @@ import {java} from '@codemirror/lang-java';
 import {tags} from '@lezer/highlight';
 import {indentationDeleteSize} from './indentation-backspace.js';
 import {lineCommentChanges} from './line-comment.js';
+import {loneClosingBraceNewline} from './smart-newline.js';
 
 const input = document.querySelector('#code');
 const legacyGutter = document.querySelector('#lines');
@@ -241,6 +242,19 @@ function insertSmartNewline(event, editor) {
   const transaction = editor.state.changeByRange(range => {
     const startLine = editor.state.doc.lineAt(range.from);
     const endLine = editor.state.doc.lineAt(range.to);
+    const closingBraceNewline = range.empty && startLine.number === endLine.number
+      ? loneClosingBraceNewline(startLine.text, range.from - startLine.from)
+      : null;
+    if (closingBraceNewline) {
+      return {
+        changes: {
+          from: startLine.from + closingBraceNewline.from,
+          to: startLine.from + closingBraceNewline.to,
+          insert: closingBraceNewline.insert
+        },
+        range: EditorSelection.cursor(startLine.from + closingBraceNewline.cursor)
+      };
+    }
     const before = startLine.text.slice(0, range.from - startLine.from);
     const after = endLine.text.slice(range.to - endLine.from);
     const baseIndent = (before.match(/^\s*/) || [''])[0];

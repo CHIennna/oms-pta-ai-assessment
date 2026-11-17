@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {indentationDeleteSize} = require('./src/client/editor/indentation-backspace');
 const {lineCommentChanges} = require('./src/client/editor/line-comment');
+const {loneClosingBraceNewline} = require('./src/client/editor/smart-newline');
 
 function applyChanges(text, changes) {
   return [...changes]
@@ -51,4 +52,25 @@ test('overlapping selections comment each line only once', () => {
     {from: 0, to: source.indexOf('\n')}
   ], '//');
   assert.equal(applyChanges(source, changes), '// first\n// second');
+});
+
+test('enter after a lone closing brace removes its leading indentation', () => {
+  assert.deepEqual(loneClosingBraceNewline('    }', 5), {
+    from: 0,
+    to: 5,
+    insert: '}\n',
+    cursor: 2
+  });
+  assert.deepEqual(loneClosingBraceNewline('\t}', 2), {
+    from: 0,
+    to: 2,
+    insert: '}\n',
+    cursor: 2
+  });
+});
+
+test('lone closing brace handling only applies at the end of an otherwise empty line', () => {
+  assert.equal(loneClosingBraceNewline('    }', 4), null);
+  assert.equal(loneClosingBraceNewline('    } else {', 12), null);
+  assert.equal(loneClosingBraceNewline('}', 1), null);
 });

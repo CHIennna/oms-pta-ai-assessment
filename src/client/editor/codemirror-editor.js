@@ -20092,6 +20092,27 @@
     }
   });
 
+  // src/client/editor/smart-newline.js
+  var require_smart_newline = __commonJS({
+    "src/client/editor/smart-newline.js"(exports, module) {
+      "use strict";
+      function loneClosingBraceNewline(lineText, cursorColumn) {
+        if (cursorColumn !== lineText.length) return null;
+        const match = /^([ \t]+)}[ \t]*$/.exec(lineText);
+        if (!match) return null;
+        const content2 = lineText.slice(match[1].length);
+        return {
+          from: 0,
+          to: lineText.length,
+          insert: `${content2}
+`,
+          cursor: content2.length + 1
+        };
+      }
+      module.exports = { loneClosingBraceNewline };
+    }
+  });
+
   // src/client/editor/codemirror-entry.js
   var require_codemirror_entry = __commonJS({
     "src/client/editor/codemirror-entry.js"() {
@@ -20104,6 +20125,7 @@
       init_dist4();
       var import_indentation_backspace = __toESM(require_indentation_backspace());
       var import_line_comment = __toESM(require_line_comment());
+      var import_smart_newline = __toESM(require_smart_newline());
       var input = document.querySelector("#code");
       var legacyGutter = document.querySelector("#lines");
       var languageSelect = document.querySelector("#language");
@@ -20360,6 +20382,17 @@
         const transaction = editor.state.changeByRange((range) => {
           const startLine = editor.state.doc.lineAt(range.from);
           const endLine = editor.state.doc.lineAt(range.to);
+          const closingBraceNewline = range.empty && startLine.number === endLine.number ? (0, import_smart_newline.loneClosingBraceNewline)(startLine.text, range.from - startLine.from) : null;
+          if (closingBraceNewline) {
+            return {
+              changes: {
+                from: startLine.from + closingBraceNewline.from,
+                to: startLine.from + closingBraceNewline.to,
+                insert: closingBraceNewline.insert
+              },
+              range: EditorSelection.cursor(startLine.from + closingBraceNewline.cursor)
+            };
+          }
           const before = startLine.text.slice(0, range.from - startLine.from);
           const after = endLine.text.slice(range.to - endLine.from);
           const baseIndent = (before.match(/^\s*/) || [""])[0];
