@@ -112,6 +112,57 @@ test('problem directory reads submission status from each problem exam', () => {
   assert.equal(context.problemDirectoryStatus(archive, { id: '1193' }), '未提交');
 });
 
+test('legacy published scoreboard uses current per-problem progress for the signed-in user', () => {
+  const context = {
+    config: {
+      examVersion: 'legacy', studentId: '102500000', candidateName: 'Bilibili',
+      questions: [{ id: '1', score: 100 }, { id: '2', score: 100 }]
+    },
+    portalUser: { username: '102500000' },
+    publishedScoreboards: new Map([['legacy', {
+      rows: [{ userId: '102500000', userName: 'ciena', total: 400, scores: null }]
+    }]]),
+    scores: { 0: 50 }, results: { 0: 'partial' }, submissions: [{ problemId: '1' }],
+    escape: String
+  };
+  vm.createContext(context);
+  vm.runInContext(extract('function scoreForQuestionState(', 'function scoreForQuestion('), context);
+  vm.runInContext(extract('function scoreboardUserCell(', 'function examDate('), context);
+  const html = context.renderScoreboard();
+  assert.match(html, /102500000（Bilibili）/);
+  assert.match(html, /score-total"><b>50<\/b>/);
+  assert.match(html, /score-partial"><b>50<\/b>/);
+  assert.doesNotMatch(html, /未同步/);
+});
+
+test('imported historical scoreboard replaces the signed-in row with current progress', () => {
+  const context = {
+    config: {
+      examVersion: 'imported', studentId: '102500000', candidateName: 'Bilibili',
+      questions: [{ id: '1', score: 100 }, { id: '2', score: 100 }],
+      scoreboard: {
+        rule: 'IOI', problems: [{ letter: 'A' }, { letter: 'B' }],
+        rows: [{ rank: '1', userId: 'B 102500000', userName: 'ciena', totalScore: 400, problems: ['100', '100'] }]
+      }
+    },
+    portalUser: { username: '102500000' }, publishedScoreboards: new Map(),
+    scores: { 0: 30 }, results: { 0: 'partial' }, submissions: [{ problemId: '1' }],
+    escape: String
+  };
+  vm.createContext(context);
+  vm.runInContext(extract('function scoreForQuestionState(', 'function scoreForQuestion('), context);
+  vm.runInContext(extract('function scoreboardUserCell(', 'function examDate('), context);
+  const html = context.renderScoreboard();
+  assert.match(html, /102500000（Bilibili）/);
+  assert.match(html, /score-total"><b>30<\/b>/);
+  assert.match(html, /score-partial"><b>30<\/b>/);
+  assert.doesNotMatch(html, /ciena|<b>400<\/b>/);
+});
+
+test('scoreboard source no longer contains the obsolete unsynced fallback', () => {
+  assert.doesNotMatch(core, /userName:'ciena'|逐题成绩未同步|>未同步</);
+});
+
 test('an older cloud save with a later server timestamp does not replace unsynced local edits', () => {
   let restored = false;
   const pending = [];

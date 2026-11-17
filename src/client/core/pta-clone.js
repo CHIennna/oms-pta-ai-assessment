@@ -306,7 +306,8 @@ function examHasEnded(){return contestStatus()==='已结束';}
 function syncSolutionNavigation(){const button=document.querySelector('.rail-button[data-route="solutions"]');if(button)button.hidden=!examHasEnded();}
 function lastSubmissionFor(question){return submissions.find(item=>item.problemId===question.id);}
 function renderContestQuestionTable(){const rows=config.questions.map((question,index)=>{const last=lastSubmissionFor(question),status=question.judgeable===false?'暂不可评测':results[index]==='accepted'?'答案正确':results[index]==='partial'?'部分正确':results[index]==='wrong'?'答案错误':'未提交',tone=results[index]||'pending';return `<button type="button" class="contest-question-row" data-question-open="${index}"><span class="${tone}">${status}</span><span>${last?escape(last.time):'—'}</span><strong>${escape(question.id)} ${escape(question.name)}</strong><em>${scoreForQuestion(question,index)} / ${Number(question.score)||0}</em></button>`;}).join('');return `<section class="contest-question-table"><header><h2>题目列表</h2></header><div class="contest-question-columns"><span>状态</span><span>上次递交</span><span>题目</span><span>分值</span></div>${rows}</section>`;}
-function scoreForQuestion(question,index){const earned=Number(scores[index]);return Number.isFinite(earned)?Math.max(0,Math.min(Number(question.score)||0,earned)):(results[index]==='accepted'?Number(question.score)||0:0);}
+function scoreForQuestionState(question,index,scoreState,resultState){const maximum=Number(question.score)||0,earned=Number(scoreState[index]);return Number.isFinite(earned)?Math.max(0,Math.min(maximum,earned)):(resultState[index]==='accepted'?maximum:0);}
+function scoreForQuestion(question,index){return scoreForQuestionState(question,index,scores,results);}
 function renderExamInfo(){
   const total=config.questions.reduce((sum,question)=>sum+(Number(question.score)||0),0);
   const title=String(config.title||'').replace(/^已结束\s*/, '');
@@ -330,7 +331,7 @@ function portalDuration(value){const minutes=Number(value)||0;if(!minutes)return
 const publishedScoreboards=new Map([
   ['2026-10-11-second-stage-weekly-practice-2',{
     participantCount:6,
-    rows:[{userId:'102500000',userName:'ciena',total:400,scores:null}]
+    rows:[]
   }],
   ['2026-10-25-third-stage-weekly-v3',{
     participantCount:48,
@@ -454,13 +455,29 @@ function scoreboardScoreCell(score,maximum,attempted=true){
   const points=Number(score)||0,tone=!attempted?'unsubmitted':points>=maximum?'full':points>0?'partial':'zero';
   return `<td class="score-problem score-${tone}"><b>${attempted?escape(points):'—'}</b></td>`;
 }
+function scoreboardQuestionResults(questions,scoreState,resultState,submissionState){
+  const submitted=Array.isArray(submissionState)?submissionState:[];
+  return questions.map((question,index)=>{
+    const maximum=Number(question.score)||100;
+    const attempted=Boolean(resultState[index]||submitted.some(item=>item.problemId===question.id));
+    const earned=scoreForQuestionState(question,index,scoreState,resultState);
+    return {earned,maximum,attempted,status:resultState[index]||''};
+  });
+}
 function renderScoreboard(){
   const published=publishedScoreboards.get(config.examVersion);
   if(published){
     const heads=config.questions.map((question,index)=>`<th><b>${index+1}</b></th>`).join('');
     const scoreCell=(score,index,attempted=true)=>scoreboardScoreCell(score,Number(config.questions[index]?.score)||100,attempted);
-    const unsyncedCell='<td class="score-problem score-unsubmitted" title="逐题成绩未同步"><b>—</b><span>未同步</span></td>';
-    const publishedRows=published.rows.map(user=>{const scores=Array.isArray(user.scores)?user.scores:null;return {...user,total:Number.isFinite(Number(user.total))?Number(user.total):(scores||[]).reduce((sum,score)=>sum+Number(score||0),0),cells:config.questions.map((question,index)=>scores&&index<scores.length?scoreCell(scores[index],index):unsyncedCell).join('')}});
+    const currentResults=scoreboardQuestionResults(config.questions,scores,results,submissions),hasCurrentProgress=currentResults.some(item=>item.attempted);
+    const currentUserIds=new Set([config.studentId,portalUser?.username].filter(Boolean).map(String));
+    const publishedRows=published.rows.map(user=>{
+      const publishedScores=Array.isArray(user.scores)?user.scores:null,isCurrentUser=currentUserIds.has(String(user.userId)),liveResults=isCurrentUser&&hasCurrentProgress?currentResults:null;
+      const total=liveResults?liveResults.reduce((sum,item)=>sum+item.earned,0):Number.isFinite(Number(user.total))?Number(user.total):(publishedScores||[]).reduce((sum,score)=>sum+Number(score||0),0);
+      const cells=config.questions.map((question,index)=>liveResults?scoreCell(liveResults[index].earned,index,liveResults[index].attempted):publishedScores&&index<publishedScores.length?scoreCell(publishedScores[index],index):scoreCell(0,index,false)).join('');
+      return {...user,userName:isCurrentUser?config.candidateName:user.userName,total,cells};
+    });
+    if((hasCurrentProgress||!publishedRows.length)&&!publishedRows.some(user=>currentUserIds.has(String(user.userId))))publishedRows.push({userId:config.studentId||portalUser?.username||config.candidateName,userName:config.candidateName,total:currentResults.reduce((sum,item)=>sum+item.earned,0),cells:currentResults.map((item,index)=>scoreCell(item.earned,index,item.attempted)).join('')});
     const participants=publishedRows
       .filter((user,index,array)=>array.findIndex(candidate=>candidate.userId===user.userId)===index)
       .sort((left,right)=>right.total-left.total);
@@ -471,21 +488,31 @@ function renderScoreboard(){
   if(Array.isArray(imported?.rows)&&imported.rows.length){
     const ioi=imported.rule==='IOI';
     const heads=(imported.problems||[]).map(problem=>`<th><b>${escape(problem.letter)}</b><span>${Number(problem.accepted)||0} / ${Number(problem.submissions)||0}</span></th>`).join('');
+    const normalizeUserId=value=>String(value||'').replace(/^B\s*/, '');
     const rows=imported.rows.map(row=>{
       const problems=(row.problems||[]).map(value=>{const text=String(value??'').trim();if(ioi){const points=Number(text.match(/^\s*(\d+)/)?.[1]),hasScore=Number.isFinite(points)&&text!=='-',tone=!hasScore?'unsubmitted':points>=100?'full':points>0?'partial':'zero',visible=text||'—';return `<td class="score-problem score-${tone}"><b>${escape(visible)}</b></td>`;}const accepted=text.match(/^(?:\+(\d+)\s+)?(\d+:\d{2})$/),wrong=text.match(/^-(\d+)$/),top=accepted?(accepted[1]?`+${accepted[1]}`:'✓'):wrong?`-${wrong[1]}`:text,time=accepted?.[2]||'';return `<td class="score-problem ${accepted?'accepted':text?'attempted':''}"><b>${top?escape(top):'—'}</b></td>`;}).join('');
-      const displayUserId=String(row.userId||'').replace(/^B\s*/, '');
+      const displayUserId=normalizeUserId(row.userId);
       const userUrl=/^https:\/\/oj\.fzu\.edu\.cn\/user\/\d+$/.test(String(row.userUrl||''))?`<a href="${escape(row.userUrl)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none">${escape(displayUserId)}</a>`:escape(displayUserId);
       const avatarPath=String(row.avatarUrl||'');
       const avatar=/^\.\/比赛成绩表 - FZU Online Judge_files\/[^?#]+$/.test(avatarPath)?`<img src="${escape(avatarPath)}" alt="" loading="lazy" style="display:block;width:38px;height:38px;object-fit:cover;border-radius:50%" onerror="this.onerror=null;this.parentElement.textContent='B'">`:'B';
       const totalValue=ioi?Number(row.totalScore)||0:Number(row.solved)||0;
       const totalDetail=ioi?'':escape(row.penalty||'0:00');
-      return `<tr><td class="score-rank">${escape(row.rank)}</td><td class="score-user"><span>${avatar}</span><b>${userUrl}（${escape(row.userName)}）</b></td><td class="score-total"><b>${totalValue}</b>${totalDetail?`<small>${totalDetail}</small>`:''}</td>${problems}</tr>`;
-    }).join('');
+      return {userId:displayUserId,html:`<tr><td class="score-rank">${escape(row.rank)}</td><td class="score-user"><span>${avatar}</span><b>${userUrl}（${escape(row.userName)}）</b></td><td class="score-total"><b>${totalValue}</b>${totalDetail?`<small>${totalDetail}</small>`:''}</td>${problems}</tr>`};
+    });
+    const currentResults=scoreboardQuestionResults(config.questions,scores,results,submissions),hasCurrentProgress=currentResults.some(item=>item.attempted),currentUserId=normalizeUserId(config.studentId||portalUser?.username||config.candidateName);
+    if(hasCurrentProgress){
+      const currentTotal=ioi?currentResults.reduce((sum,item)=>sum+item.earned,0):currentResults.filter(item=>item.status==='accepted').length;
+      const currentCells=ioi?currentResults.map(item=>scoreboardScoreCell(item.earned,item.maximum,item.attempted)).join(''):currentResults.map(item=>`<td class="score-problem ${item.status==='accepted'?'accepted':item.attempted?'attempted':''}"><b>${item.attempted?(item.status==='accepted'?'✓':'−'):'—'}</b></td>`).join('');
+      const currentRow={userId:currentUserId,html:`<tr><td class="score-rank">—</td>${scoreboardUserCell(currentUserId,config.candidateName)}<td class="score-total"><b>${currentTotal}</b>${ioi?'':'<small>当前记录</small>'}</td>${currentCells}</tr>`};
+      const existing=rows.findIndex(row=>row.userId===currentUserId);if(existing>=0)rows[existing]=currentRow;else rows.unshift(currentRow);
+    }
+    const rowHtml=rows.map(row=>row.html).join('');
     const totalHead=ioi?'<th><b>总分</b></th>':'<th><b>Solved</b><span>总耗时</span></th>';
-    return `<section class="scoreboard-page"><header><h1>成绩表</h1></header><div class="scoreboard-scroll"><table class="scoreboard-table"><thead><tr><th>#</th><th>用户</th>${totalHead}${heads}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    return `<section class="scoreboard-page"><header><h1>成绩表</h1></header><div class="scoreboard-scroll"><table class="scoreboard-table"><thead><tr><th>#</th><th>用户</th>${totalHead}${heads}</tr></thead><tbody>${rowHtml}</tbody></table></div></section>`;
   }
-  const totalScore=config.questions.reduce((sum,question,index)=>sum+scoreForQuestion(question,index),0);
-  const cells=config.questions.map((question,index)=>{const attempts=submissions.filter(item=>item.problemId===question.id).length,attempted=Boolean(results[index]||attempts),earned=scoreForQuestion(question,index);return scoreboardScoreCell(earned,Number(question.score)||100,attempted);}).join('');
+  const currentResults=scoreboardQuestionResults(config.questions,scores,results,submissions);
+  const totalScore=currentResults.reduce((sum,item)=>sum+item.earned,0);
+  const cells=currentResults.map(item=>scoreboardScoreCell(item.earned,item.maximum,item.attempted)).join('');
   const heads=config.questions.map(question=>`<th><b>${escape(question.id)}</b></th>`).join('');
   const userId=config.studentId||config.candidateName,userName=config.candidateName;
   const rows=`<tr><td class="score-rank">1</td>${scoreboardUserCell(userId,userName)}<td class="score-total"><b>${totalScore}</b></td>${cells}</tr>`;
