@@ -20096,8 +20096,8 @@
   var require_smart_newline = __commonJS({
     "src/client/editor/smart-newline.js"(exports, module) {
       "use strict";
-      function loneClosingBraceNewline(lineText, cursorColumn) {
-        if (cursorColumn !== lineText.length) return null;
+      function loneClosingBraceNewline(lineText, cursorColumn, isLastLine) {
+        if (!isLastLine || cursorColumn !== lineText.length) return null;
         const match = /^([ \t]+)}[ \t]*$/.exec(lineText);
         if (!match) return null;
         const content2 = lineText.slice(match[1].length);
@@ -20382,7 +20382,11 @@
         const transaction = editor.state.changeByRange((range) => {
           const startLine = editor.state.doc.lineAt(range.from);
           const endLine = editor.state.doc.lineAt(range.to);
-          const closingBraceNewline = range.empty && startLine.number === endLine.number ? (0, import_smart_newline.loneClosingBraceNewline)(startLine.text, range.from - startLine.from) : null;
+          const closingBraceNewline = range.empty && startLine.number === endLine.number ? (0, import_smart_newline.loneClosingBraceNewline)(
+            startLine.text,
+            range.from - startLine.from,
+            startLine.number === editor.state.doc.lines
+          ) : null;
           if (closingBraceNewline) {
             return {
               changes: {

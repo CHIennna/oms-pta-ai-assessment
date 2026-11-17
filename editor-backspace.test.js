@@ -55,13 +55,13 @@ test('overlapping selections comment each line only once', () => {
 });
 
 test('enter after a lone closing brace removes its leading indentation', () => {
-  assert.deepEqual(loneClosingBraceNewline('    }', 5), {
+  assert.deepEqual(loneClosingBraceNewline('    }', 5, true), {
     from: 0,
     to: 5,
     insert: '}\n',
     cursor: 2
   });
-  assert.deepEqual(loneClosingBraceNewline('\t}', 2), {
+  assert.deepEqual(loneClosingBraceNewline('\t}', 2, true), {
     from: 0,
     to: 2,
     insert: '}\n',
@@ -70,7 +70,11 @@ test('enter after a lone closing brace removes its leading indentation', () => {
 });
 
 test('lone closing brace handling only applies at the end of an otherwise empty line', () => {
-  assert.equal(loneClosingBraceNewline('    }', 4), null);
-  assert.equal(loneClosingBraceNewline('    } else {', 12), null);
-  assert.equal(loneClosingBraceNewline('}', 1), null);
+  assert.equal(loneClosingBraceNewline('    }', 4, true), null);
+  assert.equal(loneClosingBraceNewline('    } else {', 12, true), null);
+  assert.equal(loneClosingBraceNewline('}', 1, true), null);
+});
+
+test('a lone closing brace on a non-final line keeps the normal enter behavior', () => {
+  assert.equal(loneClosingBraceNewline('    }', 5, false), null);
 });

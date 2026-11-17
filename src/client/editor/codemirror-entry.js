@@ -243,7 +243,11 @@ function insertSmartNewline(event, editor) {
     const startLine = editor.state.doc.lineAt(range.from);
     const endLine = editor.state.doc.lineAt(range.to);
     const closingBraceNewline = range.empty && startLine.number === endLine.number
-      ? loneClosingBraceNewline(startLine.text, range.from - startLine.from)
+      ? loneClosingBraceNewline(
+        startLine.text,
+        range.from - startLine.from,
+        startLine.number === editor.state.doc.lines
+      )
       : null;
     if (closingBraceNewline) {
       return {

@@ -1,7 +1,7 @@
 'use strict';
 
-function loneClosingBraceNewline(lineText, cursorColumn) {
-  if (cursorColumn !== lineText.length) return null;
+function loneClosingBraceNewline(lineText, cursorColumn, isLastLine) {
+  if (!isLastLine || cursorColumn !== lineText.length) return null;
   const match = /^([ \t]+)}[ \t]*$/.exec(lineText);
   if (!match) return null;
   const content = lineText.slice(match[1].length);
