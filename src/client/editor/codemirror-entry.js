@@ -7,7 +7,7 @@ import {java} from '@codemirror/lang-java';
 import {tags} from '@lezer/highlight';
 import {indentationDeleteSize} from './indentation-backspace.js';
 import {lineCommentChanges} from './line-comment.js';
-import {loneClosingBraceNewline} from './smart-newline.js';
+import {loneClosingBraceNewline, loneClosingBraceDedent} from './smart-newline.js';
 
 const input = document.querySelector('#code');
 const legacyGutter = document.querySelector('#lines');
@@ -354,6 +354,25 @@ const view = new EditorView({
     extensions: [
       lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), drawSelection(), preciseSelectionPlugin, rectangularSelection(), highlightActiveLine(), localLoopVariablePlugin, includeHeaderPlugin, commonShortcuts,
       ptaTheme, syntaxHighlighting(ptaHighlight), language.of(languageFor()), tabSize.of(EditorState.tabSize.of(editorSettings.tabSize)), whitespace.of(indentationDotPlugin), fontSize.of(fontSizeExtension(editorSettings.fontSize)), bracketMatching({afterCursor: true}),
+      EditorState.transactionFilter.of(transaction => {
+        if (!transaction.docChanged || replacing) return transaction;
+        const lastLine = transaction.newDoc.line(transaction.newDoc.lines);
+        let touchesLastLine = false;
+        transaction.changes.iterChangedRanges((_fromA, _toA, _fromB, toB) => {
+          if (toB >= lastLine.from) touchesLastLine = true;
+        });
+        if (!touchesLastLine) return transaction;
+        const change = loneClosingBraceDedent(lastLine.text, true);
+        if (!change) return transaction;
+        return [transaction, {
+          changes: {
+            from: lastLine.from + change.from,
+            to: lastLine.from + change.to,
+            insert: change.insert
+          },
+          sequential: true
+        }];
+      }),
       EditorView.updateListener.of(update => {
         if (!update.docChanged || replacing) return;
         pushHistory(editingHistory.undo, {

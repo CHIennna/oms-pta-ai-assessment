@@ -4,3 +4,19 @@
 
 /* Keep long source lines intact and expose the editor's horizontal scrollbar. */
 .editor>.cm-editor .cm-scroller{overflow:auto!important}.editor>.cm-editor .cm-content{width:max-content;min-width:100%}.editor>.cm-editor .cm-line{white-space:pre!important}
+
+.pta-app.light-mode .coding:not(.editor-theme-github-dark) .cm-matchingBracket,
+.coding.editor-theme-github-light .cm-matchingBracket {
+  background: rgba(47, 143, 255, .08) !important;
+  box-shadow: inset 0 -1px 0 #2f8fff !important;
+  border: 0 !important;
+  border-radius: 0;
+}
+
+.pta-app.light-mode .coding:not(.editor-theme-github-dark) .cm-nonmatchingBracket,
+.coding.editor-theme-github-light .cm-nonmatchingBracket {
+  background: rgba(238, 76, 76, .08) !important;
+  box-shadow: inset 0 -1px 0 #ee4c4c !important;
+  border: 0 !important;
+  border-radius: 0;
+}

@@ -20109,7 +20109,13 @@
           cursor: content2.length + 1
         };
       }
-      module.exports = { loneClosingBraceNewline };
+      function loneClosingBraceDedent(lineText, isLastLine) {
+        if (!isLastLine) return null;
+        const match = /^([ \t]+)}[ \t]*$/.exec(lineText);
+        if (!match) return null;
+        return { from: 0, to: match[1].length, insert: "" };
+      }
+      module.exports = { loneClosingBraceNewline, loneClosingBraceDedent };
     }
   });
 
@@ -20505,6 +20511,25 @@ ${firstIndent}`;
             whitespace.of(indentationDotPlugin),
             fontSize.of(fontSizeExtension(editorSettings.fontSize)),
             bracketMatching({ afterCursor: true }),
+            EditorState.transactionFilter.of((transaction) => {
+              if (!transaction.docChanged || replacing) return transaction;
+              const lastLine = transaction.newDoc.line(transaction.newDoc.lines);
+              let touchesLastLine = false;
+              transaction.changes.iterChangedRanges((_fromA, _toA, _fromB, toB) => {
+                if (toB >= lastLine.from) touchesLastLine = true;
+              });
+              if (!touchesLastLine) return transaction;
+              const change = (0, import_smart_newline.loneClosingBraceDedent)(lastLine.text, true);
+              if (!change) return transaction;
+              return [transaction, {
+                changes: {
+                  from: lastLine.from + change.from,
+                  to: lastLine.from + change.to,
+                  insert: change.insert
+                },
+                sequential: true
+              }];
+            }),
             EditorView.updateListener.of((update) => {
               if (!update.docChanged || replacing) return;
               pushHistory(editingHistory.undo, {

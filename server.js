@@ -31,7 +31,7 @@ const judgeStartupReady = process.env.RENDER
   : Promise.resolve();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(examDataRoot, 'exam-data.js'),
-  [path.join(examDataRoot, 'fzu-2025-freshman-cs.js'), path.join(examDataRoot, 'fzu-2025-freshman-extra.js'), path.join(examDataRoot, 'fzu-2025-freshman-difficulty.js'), path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'), path.join(examDataRoot, 'fzu-practice-homework.js'), path.join(examDataRoot, 'third-stage-weekly-20261025.js'), path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'), path.join(examDataRoot, 'zongjuesai-qc4-day1-20261114.js'), path.join(examDataRoot, 'zongjuesai-day2-20261115.js'), path.join(examDataRoot, 'fzu-qc5-final-20261122.js')]
+  [path.join(examDataRoot, 'fzu-2025-freshman-cs.js'), path.join(examDataRoot, 'fzu-2025-freshman-extra.js'), path.join(examDataRoot, 'fzu-2025-freshman-difficulty.js'), path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'), path.join(examDataRoot, 'fzu-practice-homework.js'), path.join(examDataRoot, 'third-stage-weekly-20261025.js'), path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'), path.join(examDataRoot, 'zongjuesai-qc4-day1-20261114.js'), path.join(examDataRoot, 'zongjuesai-day2-20261115.js'), path.join(examDataRoot, 'fzu-qc5-final-20261122.js'), path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js')]
 );
 const judgeExams = [...exams, ...practiceExams];
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
@@ -52,6 +52,7 @@ const publicFiles = new Map([
   ['/src/data/exams/zongjuesai-qc4-day1-20261114.js', 'src/data/exams/zongjuesai-qc4-day1-20261114.js'],
   ['/src/data/exams/zongjuesai-day2-20261115.js', 'src/data/exams/zongjuesai-day2-20261115.js'],
   ['/src/data/exams/fzu-qc5-final-20261122.js', 'src/data/exams/fzu-qc5-final-20261122.js'],
+  ['/src/data/exams/fzu-qc6-volcano-ex-20261129.js', 'src/data/exams/fzu-qc6-volcano-ex-20261129.js'],
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'],
   ['/src/client/assets/fzu-triangle-lattice.svg', 'src/client/assets/fzu-triangle-lattice.svg'],
@@ -290,7 +291,7 @@ function resolveTestCases(source) {
   if (archivedTestCases.has(key)) return archivedTestCases.get(key);
   const tests = Array.from({ length: source.count }, (_, index) => {
     const stem = `${source.prefix}/${String(index + 1).padStart(2, '0')}`;
-    return { input: readZipText(source.file, `${stem}.in`), expected: readZipText(source.file, `${stem}.out`), score: source.score, checker: source.checker || '' };
+    return { input: readZipText(source.file, `${stem}.in`), expected: readZipText(source.file, `${stem}.out`), score: Array.isArray(source.scores) ? Number(source.scores[index]) : source.score, checker: source.checker || '' };
   });
   archivedTestCases.set(key, tests);
   return tests;

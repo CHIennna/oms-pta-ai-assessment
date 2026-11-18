@@ -13,4 +13,11 @@ function loneClosingBraceNewline(lineText, cursorColumn, isLastLine) {
   };
 }
 
-module.exports = {loneClosingBraceNewline};
+function loneClosingBraceDedent(lineText, isLastLine) {
+  if (!isLastLine) return null;
+  const match = /^([ \t]+)}[ \t]*$/.exec(lineText);
+  if (!match) return null;
+  return {from: 0, to: match[1].length, insert: ''};
+}
+
+module.exports = {loneClosingBraceNewline, loneClosingBraceDedent};

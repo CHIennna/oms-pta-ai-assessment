@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {indentationDeleteSize} = require('./src/client/editor/indentation-backspace');
 const {lineCommentChanges} = require('./src/client/editor/line-comment');
-const {loneClosingBraceNewline} = require('./src/client/editor/smart-newline');
+const {loneClosingBraceNewline, loneClosingBraceDedent} = require('./src/client/editor/smart-newline');
 
 function applyChanges(text, changes) {
   return [...changes]
@@ -77,4 +77,15 @@ test('lone closing brace handling only applies at the end of an otherwise empty 
 
 test('a lone closing brace on a non-final line keeps the normal enter behavior', () => {
   assert.equal(loneClosingBraceNewline('    }', 5, false), null);
+});
+
+test('a lone closing brace on the final line dedents without enter', () => {
+  assert.deepEqual(loneClosingBraceDedent('    }', true), {from: 0, to: 4, insert: ''});
+  assert.deepEqual(loneClosingBraceDedent('\t}\t', true), {from: 0, to: 1, insert: ''});
+});
+
+test('automatic closing brace dedent only applies to an indented final line', () => {
+  assert.equal(loneClosingBraceDedent('    }', false), null);
+  assert.equal(loneClosingBraceDedent('}', true), null);
+  assert.equal(loneClosingBraceDedent('    } else {', true), null);
 });

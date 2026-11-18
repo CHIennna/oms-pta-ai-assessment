@@ -115,8 +115,12 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
         const archive = question.testArchive;
         const count = Number(archive?.count);
         const score = Number(archive?.score);
+        const scores = Array.isArray(archive?.scores) ? archive.scores.map(Number) : null;
+        const validScores = scores
+          ? scores.length === count && scores.every(value => Number.isFinite(value) && value >= 0)
+          : Number.isFinite(score) && score >= 0;
         if (!archive || typeof archive.file !== 'string' || !archive.file.trim() || typeof archive.prefix !== 'string' || !archive.prefix.trim()
-          || !Number.isInteger(count) || count < 1 || count > 20 || !Number.isFinite(score) || score < 0) {
+          || !Number.isInteger(count) || count < 1 || count > 20 || !validScores) {
           errors.push(`${questionLabel} 没有正式测试点`);
           continue;
         }
@@ -128,8 +132,9 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
         }
         judgeableProblems += 1;
         testCases += count;
-        if (Number.isFinite(Number(question.score)) && count * score !== Number(question.score)) {
-          errors.push(`${questionLabel} 测试点总分 ${count * score} 与题目分值 ${question.score} 不一致`);
+        const totalScore = scores ? scores.reduce((sum, value) => sum + value, 0) : count * score;
+        if (Number.isFinite(Number(question.score)) && totalScore !== Number(question.score)) {
+          errors.push(`${questionLabel} 测试点总分 ${totalScore} 与题目分值 ${question.score} 不一致`);
         }
         continue;
       }
@@ -202,7 +207,8 @@ if (require.main === module) {
           path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'),
           path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'),
           path.join(examDataRoot, 'zongjuesai-day2-20261115.js'),
-          path.join(examDataRoot, 'fzu-qc5-final-20261122.js')
+          path.join(examDataRoot, 'fzu-qc5-final-20261122.js'),
+          path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
