@@ -54,8 +54,9 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
   const warnings = [];
   const examVersions = new Set();
   const globalIds = new Set();
+  const pastTimestamp = exam => Date.parse(/^\d{4}$/.test(exam.date) ? `${exam.date}-12-31` : exam.date);
   const pastExams = exams.filter(exam => exam.category === 'past')
-    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+    .sort((a, b) => pastTimestamp(a) - pastTimestamp(b));
   const pastStarts = new Map();
   let nextPastId = 1;
   for (const exam of pastExams) {
@@ -208,7 +209,9 @@ if (require.main === module) {
           path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'),
           path.join(examDataRoot, 'zongjuesai-day2-20261115.js'),
           path.join(examDataRoot, 'fzu-qc5-final-20261122.js'),
-          path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js')
+          path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'),
+          path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'),
+          path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
