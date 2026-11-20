@@ -155,7 +155,7 @@ function cleanStatementDecoration(text){return String(text||'').replace(/^[ \t]*
 function formatStatement(text,q){const limits=resourceLimits();if(!text)return `<div class="rendered-markdown problem-copy"><p>请根据题目要求完成程序。提交后，AI 助教将检查程序逻辑、边界条件和代码风格。</p><h3>输入格式：</h3><p>输入数据由题目给定。</p><h3>输出格式：</h3><p>按题目要求输出计算结果。</p><h3>输入样例：</h3>${sampleBlock('in',q.sampleInput||'100311')}<h3>输出样例：</h3>${sampleBlock('out',q.sampleOutput||'0:2\n1:3\n3:1')}${limits}</div>`;const statementHtml=enhanceStatementSamples(cleanStatementDecoration(text),q).replaceAll('FZUTRIANGLEFIGUREMARKER','<img src="./src/client/assets/fzu-triangle-lattice.svg" alt="n = 4 时的三角形网格示意图" style="display:block;max-width:100%;height:auto;margin:12px auto">');return `<div class="rendered-markdown problem-copy">${statementHtml}${limits}</div>`;}
 function questionGridStatus(status){return status==='accepted'?'accepted':status==='wrong'||status==='partial'?'wrong':'';}
 function statusGlyph(status,label){if(status==='accepted')return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5.5 12.5 4.1 4.1L18.5 7.5"/></svg>';if(status==='wrong')return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8 8 8M16 8l-8 8"/></svg>';return label;}
-function updateCountdown(){const timestamp=value=>{const text=String(value||'').trim().replace(' ','T');return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text)?`${text}+08:00`:text);};const practice=config.category==='practice',start=timestamp(config.startAt),end=timestamp(config.endAt),now=Date.now(),remain=$('.remain'),archived=config.category==='past'||practice,invalid=!archived&&(!Number.isFinite(start)||!Number.isFinite(end)||end<=start),beforeStart=!archived&&now<start,displayEnded=!practice&&(archived||now>=end),judgeable=config.questions[current]?.judgeable!==false,languageAvailable=!availableJudgeLanguages||availableJudgeLanguages.includes($('#language').value);let milliseconds=archived||invalid?0:Math.max(0,beforeStart?start-now:end-now);const seconds=Math.floor(milliseconds/1000),hours=String(Math.floor(seconds/3600)).padStart(2,'0'),minutes=String(Math.floor(seconds%3600/60)).padStart(2,'0'),secs=String(seconds%60).padStart(2,'0');$('#countdown-label').textContent=practice?'不限时':invalid?'时间异常':beforeStart?'距开始':displayEnded?'已结束':'剩余';$('#countdown').textContent=`${hours}:${minutes}:${secs}`;remain.classList.toggle('warning',!archived&&!displayEnded&&!invalid&&milliseconds<=5*60*1000);remain.classList.toggle('expired',displayEnded);$('#submit').disabled=invalid||beforeStart||!judgeable||submissionPending||samplePending||!languageAvailable;$('#run-test').disabled=invalid||beforeStart||!judgeable||submissionPending||samplePending||!languageAvailable;if(!judgeable)$('#submit-state').textContent=config.questions[current]?.unjudgeableReason||'题面资料不完整，暂不支持评测';else if(!languageAvailable)$('#submit-state').textContent='当前评测服务不支持所选语言';else if(invalid)$('#submit-state').textContent='考试时间配置无效';else if(beforeStart)$('#submit-state').textContent='考试尚未开始';else if(displayEnded)$('#submit-state').textContent='考试已结束，可继续运行和提交';}
+function updateCountdown(){const timestamp=value=>{const text=String(value||'').trim().replace(' ','T');return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text)?`${text}+08:00`:text);};applyPersonalSchedule(config);const unstarted=config.selfScheduled&&!config.startAt;const practice=config.category==='practice',start=timestamp(config.startAt),end=timestamp(config.endAt),now=Date.now(),remain=$('.remain'),archived=config.category==='past'||practice,invalid=!unstarted&&!archived&&(!Number.isFinite(start)||!Number.isFinite(end)||end<=start),beforeStart=unstarted||(!archived&&now<start),displayEnded=!practice&&(archived||now>=end),judgeable=config.questions[current]?.judgeable!==false,languageAvailable=!availableJudgeLanguages||availableJudgeLanguages.includes($('#language').value);let milliseconds=archived||invalid||unstarted?0:Math.max(0,beforeStart?start-now:end-now);const seconds=Math.floor(milliseconds/1000),hours=String(Math.floor(seconds/3600)).padStart(2,'0'),minutes=String(Math.floor(seconds%3600/60)).padStart(2,'0'),secs=String(seconds%60).padStart(2,'0');$('#countdown-label').textContent=practice?'不限时':unstarted?'待设时间':invalid?'时间异常':beforeStart?'距开始':displayEnded?'已结束':'剩余';$('#countdown').textContent=`${hours}:${minutes}:${secs}`;remain.classList.toggle('warning',!archived&&!displayEnded&&!invalid&&milliseconds<=5*60*1000);remain.classList.toggle('expired',displayEnded);$('#submit').disabled=invalid||beforeStart||!judgeable||submissionPending||samplePending||!languageAvailable;$('#run-test').disabled=invalid||beforeStart||!judgeable||submissionPending||samplePending||!languageAvailable;if(!judgeable)$('#submit-state').textContent=config.questions[current]?.unjudgeableReason||'题面资料不完整，暂不支持评测';else if(!languageAvailable)$('#submit-state').textContent='当前评测服务不支持所选语言';else if(invalid)$('#submit-state').textContent='考试时间配置无效';else if(beforeStart)$('#submit-state').textContent=unstarted?'请先设置个人开考时间':'考试尚未开始';else if(displayEnded)$('#submit-state').textContent='考试已结束，可继续运行和提交';}
 function editorCode(){return window.omsCodeEditor?.getValue?.()??code.value;}
 function updateDraftCloudRevision(snapshot,cloudUpdatedAt,synced=false){
   const stored=readCodeMap(snapshot.metaStorage),entry=stored[snapshot.problemId]||{};
@@ -299,9 +299,42 @@ function render(){const q=config.questions[current],sample=q.testCases?.[0]||{in
    return `<section class="evaluation-page"><header class="evaluation-heading"><div><h1>评测记录</h1></div><span>当前 ${filtered.length} 条</span></header><form class="evaluation-filters" data-evaluation-form><header><span class="evaluation-search-icon">⌕</span><b>查询评测记录</b></header><div class="evaluation-filter-grid"><label>用户名或 UID<input name="user" value="${escape(filters.user||'')}" placeholder="输入用户名或 UID"></label><label>题目<input name="problem" value="${escape(filters.problem||'')}" placeholder="题号或题目名称"></label><label>比赛 ID<input name="contest" value="${escape(filters.contest||'')}" placeholder="输入比赛 ID"></label><label>状态<select name="status">${option('','全部',!filters.status)}${option('答案正确','Accepted',filters.status==='答案正确')}${option('答案错误','Wrong Answer',filters.status==='答案错误')}${option('运行失败','Runtime Error',filters.status==='运行失败')}</select></label><label>代码语言<select name="language">${option('','全部',!filters.language)}${languages.map(language=>option(language,language,filters.language===language)).join('')}</select></label><div class="evaluation-filter-actions"><button type="button" data-evaluation-reset>重置</button><button type="submit">搜索</button></div></div></form><div class="evaluation-table-wrap"><table class="evaluation-table"><thead><tr><th>状态</th><th>题目</th><th>提交者</th><th>时间</th><th>内存</th><th>语言</th><th>Submit Time</th></tr></thead><tbody>${rows||`<tr><td colspan="7" class="evaluation-empty">${filtered.length?'没有符合条件的评测记录':'暂无提交记录'}</td></tr>`}</tbody></table></div><nav class="evaluation-pagination" aria-label="评测记录分页"><span>第 ${safePage+1} / ${pageCount} 页</span><div><button type="button" data-evaluation-page="${safePage-1}" ${safePage===0?'disabled':''}>‹ 上一页</button><button type="button" data-evaluation-page="${safePage+1}" ${safePage>=pageCount-1?'disabled':''}>下一页 ›</button></div></nav></section>`;
  }
 function renderSubmissions(){return submissions.length?submissions.map(item=>{const index=config.questions.findIndex(question=>question.id===item.problemId);const number=index>=0?config.questions[index].id:item.problemId;return `<div class="row"><span>${escape(number)}</span><span>${escape(item.language)}</span><span>${escape(item.verdict)}</span><span>${escape(item.time)}</span></div>`;}).join(''):'<div class="row"><span>暂无提交记录</span><span>—</span><span>—</span><span>—</span></div>';}
+const personalSchedules=new Map();
+function applyPersonalSchedule(exam){
+  if(!exam.selfScheduled)return;
+  const schedule=personalSchedules.get(exam.examVersion);
+  exam.startAt=schedule?.startAt||'';
+  exam.endAt=schedule?.endAt||'';
+}
+function personalExamStatus(exam){
+  const schedule=personalSchedules.get(exam.examVersion);
+  if(!schedule||Date.now()<Date.parse(schedule.startAt))return '未开始';
+  return Date.now()>=Date.parse(schedule.endAt)?'已结束':'进行中';
+}
+function examTimeLabel(exam){
+  if(!exam.selfScheduled)return formatExamTime(exam.startAt||exam.date);
+  const schedule=personalSchedules.get(exam.examVersion);
+  return schedule?formatExamTime(schedule.startAt):'自主设置开考时间';
+}
+function examListingTime(exam){return exam.selfScheduled?Number.MAX_SAFE_INTEGER:Date.parse(exam.startAt||exam.date||0)||0;}
+async function savePersonalExamTime(startAt,startNow){
+  const version=config.examVersion,owner=portalUser?.id;
+  const data=await portalRequest('/api/exam-schedules',{examVersion:version,startAt});
+  if(portalUser?.id!==owner||config.examVersion!==version)return;
+  personalSchedules.set(version,data.schedule);
+  applyPersonalSchedule(config);
+  route(startNow?'exam':'info');
+  updateCountdown();
+}
+function personalScheduleForm(){
+  if(!config.selfScheduled)return '';
+  const selected=config.startAt?new Date(Date.parse(config.startAt)+8*3600000).toISOString().slice(0,16):'';
+  const buttonStyle='padding:8px 14px;border:1px solid var(--blue);border-radius:4px;cursor:pointer';
+  return `<section class="contest-intro"><h2>个人考试时间</h2><form data-personal-schedule style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:16px"><label style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">开考时间（北京时间） <input name="startAt" type="datetime-local" value="${escape(selected)}" style="padding:8px;border:1px solid var(--muted);border-radius:4px;background:var(--panel);color:var(--text)" required></label><button type="submit" style="${buttonStyle};background:transparent;color:var(--blue)">保存开考时间</button><button type="button" data-start-personal-now style="${buttonStyle};background:var(--blue);color:#fff">立即开始考试</button><span role="status" data-schedule-message></span></form><p>考试时长 ${Number(config.duration)} 分钟，按个人开考时间倒计时。</p></section>`;
+}
 function formatExamTime(value){if(/^\d{4}$/.test(String(value||'')))return `${value}年（日期未记录）`;const date=new Date(value);if(!Number.isFinite(date.getTime()))return '未设置';return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;}
 function formatDuration(value){const minutes=Number(value)||0;if(minutes<=0)return '未记录';return minutes%60===0?`${minutes/60} 小时`:`${minutes} 分钟`;}
-function contestStatus(){const now=Date.now(),start=Date.parse(config.startAt),end=Date.parse(config.endAt);if(config.category==='past')return '已结束';if(Number.isFinite(start)&&now<start)return '未开始';if(Number.isFinite(end)&&now>end)return '已结束';return '进行中';}
+function contestStatus(){if(config.selfScheduled)return personalExamStatus(config);const now=Date.now(),start=Date.parse(config.startAt),end=Date.parse(config.endAt);if(config.category==='past')return '已结束';if(Number.isFinite(start)&&now<start)return '未开始';if(Number.isFinite(end)&&now>end)return '已结束';return '进行中';}
 function examHasEnded(){return contestStatus()==='已结束';}
 function syncSolutionNavigation(){const button=document.querySelector('.rail-button[data-route="solutions"]');if(button)button.hidden=!examHasEnded();}
 function lastSubmissionFor(question){return submissions.find(item=>item.problemId===question.id);}
@@ -309,13 +342,14 @@ function renderContestQuestionTable(){const rows=config.questions.map((question,
 function scoreForQuestionState(question,index,scoreState,resultState){const maximum=Number(question.score)||0,earned=Number(scoreState[index]);return Number.isFinite(earned)?Math.max(0,Math.min(maximum,earned)):(resultState[index]==='accepted'?maximum:0);}
 function scoreForQuestion(question,index){return scoreForQuestionState(question,index,scores,results);}
 function renderExamInfo(){
+  applyPersonalSchedule(config);
   const total=config.questions.reduce((sum,question)=>sum+(Number(question.score)||0),0);
   const title=String(config.title||'').replace(/^已结束\s*/, '');
   const setterLabel=config.setter?.label?escape(config.setter.label):'';
   const ownerLabel='高三教研组';
   const participantCount=examParticipantCount(config);
   const contestType=escape(contestRuleLabel(config.contestType||'程序设计'));
-  return `<section class="contest-overview"><div class="contest-heading"><span class="contest-status">${contestStatus()}</span><div><h1>${escape(title)}</h1><p><span>${portalIcon('award')}${contestType}</span><span>${portalIcon('calendar')}${formatExamTime(config.startAt)}</span><span>${portalIcon('clock')}${formatDuration(config.duration)}</span><span>${portalIcon('users')}${participantCount} 人</span><span>${portalIcon('user')}${escape(ownerLabel)}</span></p></div></div><div class="contest-home-layout"><main class="contest-home-main"><section class="contest-intro"><h2>比赛介绍</h2><p>Let's go!</p></section>${renderContestQuestionTable()}</main><aside class="contest-facts"><h2>比赛信息</h2><dl><div><dt>状态</dt><dd>${contestStatus()}</dd></div><div><dt>规则</dt><dd>${escape(contestRuleLabel(config.contestType||'OI'))}</dd></div><div><dt>题数</dt><dd>${config.questions.length}</dd></div><div><dt>开始</dt><dd>${formatExamTime(config.startAt)}</dd></div><div><dt>结束</dt><dd>${formatExamTime(config.endAt)}</dd></div><div><dt>限时</dt><dd>${formatDuration(config.duration)}</dd></div><div><dt>人数</dt><dd>${participantCount}</dd></div><div><dt>所有者</dt><dd>${escape(ownerLabel)}</dd></div>${setterLabel?`<div><dt>命题人</dt><dd>${setterLabel}</dd></div>`:''}<div><dt>总分</dt><dd>${total} 分</dd></div></dl></aside></div></section>`;
+  return `<section class="contest-overview"><div class="contest-heading"><span class="contest-status">${contestStatus()}</span><div><h1>${escape(title)}</h1><p><span>${portalIcon('award')}${contestType}</span><span>${portalIcon('calendar')}${examTimeLabel(config)}</span><span>${portalIcon('clock')}${formatDuration(config.duration)}</span><span>${portalIcon('users')}${participantCount} 人</span><span>${portalIcon('user')}${escape(ownerLabel)}</span></p></div></div><div class="contest-home-layout"><main class="contest-home-main"><section class="contest-intro"><h2>比赛介绍</h2><p>${escape(config.introduction||"Let's go!").replace(/\n/g,'<br>')}</p></section>${personalScheduleForm()}${renderContestQuestionTable()}</main><aside class="contest-facts"><h2>比赛信息</h2><dl><div><dt>状态</dt><dd>${contestStatus()}</dd></div><div><dt>规则</dt><dd>${escape(contestRuleLabel(config.contestType||'OI'))}</dd></div><div><dt>题数</dt><dd>${config.questions.length}</dd></div><div><dt>开始</dt><dd>${formatExamTime(config.startAt)}</dd></div><div><dt>结束</dt><dd>${formatExamTime(config.endAt)}</dd></div><div><dt>限时</dt><dd>${formatDuration(config.duration)}</dd></div><div><dt>人数</dt><dd>${participantCount}</dd></div><div><dt>所有者</dt><dd>${escape(ownerLabel)}</dd></div>${setterLabel?`<div><dt>命题人</dt><dd>${setterLabel}</dd></div>`:''}<div><dt>总分</dt><dd>${total} 分</dd></div></dl></aside></div></section>`;
 }
 function renderSolutions(){
   const items=config.questions.map((question,index)=>{
@@ -324,7 +358,7 @@ function renderSolutions(){
   }).join('');
   return `<section class="solution-page"><header class="solution-heading"><div><h1>题解</h1><p>考试结束后可查看本场题解。</p></div><span>${config.questions.length} 道题</span></header><div class="solution-list">${items}</div></section>`;
 }
-function portalExamStatus(exam){const now=Date.now(),start=Date.parse(exam.startAt),end=Date.parse(exam.endAt);if(exam.category==='past'||(Number.isFinite(end)&&now>=end))return '已结束';if(Number.isFinite(start)&&now<start)return '未开始';return '进行中';}
+function portalExamStatus(exam){if(exam.selfScheduled)return personalExamStatus(exam);const now=Date.now(),start=Date.parse(exam.startAt),end=Date.parse(exam.endAt);if(exam.category==='past'||(Number.isFinite(end)&&now>=end))return '已结束';if(Number.isFinite(start)&&now<start)return '未开始';return '进行中';}
 function contestRuleOf(exam){return exam.rule||exam.type||exam.contestType||'OI';}
 function contestRuleLabel(rule){const value=String(rule||'');return value.trim().toUpperCase()==='OI'?'IOI':value;}
 function portalDuration(value){const minutes=Number(value)||0;if(!minutes)return '未记录';if(minutes%60===0)return `${minutes/60} 小时`;return `${minutes} 分钟`;}
@@ -345,7 +379,7 @@ PORTAL_ICONS.user='<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 
 function portalIcon(name){return `<svg class="portal-icon" viewBox="0 0 24 24" aria-hidden="true">${PORTAL_ICONS[name]||''}</svg>`;}
 function renderPortalHome(){
   const archive=window.OMS_EXAM_ARCHIVE||[],exams=[primaryConfig,...archive].filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index).sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
-  const contests=exams.slice(0,5).map(exam=>{const status=portalExamStatus(exam);return `<button type="button" class="portal-contest" data-portal-exam="${escape(exam.examVersion)}"><span class="portal-status ${status==='进行中'?'running':status==='未开始'?'pending':'ended'}">${status}</span><span class="portal-contest-copy"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}${escape(contestRuleLabel(contestRuleOf(exam)))}</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${examParticipantCount(exam)}</span></small></span><span class="portal-arrow">${portalIcon('arrow')}</span></button>`;}).join('');
+  const contests=exams.slice(0,5).map(exam=>{const status=portalExamStatus(exam);return `<button type="button" class="portal-contest" data-portal-exam="${escape(exam.examVersion)}"><span class="portal-status ${status==='进行中'?'running':status==='未开始'?'pending':'ended'}">${status}</span><span class="portal-contest-copy"><b>${escape(exam.title)}</b><small><span>${portalIcon('award')}${escape(contestRuleLabel(contestRuleOf(exam)))}</span><span>${portalIcon('calendar')}${examTimeLabel(exam)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${examParticipantCount(exam)}</span></small></span><span class="portal-arrow">${portalIcon('arrow')}</span></button>`;}).join('');
   const latest=(primaryConfig.questions||[]).slice(0,8).map((question,index)=>`<button type="button" data-portal-question="${index}"><i>${String(index+1).padStart(2,'0')}</i><span>${escape(question.id||String(index+1).padStart(4,'0'))}</span><b>${escape(question.name)}</b><em>${portalIcon('arrow')}</em></button>`).join('');
   const initial=escape(String(config.candidateName||'U').trim().slice(0,1).toUpperCase()||'U');
   const navItems=[['home','首页','home'],['problems','题目','problemset'],['contest','比赛','home-contests'],['judge','评测','home-submissions']].map(([icon,label,route],index)=>`<button type="button" class="${index===0?'active':''}" data-portal-route="${route}"><span class="portal-nav-icon">${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
@@ -355,11 +389,11 @@ function renderFzuOjHome(activePage='home'){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exams=[primaryConfig,...archive]
     .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
-    .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
+    .sort((a,b)=>examListingTime(b)-examListingTime(a));
   const activeNavRoute=activePage==='problemset'?'problems':activePage==='knowledge'||activePage==='advice'?'advice':activePage==='practice'?'practice':activePage==='home-contests'?'contest':activePage==='home-submissions'?'judge':'home';
   const navItems=[['home','首页','home'],['contest','考试','home-contests'],['problems','题目','problemset'],['training','练习','practice'],['judge','评测','home-submissions'],['knowledge','备考','advice']]
     .map(([icon,label,route])=>`<button type="button" class="fzuoj-nav-item ${route===activeNavRoute?'active':''}" data-portal-route="${route}" aria-label="${label}" title="${label}" ${route===activeNavRoute?'aria-current="page"':''}><span>${portalIcon(icon)}</span><b>${label}</b></button>`).join('');
-  const contestTime=exam=>formatExamTime(exam.startAt||exam.date);
+  const contestTime=exam=>examTimeLabel(exam);
   const contests=exams.slice(0,5).map(exam=>{
     const status=portalExamStatus(exam);
     const tone=status==='进行中'?'running':status==='未开始'?'pending':'ended';
@@ -534,7 +568,7 @@ function renderPortalContests(filters={status:'all',rule:'',keyword:''},page=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exams=[primaryConfig,...archive]
     .filter((exam,index,list)=>list.findIndex(item=>item.examVersion===exam.examVersion)===index)
-    .sort((a,b)=>Date.parse(b.startAt||b.date||0)-Date.parse(a.startAt||a.date||0));
+    .sort((a,b)=>examListingTime(b)-examListingTime(a));
   const ruleOf=contestRuleOf;
   const filtered=exams.filter(exam=>{
     const status=portalExamStatus(exam);
@@ -546,7 +580,7 @@ function renderPortalContests(filters={status:'all',rule:'',keyword:''},page=0){
     const status=portalExamStatus(exam),tone=status==='进行中'?'running':status==='未开始'?'pending':'ended';
     const title=String(exam.title||'').replace(/^已结束\s*/, '');
     const registered=examParticipantCount(exam)>0?`${examParticipantCount(exam)} 人`:'—';
-    return `<button type="button" class="contest-directory-row" data-contest-open="${escape(exam.examVersion)}"><span class="fzuoj-status ${tone}">${status}</span><span class="contest-directory-copy"><b>${escape(title)}</b><small><span>${portalIcon('award')}${escape(contestRuleLabel(ruleOf(exam)))}</span><span>${portalIcon('calendar')}${formatExamTime(exam.startAt||exam.date)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${registered}</span></small></span><i>${portalIcon('arrow')}</i></button>`;
+    return `<button type="button" class="contest-directory-row" data-contest-open="${escape(exam.examVersion)}"><span class="fzuoj-status ${tone}">${status}</span><span class="contest-directory-copy"><b>${escape(title)}</b><small><span>${portalIcon('award')}${escape(contestRuleLabel(ruleOf(exam)))}</span><span>${portalIcon('calendar')}${examTimeLabel(exam)}</span><span>${portalIcon('clock')}${portalDuration(exam.duration)}</span><span>${portalIcon('users')}${registered}</span></small></span><i>${portalIcon('arrow')}</i></button>`;
   }).join('');
   const statuses=['all','进行中','未开始','已结束','past'];
   const statusLabels={all:'全部',进行中:'进行中',未开始:'未开始',已结束:'已结束',past:'真题'};
@@ -953,6 +987,11 @@ async function refreshPersistedProgress(force=false){
   const owner=portalUser.id;
   if(!force&&progressOwner===owner)return;
   const data=await portalRequest('/api/progress');
+  const personal=await portalRequest('/api/exam-schedules');
+  if(!portalAuthenticated||portalUser?.id!==owner)return;
+  personalSchedules.clear();
+  for(const [version,schedule] of Object.entries(personal.schedules||{}))personalSchedules.set(version,schedule);
+  applyPersonalSchedule(config);
   if(!portalAuthenticated||portalUser?.id!==owner)return;
   progressByExam.clear();
   for(const [examVersion,progress] of Object.entries(data.exams||{}))progressByExam.set(examVersion,progress);
@@ -970,6 +1009,7 @@ function setPortalSession(data){
   config.candidateName=primaryConfig.candidateName=next?(next.nickname||next.username):fallback.candidateName;
   config.studentId=primaryConfig.studentId=next?next.username:fallback.studentId;
   if(changed){
+    personalSchedules.clear();
     progressByExam.clear();progressOwner='';
     for(const key of Object.keys(results))delete results[key];for(const key of Object.keys(scores))delete scores[key];submissions.length=0;
     loadCodeStores(config.examVersion);restoreSavedCode();$('#submit-state').textContent='本地草稿已加载';
@@ -1176,6 +1216,19 @@ async function route(name,allowGuest=false,historyMode='push'){
   }
   if(name==='info'){
     secondary.innerHTML=renderExamInfo();
+    const scheduleForm=secondary.querySelector('[data-personal-schedule]');
+    if(scheduleForm){
+      const save=async(now)=>{
+        const message=scheduleForm.querySelector('[data-schedule-message]');
+        try{
+          if(!now&&!scheduleForm.reportValidity())return;
+          message.textContent='正在保存…';
+          await savePersonalExamTime(now?new Date().toISOString():scheduleForm.elements.startAt.value+'+08:00',now);
+        }catch(error){message.textContent=error.message||'保存失败，请重试。';}
+      };
+      scheduleForm.onsubmit=event=>{event.preventDefault();save(false);};
+      scheduleForm.querySelector('[data-start-personal-now]').onclick=()=>save(true);
+    }
     secondary.querySelectorAll('[data-question-open]').forEach(button=>button.onclick=()=>{const target=Number(button.dataset.questionOpen);if(activateExam(button.dataset.examVersion||config.examVersion,target))route('exam');});
   }
   if(name==='realtime')secondary.innerHTML=renderScoreboard();

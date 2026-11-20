@@ -68,8 +68,9 @@ test('contest directory offers a past-paper tab that excludes ended mock exams',
     ] },
     primaryConfig: { examVersion: 'current', title: '当前考试', category: 'mock', questions: [], startAt: '2026-01-01' },
     portalExamStatus: exam => exam.category === 'past' ? '已结束' : '未开始',
+    examListingTime: exam => Date.parse(exam.startAt),
     contestRuleOf: () => 'IOI', escape: String, examParticipantCount: () => 1,
-    contestRuleLabel: String, portalIcon: () => '', formatExamTime: String, portalDuration: String
+    contestRuleLabel: String, portalIcon: () => '', examTimeLabel: exam => String(exam.startAt), portalDuration: String
   };
   vm.createContext(context);
   vm.runInContext(extract('function renderPortalContests(', 'function renderHomeworkCards('), context);
@@ -193,7 +194,7 @@ function judgeClient() {
     progressByExam: new Map(), submittedCodes: {}, localStorage: { setItem() {} }, applyPersistedProgress() {}, activeQuestionId: 'q',
     navigator: { clipboard: { async writeText(value) { clipboard.push(value); } } },
     window: { OMS_JUDGE_SCORE: require('./src/client/judge/judge-score') },
-    fetch: () => new Promise(resolve => requests.push(resolve)) };
+    fetch: endpoint => endpoint === '/api/health' ? Promise.resolve({ ok: true }) : new Promise(resolve => requests.push(resolve)) };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync('./src/client/judge/judge-machine.js', 'utf8'), context);
   return { context, node, requests, clipboard };
@@ -204,6 +205,7 @@ test('only one sample runs at once; custom input renders actual stdout/stderr wi
   const { context, node, requests } = judgeClient();
   node('#sample-input').value = 'custom'; node('#expected').textContent = 'STALE';
   const running = context.judge('sample');
+  await Promise.resolve();
   assert.equal(context.samplePending, true);
   await context.judge('sample'); assert.equal(requests.length, 1);
   requests[0](judgeResponse({ verdict: 'Accepted', compared: false, message: '运行完成', testCases: [{ compared: false, actualOutput: 'actual', stderr: 'warning' }] }));
@@ -217,6 +219,7 @@ test('only one sample runs at once; custom input renders actual stdout/stderr wi
 test('sample response after switching questions cannot paint the new question', async () => {
   const { context, node, requests } = judgeClient();
   const running = context.judge('sample'); context.config.questions = [{ id: 'other' }];
+  await new Promise(setImmediate);
   requests[0](judgeResponse({ verdict: 'Accepted', message: 'old result' }));
   await running; assert.equal(node('#compiler-output').textContent, ''); assert.equal(context.samplePending, false);
 });
@@ -226,6 +229,7 @@ test('submission preserves the last real run output and copies the submitted sna
   node('#compiler-output').textContent = 'last actual stdout';
   context.editorCode = () => 'submitted snapshot';
   const running = context.judge('submit'); context.editorCode = () => 'new unsent draft';
+  await Promise.resolve();
   requests[0](judgeResponse({ verdict: 'Accepted', message: '所有测试均已通过。',
     compilerOutput: '自建评测机运行完成\n通过测试点：1/1', passedTests: 1, totalTests: 1,
     testCases: [{ verdict: 'Accepted', score: 100, timeMs: 42 }], scoring: { score: 100, status: 'accepted' } }));
@@ -241,6 +245,7 @@ test('compilation failure replaces compiler output with real diagnostics', async
   const { context, node, requests } = judgeClient();
   node('#compiler-output').textContent = 'old stdout';
   const running = context.judge('submit');
+  await Promise.resolve();
   requests[0](judgeResponse({ verdict: 'CompilationError', message: '编译失败。',
     compilerDiagnostics: 'main.cpp:1: error: expected ;', passedTests: 0, totalTests: 1,
     testCases: [{ verdict: 'CompilationError', hint: '编译失败' }], scoring: { score: 0, status: 'wrong' } }));

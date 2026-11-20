@@ -31,7 +31,7 @@ const judgeStartupReady = process.env.RENDER
   : Promise.resolve();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(examDataRoot, 'exam-data.js'),
-  [path.join(examDataRoot, 'fzu-2025-freshman-cs.js'), path.join(examDataRoot, 'fzu-2025-freshman-extra.js'), path.join(examDataRoot, 'fzu-2025-freshman-difficulty.js'), path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'), path.join(examDataRoot, 'fzu-practice-homework.js'), path.join(examDataRoot, 'third-stage-weekly-20261025.js'), path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'), path.join(examDataRoot, 'zongjuesai-qc4-day1-20261114.js'), path.join(examDataRoot, 'zongjuesai-day2-20261115.js'), path.join(examDataRoot, 'fzu-qc5-final-20261122.js'), path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'), path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'), path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js')]
+  [path.join(examDataRoot, 'fzu-2025-freshman-cs.js'), path.join(examDataRoot, 'fzu-2025-freshman-extra.js'), path.join(examDataRoot, 'fzu-2025-freshman-difficulty.js'), path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'), path.join(examDataRoot, 'fzu-practice-homework.js'), path.join(examDataRoot, 'third-stage-weekly-20261025.js'), path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'), path.join(examDataRoot, 'zongjuesai-qc4-day1-20261114.js'), path.join(examDataRoot, 'zongjuesai-day2-20261115.js'), path.join(examDataRoot, 'fzu-qc5-final-20261122.js'), path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'), path.join(examDataRoot, 'fzu-qc7-zt.js'), path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'), path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js')]
 );
 const judgeExams = [...exams, ...practiceExams];
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
@@ -53,6 +53,7 @@ const publicFiles = new Map([
   ['/src/data/exams/zongjuesai-day2-20261115.js', 'src/data/exams/zongjuesai-day2-20261115.js'],
   ['/src/data/exams/fzu-qc5-final-20261122.js', 'src/data/exams/fzu-qc5-final-20261122.js'],
   ['/src/data/exams/fzu-qc6-volcano-ex-20261129.js', 'src/data/exams/fzu-qc6-volcano-ex-20261129.js'],
+  ['/src/data/exams/fzu-qc7-zt.js', 'src/data/exams/fzu-qc7-zt.js'],
   ['/src/data/exams/fzu-2025-shuzhi-freshman.js', 'src/data/exams/fzu-2025-shuzhi-freshman.js'],
   ['/src/data/exams/fzu-2026-shuzhi-freshman.js', 'src/data/exams/fzu-2026-shuzhi-freshman.js'],
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
@@ -361,21 +362,23 @@ function examTimestamp(value) {
   return Date.parse(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text) ? `${text}+08:00` : text);
 }
 
-function assertExamOpen(examVersion, now = Date.now()) {
+function assertExamOpen(examVersion, now = Date.now(), personalSchedule = null) {
   const exam = examsByVersion.get(String(examVersion || ''));
   const reject = (statusCode, verdict, message) => { throw Object.assign(new Error(message), { statusCode, verdict }); };
   if (!exam) reject(400, 'InvalidProblem', '请选择有效的考试后再运行或提交。');
   if (exam.category === 'past' || exam.category === 'practice') return;
-  const start = examTimestamp(exam.startAt), end = examTimestamp(exam.endAt);
+  if (exam.selfScheduled && !personalSchedule) reject(403, 'ExamNotStarted', '请先设置个人开考时间。');
+  const schedule = exam.selfScheduled ? personalSchedule : exam;
+  const start = examTimestamp(schedule.startAt), end = examTimestamp(schedule.endAt);
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) reject(503, 'InvalidSchedule', '考试时间配置无效，请联系管理员。');
   if (now < start) reject(403, 'ExamNotStarted', '考试尚未开始，暂不能运行或提交。');
 }
 
-function trustedPayload(payload) {
+function trustedPayload(payload, personalSchedule = null) {
   if (!payload || !['sample', 'submit'].includes(payload.mode)) {
     throw Object.assign(new Error('评测模式无效。'), { statusCode: 400, verdict: 'InvalidRequest' });
   }
-  assertExamOpen(payload?.examVersion);
+  assertExamOpen(payload?.examVersion, Date.now(), personalSchedule);
   const requestedId = String(payload.problemId || '');
   const examVersion = String(payload.examVersion || '');
   const aliasId = examVersion && testAliases.get(`${examVersion}:${requestedId}`);
@@ -531,6 +534,43 @@ async function fetchPatBasicProblem(problemSetProblemId) {
     return data;
   } finally { clearTimeout(timeout); }
 }
+const personalScheduleFile = path.join(auth.dataDir, 'exam-schedules.json');
+let personalScheduleUsers = {};
+let personalScheduleQueue = Promise.resolve();
+async function personalSchedulesFor(userId) {
+  if (stateStore) return (await stateStore.load(`exam-schedules:${userId}`, {})) || {};
+  if (fsSync.existsSync(personalScheduleFile)) {
+    personalScheduleUsers = JSON.parse(fsSync.readFileSync(personalScheduleFile, 'utf8'));
+  }
+  return personalScheduleUsers[userId] || {};
+}
+function savePersonalSchedule(userId, examVersion, startAt) {
+  const operation = personalScheduleQueue.catch(() => {}).then(async () => {
+    const exam = examsByVersion.get(examVersion);
+    const start = examTimestamp(startAt);
+    if (!exam?.selfScheduled || !Number.isFinite(start) || start < 0 || start > 8640000000000000 - Number(exam.duration) * 60000) {
+      throw Object.assign(new Error('请选择有效的个人考试及开考时间。'), {statusCode: 400});
+    }
+    if (!exam?.selfScheduled || !Number.isFinite(start) || start < Date.now() - 60000) {
+      throw Object.assign(new Error('请选择有效的个人开考时间，不能早于当前时间。'), {statusCode: 400});
+    }
+    const schedules = await personalSchedulesFor(userId);
+    const schedule = {startAt: new Date(start).toISOString(), endAt: new Date(start + exam.duration * 60000).toISOString()};
+    const next = {...schedules, [examVersion]: schedule};
+    if (stateStore) await stateStore.save(`exam-schedules:${userId}`, next);
+    else {
+      fsSync.mkdirSync(auth.dataDir, {recursive: true});
+      const users = {...personalScheduleUsers, [userId]: next};
+      const temporary = personalScheduleFile + '.tmp';
+      fsSync.writeFileSync(temporary, JSON.stringify(users), {mode: 0o600});
+      fsSync.renameSync(temporary, personalScheduleFile);
+      personalScheduleUsers = users;
+    }
+    return schedule;
+  });
+  personalScheduleQueue = operation;
+  return operation;
+}
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return reply(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -548,6 +588,18 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && patBasicProblemMatch) {
     try { return reply(res, 200, await fetchPatBasicProblem(patBasicProblemMatch[1])); }
     catch (error) { return reply(res, error.statusCode || 502, { message: error.statusCode ? error.message : 'PAT 乙级题面暂时加载失败，请稍后重试。' }); }
+  }
+  if (url.pathname === '/api/exam-schedules' && ['GET', 'POST'].includes(req.method)) {
+    const current = auth.authorize(req, res);
+    if (!current) return;
+    try {
+      if (req.method === 'GET') return reply(res, 200, {schedules: await personalSchedulesFor(current.user.id)});
+      const payload = await collect(req);
+      const schedule = await savePersonalSchedule(current.user.id, String(payload.examVersion || ''), payload.startAt);
+      return reply(res, 200, {schedule});
+    } catch (error) {
+      return reply(res, error.statusCode || 503, {message: error.statusCode ? error.message : '个人考试时间暂时无法保存，请重试。'});
+    }
   }
   if (req.method === 'GET' && url.pathname === '/api/progress') {
     const current = auth.authorize(req, res);
@@ -573,7 +625,10 @@ const server = http.createServer(async (req, res) => {
     if (!current) return;
     if (!permitsRequest(req)) return reply(res, 429, { verdict: 'RateLimited', message: '请求过于频繁，请稍后重试。', compilerOutput: '' });
     try {
-      const payload = trustedPayload(await collect(req));
+      const request = await collect(req);
+      const exam = examsByVersion.get(String(request.examVersion || ''));
+      const schedule = exam?.selfScheduled ? (await personalSchedulesFor(current.user.id))[exam.examVersion] : null;
+      const payload = trustedPayload(request, schedule);
       const result = await localJudge.judge(payload);
       const recordable = payload.mode === 'submit' && ['Accepted', 'WrongAnswer', 'CompilationError', 'RuntimeError', 'TimeLimitExceeded'].includes(result.verdict);
       const question = questionBankByExam.get(`${payload.examVersion}:${payload.problemId}`);

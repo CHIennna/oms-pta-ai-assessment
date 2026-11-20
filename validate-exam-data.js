@@ -209,7 +209,7 @@ if (require.main === module) {
           path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'),
           path.join(examDataRoot, 'zongjuesai-day2-20261115.js'),
           path.join(examDataRoot, 'fzu-qc5-final-20261122.js'),
-          path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'),
+          path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'), path.join(examDataRoot, 'fzu-qc7-zt.js'),
           path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'),
           path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js')
         ].filter(fs.existsSync));
