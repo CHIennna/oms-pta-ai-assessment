@@ -246,6 +246,8 @@ function openZipArchive(fileName) {
   const allowedRoot = `${path.resolve(root)}${path.sep}`;
   if (!resolved.startsWith(allowedRoot)) throw new Error('测试库路径无效。');
   if (zipArchives.has(resolved)) return zipArchives.get(resolved);
+  // Keep one compressed bank; switching exams must release the previous bank.
+  zipArchives.clear();
   const buffer = fsSync.readFileSync(resolved);
   let endOffset = -1;
   for (let offset = buffer.length - 22; offset >= Math.max(0, buffer.length - 65557); offset -= 1) {
@@ -292,11 +294,14 @@ function resolveTestCases(source) {
   if (Array.isArray(source)) return source;
   const key = `${source.file}:${source.prefix}`;
   if (archivedTestCases.has(key)) return archivedTestCases.get(key);
+  // Retain at most one question so large banks cannot exhaust the hosted heap.
+  archivedTestCases.clear();
   const tests = Array.from({ length: source.count }, (_, index) => {
     const stem = `${source.prefix}/${String(index + 1).padStart(2, '0')}`;
     return { input: readZipText(source.file, `${stem}.in`), expected: readZipText(source.file, `${stem}.out`), score: Array.isArray(source.scores) ? Number(source.scores[index]) : source.score, checker: source.checker || '' };
   });
-  archivedTestCases.set(key, tests);
+  const bytes = tests.reduce((sum, test) => sum + Buffer.byteLength(test.input, 'utf8') + Buffer.byteLength(test.expected, 'utf8'), 0);
+  if (bytes <= 32 * 1024 * 1024) archivedTestCases.set(key, tests);
   return tests;
 }
 
