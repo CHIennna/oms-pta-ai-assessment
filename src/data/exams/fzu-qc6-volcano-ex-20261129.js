@@ -8,7 +8,7 @@
   "contestType": "IOI",
   "category": "mock",
   "selfScheduled": false,
-  "date": "2026-11-24",
+  "date": "2026-11-23",
   "duration": 120,
   "totalScore": 800,
   "author": "转专业命题中心",
@@ -314,9 +314,9 @@
       ]
     }
   ],
-  "startAt": "2026-11-24T15:00:00+08:00",
-  "endAt": "2026-11-24T17:00:00+08:00",
-  "scheduleVersion": "20261122-remake-v2-fixed",
+  "startAt": "2026-11-23T15:00:00+08:00",
+  "endAt": "2026-11-23T17:00:00+08:00",
+  "scheduleVersion": "20261123-qc6-fixed-1123",
   "numberingVersion": 1,
   "registered": 1,
   "participants": 1

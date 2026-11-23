@@ -60,6 +60,42 @@ test('route hashes preserve pages and exam question context across refreshes', (
   assert.equal(context.formatRouteHash('info', '题目 1'), '#info-%E9%A2%98%E7%9B%AE%201');
 });
 
+test('both home layouts show questions from the newest populated exam and retain their exam context', () => {
+  const primary = { examVersion: 'old', title: '旧试卷', startAt: '2026-10-24', questions: [{ id: '1155', name: '旧题' }] };
+  const latest = { examVersion: 'new', title: '第八次质检', startAt: '2026-11-28', questions: Array.from({ length: 8 }, (_, i) => ({ id: String(1219 + i), name: `新题${i}` })) };
+  const activations = [], routes = [];
+  const context = { window: { OMS_EXAM_ARCHIVE: [primary, latest, { examVersion: 'empty', title: '空试卷', startAt: '2026-12-01', questions: [] }] },
+    primaryConfig: primary, primaryExamVersion: primary.examVersion, config: {},
+    examListingTime: exam => Date.parse(exam.startAt), portalExamStatus: () => '未开始', escape: String,
+    contestRuleOf: () => 'IOI', contestRuleLabel: String, portalIcon: () => '', examTimeLabel: exam => exam.startAt,
+    portalDuration: String, examParticipantCount: () => 1,
+    activateExam: (version, index) => { activations.push([version, index]); return version === 'new'; }, route: name => routes.push(name) };
+  vm.createContext(context);
+  vm.runInContext(extract('function openPortalQuestion(', 'function renderKnowledgeLanding('), context);
+  for (const render of [context.renderPortalHome, context.renderFzuOjHome]) {
+    const html = render();
+    const buttons = [...html.matchAll(/data-portal-question="(\d+)" data-portal-question-exam="([^"]+)"/g)];
+    assert.equal(buttons.length, 8);
+    assert.deepEqual(buttons.map(match => match[2]), Array(8).fill('new'));
+    assert.match(html, /1219/); assert.match(html, /1226/);
+    context.openPortalQuestion(buttons[7][2], buttons[7][1]);
+  }
+  assert.deepEqual(activations, [['new', 7], ['new', 7]]);
+  assert.deepEqual(routes, ['exam', 'exam']);
+  context.openPortalQuestion('missing', 0);
+  assert.equal(routes.length, 2);
+});
+
+test('home latest questions fall back to the primary exam when no archives exist', () => {
+  const primary = { examVersion: 'only', title: '唯一试卷', startAt: '2026-10-24', questions: [{ id: '1155', name: '唯一题' }] };
+  const context = { window: {}, primaryConfig: primary, config: {},
+    portalExamStatus: () => '已结束', escape: String, contestRuleOf: () => 'IOI', contestRuleLabel: String,
+    portalIcon: () => '', examTimeLabel: () => '', portalDuration: String, examParticipantCount: () => 1 };
+  vm.createContext(context);
+  vm.runInContext(extract('function renderPortalHome(', 'function renderFzuOjHome('), context);
+  assert.match(context.renderPortalHome(), /data-portal-question="0" data-portal-question-exam="only"/);
+});
+
 test('contest directory offers a past-paper tab that excludes ended mock exams', () => {
   const context = {
     window: { OMS_EXAM_ARCHIVE: [
