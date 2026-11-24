@@ -1,14 +1,14 @@
 (() => {
   const data = {
   "examVersion": "fzu-qc8-wuyou-mengyi-20261128-v1",
-  "revision": "第八次质量检测·2026-11-28《无忧梦呓》·首发独立V1",
+  "revision": "第八次质量检测·2026-11-26《无忧梦呓》·首发独立V1",
   "title": "福州大学2025级第八次质量检测",
   "type": "IOI",
   "rule": "IOI",
   "contestType": "IOI",
   "category": "mock",
   "selfScheduled": false,
-  "date": "2026-11-28",
+  "date": "2026-11-26",
   "duration": 120,
   "totalScore": 800,
   "author": "转专业命题中心",
@@ -285,9 +285,9 @@
       }
     }
   ],
-  "startAt": "2026-11-28T15:00:00+08:00",
-  "endAt": "2026-11-28T17:00:00+08:00",
-  "scheduleVersion": "20261122-qc8-fixed-1128",
+  "startAt": "2026-11-26T15:00:00+08:00",
+  "endAt": "2026-11-26T17:00:00+08:00",
+  "scheduleVersion": "20261124-qc8-fixed-1126",
   "registered": 1,
   "participants": 1
 };
