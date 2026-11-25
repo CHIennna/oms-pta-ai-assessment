@@ -7,11 +7,11 @@ const source = fs.readFileSync('./server.js', 'utf8');
 const clientJudgeSource = fs.readFileSync('./src/client/judge/judge-machine.js', 'utf8');
 const extract = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 
-function boundary() {
+function boundary(sampleChecker = '') {
   const cases = [{ input: '1\n', expected: '2\n', score: 100 }];
   const context = { assertExamOpen() {}, testAliases: new Map([['exam:old', 'q']]),
     testBankByExam: new Map([['exam:q', cases]]), testBank: new Map(),
-    questionBankByExam: new Map([['exam:q', { sampleInput: '1\n', sampleOutput: '2\n' }]]), resolveTestCases: value => value };
+    questionBankByExam: new Map([['exam:q', { sampleInput: '1\n', sampleOutput: '2\n', sampleChecker }]]), resolveTestCases: value => value };
   vm.createContext(context); vm.runInContext(extract('function trustedPayload(', 'function reply('), context);
   return context.trustedPayload;
 }
@@ -45,6 +45,25 @@ test('formal submit payload excludes browser test data and problem statements', 
   assert.equal(payload.problemId, '37');
   assert.equal(payload.mode, 'submit');
   assert.ok(JSON.stringify(payload).length < 1024);
+});
+
+test('problem resource profiles are server-owned and survive custom-input runs', () => {
+  const payload = { mode: 'sample', examVersion: 'exam', problemId: 'q', input: '200000', judgeProfile: 'fzu-max-substrings' };
+  assert.equal(boundary()(payload).judgeProfile, '');
+  const custom = boundary('fzu-max-substrings')({ ...payload, judgeProfile: 'forged' });
+  assert.equal(custom.judgeProfile, 'fzu-max-substrings');
+  assert.equal(custom.tests[0].checker, '');
+  assert.equal(custom.tests[0].compared, false);
+});
+
+test('interactive samples keep the server protocol and reject forged test fixtures', () => {
+  const trusted = boundary('fzu-peak-interactive');
+  const result = trusted({ mode: 'sample', examVersion: 'exam', problemId: 'q', input: '1\n2\n2 1', tests: [{ checker: 'fake', expected: 'forged' }] });
+  assert.equal(result.judgeProfile, 'fzu-peak-interactive');
+  assert.equal(result.tests[0].checker, 'fzu-peak-interactive');
+  assert.equal(result.tests[0].expected, '');
+  assert.equal(result.tests[0].compared, true);
+  assert.equal(boundary()({ mode: 'submit', examVersion: 'exam', problemId: 'q', judgeProfile: 'fzu-xyz-communication' }).judgeProfile, '');
 });
 
 test('storage failure preserves the real verdict and returns unsaved status instead of ReferenceError', async () => {

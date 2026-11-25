@@ -2460,3 +2460,33 @@ for (const exam of [window.OMS_EXAM_DATA, ...window.OMS_EXAM_ARCHIVE].filter(ite
   Object.assign(exam, window.OMS_NUMBER_EXAM(exam, [...numberedExams, exam]));
   numberedExams.push(exam);
 }
+
+// Enable geometry judging with server-only formal tests; keep existing IDs and progress.
+(() => {
+  const exam = window.OMS_EXAM_ARCHIVE.find(item => item.examVersion === '2026-xiamen-shenzhuo-cup-guiding-final-exam');
+  const question = exam.questions.find(item => item.id === '1046');
+  question.judgeable = true;
+  delete question.unjudgeableReason;
+  delete question.practiceTestCases;
+  question.testCases = [];
+  question.tests = 20;
+  question.testArchive = { file: 'src/server/judge/terrain-visibility-tests.zip', prefix: 'terrain', count: 20, score: 5, checker: 'fzu-terrain-visibility' };
+  question.sampleChecker = 'fzu-terrain-visibility';
+  question.sampleOutput = '0.0000000000 0.0000000000\n5.0000000000 9.0000000000\n6.1600000000 61.6000000000';
+})();
+
+// Interactive and two-run problems keep their historical IDs. Hidden fixtures are server-only.
+(() => {
+  const exam = window.OMS_EXAM_ARCHIVE.find(item => item.examVersion === '2026-xiamen-shenzhuo-cup-may-monthly');
+  for (const [id, checker, prefix, sample] of [
+    ['1038', 'fzu-peak-interactive', 'peak', '2\n4\n1 3 2 4\n2\n2 1'],
+    ['1036', 'fzu-xyz-communication', 'xyz', '2\n3\n1 2\n2 3\n3 1\n4\n1 2\n2 3\n3 4\n4 1']
+  ]) {
+    const question = exam.questions.find(item => item.id === id);
+    question.judgeable = true; delete question.unjudgeableReason;
+    question.testCases = []; question.tests = 10;
+    question.testArchive = { file: 'src/server/judge/protocol-tests.zip', prefix, count: 10, score: 10, checker };
+    question.sampleChecker = checker; question.sampleInput = sample; question.sampleOutput = '';
+    question.statement += '\n\n### 本站交互测试\n\n点击运行将自动启动裁判，程序仍按上文协议读写并刷新输出。自定义测试输入首行为组数 T，每组先写 n：' + (id === '1038' ? '随后写出作为裁判隐藏数据的 n 个排列元素。' : '随后写出 n 场比赛的两个端点，不需要填写轮数或第一轮编码；两轮运行由裁判自动安排。') + '\n';
+  }
+})();

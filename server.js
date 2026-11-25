@@ -396,9 +396,15 @@ function trustedPayload(payload, personalSchedule = null) {
     error.statusCode = 400;
     throw error;
   }
+  const question = questionBankByExam.get(`${examVersion}:${canonicalId}`);
+  const judgeProfile = ['fzu-max-substrings', 'fzu-terrain-visibility', 'fzu-peak-interactive', 'fzu-xyz-communication'].includes(question?.sampleChecker)
+    ? question.sampleChecker : '';
+  payload = { ...payload, judgeProfile };
   if (payload.mode === 'sample') {
-    const question = questionBankByExam.get(`${examVersion}:${canonicalId}`);
     const input = String(payload.input ?? payload.tests?.[0]?.input ?? '');
+    if (judgeProfile === 'fzu-peak-interactive' || judgeProfile === 'fzu-xyz-communication') {
+      return { ...payload, problemId: canonicalId, tests: [{ input: input.trim() ? input : question.sampleInput, expected: '', checker: judgeProfile, compared: true }] };
+    }
     // Only public samples can supply a reference answer. Custom input is execution-only.
     const samples = question.sampleInput !== undefined
       ? [{ input: question.sampleInput, expected: question.sampleOutput, checker: question.sampleChecker || '' }]

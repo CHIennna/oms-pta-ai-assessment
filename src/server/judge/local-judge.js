@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const { StringDecoder } = require('string_decoder');
+const { PROTOCOLS, runProtocol } = require('./protocol-judge');
 
 const isWindows = process.platform === 'win32';
 const executable = name => path.join(name.workDir, isWindows ? 'program.exe' : 'program');
@@ -324,7 +325,80 @@ function checkBrooksParty(input, output) {
   }));
 }
 
+// Theorem 8, Flaxman/Harrow/Sorkin, EJC 11 (2004), R8: the bounds
+// min(3^k, n-k+1) are simultaneously attainable. Count exactly using a SAM.
+function checkFzuMaxSubstrings(input, output) {
+  const tokens = inputTokens(input), answers = inputTokens(output);
+  const n = Number(tokens[0]);
+  if (tokens.length !== 1 || !Number.isInteger(n) || n < 1 || n > 200000
+      || answers.length !== 1 || answers[0].length !== n || !/^[FZU]+$/.test(answers[0])) return false;
+  const capacity = 2 * n + 1;
+  const length = new Int32Array(capacity), link = new Int32Array(capacity);
+  const next = new Int32Array(3 * capacity);
+  link[0] = -1;
+  let size = 1, last = 0;
+  for (const char of answers[0]) {
+    const c = char === 'F' ? 0 : char === 'Z' ? 1 : 2;
+    const current = size++;
+    length[current] = length[last] + 1;
+    let p = last;
+    while (p >= 0 && !next[3 * p + c]) { next[3 * p + c] = current; p = link[p]; }
+    if (p < 0) link[current] = 0;
+    else {
+      const q = next[3 * p + c];
+      if (length[p] + 1 === length[q]) link[current] = q;
+      else {
+        const clone = size++;
+        length[clone] = length[p] + 1; link[clone] = link[q];
+        next.set(next.subarray(3 * q, 3 * q + 3), 3 * clone);
+        while (p >= 0 && next[3 * p + c] === q) { next[3 * p + c] = clone; p = link[p]; }
+        link[q] = link[current] = clone;
+      }
+    }
+    last = current;
+  }
+  let actual = 0, optimum = 0, power = 3;
+  for (let state = 1; state < size; state++) actual += length[state] - length[link[state]];
+  for (let k = 1; k <= n; k++) {
+    const remaining = n - k + 1;
+    if (power >= remaining) { optimum += remaining * (remaining + 1) / 2; break; }
+    optimum += power; power *= 3;
+  }
+  return actual === optimum;
+}
+
+function checkTerrainVisibility(input, output, expected) {
+  const numeric = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+  const data = inputTokens(input).map(Number), answer = inputTokens(output), reference = inputTokens(expected);
+  const count = data[0];
+  if (!Number.isInteger(count) || count < 1 || answer.length !== 2 * count || reference.length !== 2 * count
+      || [...answer, ...reference].some(s => !numeric.test(s) || !Number.isFinite(Number(s)))) return false;
+  let offset = 1;
+  for (let t = 0; t < count; t++) {
+    const n = data[offset++], x = Number(answer[2 * t]), y = Number(answer[2 * t + 1]);
+    const optimum = Number(reference[2 * t + 1]);
+    if (!Number.isInteger(n) || n < 2 || offset + 2 * n > data.length || optimum < 0) return false;
+    if (Math.abs(y - optimum) > 1e-5 * Math.max(1, optimum)) return false;
+    const firstX = data[offset], lastX = data[offset + 2 * (n - 1)];
+    if (x < firstX - 1e-8 || x > lastX + 1e-8) return false;
+    // Visibility of the entire terrain is equivalent to lying above every
+    // extended segment. Cross products avoid division by almost vertical slopes.
+    for (let i = 0; i + 1 < n; i++) {
+      const xi = data[offset + 2 * i], yi = data[offset + 2 * i + 1];
+      const dx = data[offset + 2 * i + 2] - xi, dy = data[offset + 2 * i + 3] - yi;
+      if (!(dx > 0)) return false;
+      const lhs = (y - yi) * dx, rhs = (x - xi) * dy;
+      const rounding = 16 * Number.EPSILON * (Math.abs(lhs) + Math.abs(rhs) + 1);
+      if (lhs - rhs < -1e-7 * dx - rounding) return false;
+    }
+    offset += 2 * n;
+  }
+  return offset === data.length;
+}
+
 function checkSpecialOutput(checker, input, output, expected) {
+  if (checker === 'fzu-max-substrings') return checkFzuMaxSubstrings(input, output);
+  if (checker === 'fzu-terrain-visibility') return checkTerrainVisibility(input, output, expected);
   if (checker === 'float') return checkFloatOutput(output, expected);
   if (checker === 'fzu-prefix-multiple-permutation') return checkPrefixMultiplePermutation(input, output, expected);
   if (checker === 'fzu-adjacent-swap-construction') return checkAdjacentSwapConstruction(input, output);
@@ -645,7 +719,7 @@ function runProcess(spec, options) {
     const command = limitedCommand(spec, options.limits || {}, options.usePrlimit);
     let stdout = '', stderr = '', settled = false, timedOut = false, outputExceeded = false;
     const stdoutDecoder = new StringDecoder('utf8'), stderrDecoder = new StringDecoder('utf8');
-    let outputBytes = 0;
+    let outputBytes = 0, pendingLine = '', protocolPassed, protocolHint = '';
     const child = spawn(command.command, command.args || [], {
       cwd: options.cwd,
       windowsHide: true,
@@ -661,7 +735,13 @@ function runProcess(spec, options) {
       if (settled) return;
       settled = true; clearTimeout(timer);
       stdout += stdoutDecoder.end(); stderr += stderrDecoder.end();
-      resolve({ stdout, stderr, durationMs: Date.now() - started, timedOut, outputExceeded, ...result });
+      if (options.protocol && protocolPassed !== false) {
+        try {
+          if (pendingLine.trim()) options.protocol.line(pendingLine);
+          options.protocol.finish(); protocolPassed = true;
+        } catch (error) { protocolPassed = false; protocolHint = error.message; }
+      }
+      resolve({ stdout, stderr, durationMs: Date.now() - started, timedOut, outputExceeded, protocolPassed, protocolHint, ...result });
     };
     const append = (target, chunk, decoder) => {
       const remaining = Math.max(0, options.outputLimitBytes - outputBytes);
@@ -672,12 +752,31 @@ function runProcess(spec, options) {
       }
       return next;
     };
-    child.stdout.on('data', chunk => { stdout = append(stdout, chunk, stdoutDecoder); });
+    child.stdout.on('data', chunk => {
+      const previous = stdout.length;
+      stdout = append(stdout, chunk, stdoutDecoder);
+      if (options.protocol && protocolPassed !== false && !outputExceeded) {
+        pendingLine += stdout.slice(previous);
+        try {
+          let newline;
+          while ((newline = pendingLine.indexOf('\n')) >= 0) {
+            const line = pendingLine.slice(0, newline).trim(); pendingLine = pendingLine.slice(newline + 1);
+            if (!line) continue;
+            const response = options.protocol.line(line);
+            if (response) child.stdin.write(response);
+            if (options.protocol.done) child.stdin.end();
+          }
+        } catch (error) { protocolPassed = false; protocolHint = error.message; killProcessTree(child); }
+      }
+    });
     child.stderr.on('data', chunk => { stderr = append(stderr, chunk, stderrDecoder); });
     child.on('error', error => finish({ error }));
     child.on('close', (code, signal) => finish({ code, signal }));
     child.stdin.on('error', () => {});
-    child.stdin.end(options.input || '');
+    if (options.protocol) {
+      child.stdin.write(options.protocol.start());
+      if (options.protocol.initialEOF) child.stdin.end();
+    } else child.stdin.end(options.input || '');
     const timer = setTimeout(() => { timedOut = true; killProcessTree(child); }, options.timeoutMs);
   });
 }
@@ -814,6 +913,28 @@ class LocalJudge {
     const requestedLanguage = String(payload.language || '').trim();
     const language = LANGUAGE_ALIASES[requestedLanguage.toLowerCase()] || requestedLanguage;
     const limits = this.limitsFor(language);
+    if (PROTOCOLS.has(payload.judgeProfile) || payload.tests?.some(test => PROTOCOLS.has(test.checker))) {
+      limits.runTimeoutMs = Math.max(limits.runTimeoutMs, 4000);
+      limits.memoryLimitKb = Math.max(limits.memoryLimitKb, payload.judgeProfile === 'fzu-xyz-communication' ? 1024 * 1024 : 256 * 1024);
+      limits.outputLimitBytes = Math.max(limits.outputLimitBytes, 1024 * 1024);
+    }
+    // This server-owned checker requires n characters (up to 200000). Ignore
+    // client output-limit requests; derive the bounded allowance from its input.
+    if (payload.judgeProfile === 'fzu-max-substrings' || (Array.isArray(payload.tests) && payload.tests.some(test => test.checker === 'fzu-max-substrings'))) {
+      limits.outputLimitBytes = Math.max(limits.outputLimitBytes, 256 * 1024);
+      limits.runTimeoutMs = Math.max(limits.runTimeoutMs, 3000);
+      limits.memoryLimitKb = Math.max(limits.memoryLimitKb, 256 * 1024);
+    }
+    if (Array.isArray(payload.tests)) {
+      for (const test of payload.tests) if (payload.judgeProfile === 'fzu-terrain-visibility' || test.checker === 'fzu-terrain-visibility') {
+        limits.runTimeoutMs = Math.max(limits.runTimeoutMs, 1000);
+        limits.memoryLimitKb = Math.max(limits.memoryLimitKb, 256 * 1024);
+        const count = Number(String(test.input).trim().split(/\s+/, 1)[0]);
+        if (Number.isInteger(count) && count >= 1 && count <= 100000) {
+          limits.outputLimitBytes = Math.max(limits.outputLimitBytes, count * 64 + 1024);
+        }
+      }
+    }
     const toolchain = this.toolchains[language];
     const runtimeCommand = this.runtimeCommands.get(language);
     const source = String(payload.code || '');
@@ -858,6 +979,13 @@ class LocalJudge {
         compilerDiagnostics = clipped(compilation.stdout + compilation.stderr);
       }
 
+      const artifacts = new Map();
+      if (tests.some(test => PROTOCOLS.has(test.checker))) {
+        for (const name of await fs.readdir(workDir)) {
+          const file = path.join(workDir, name);
+          if ((await fs.stat(file)).isFile()) artifacts.set(name, await fs.readFile(file));
+        }
+      }
       const testCases = new Array(tests.length);
       let nextTestIndex = 0;
       let unavailable = null;
@@ -865,22 +993,39 @@ class LocalJudge {
         const test = tests[index];
         const runSpec = toolchain.run(job, runtimeCommand);
         runSpec.command = resolveCommand(runSpec.command);
-        const execution = await runProcess(runSpec, {
+        const options = {
           cwd: workDir, input: test.input, timeoutMs: limits.runTimeoutMs,
           outputLimitBytes: Math.max(limits.outputLimitBytes, Math.min(10500000, Buffer.byteLength(test.expected, 'utf8') + (test.expected.match(/\n/g) || []).length + 65536)), usePrlimit: this.usePrlimit,
-          limits: { cpuSeconds: Math.ceil(limits.runTimeoutMs / 1000) + 1, addressBytes: limits.memoryLimitKb * 1024, stackBytes: limits.stackLimitKb * 1024, fileBytes: 1024 * 1024, processes: 32, openFiles: 64 }
-        });
+          limits: { cpuSeconds: PROTOCOLS.has(test.checker) ? (test.checker === 'fzu-peak-interactive' ? 2 : 1) : Math.ceil(limits.runTimeoutMs / 1000) + 1, addressBytes: limits.memoryLimitKb * 1024, stackBytes: limits.stackLimitKb * 1024, fileBytes: 1024 * 1024, processes: 32, openFiles: 64 }
+        };
+        const execution = PROTOCOLS.has(test.checker)
+          ? await runProtocol(test.checker, test.input, async machine => {
+              const roundDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fzupta-round-'));
+              try {
+                for (const [name, content] of artifacts) await fs.writeFile(path.join(roundDir, name), content, { mode: 0o700 });
+                const roundSpec = toolchain.run({ workDir: roundDir, sourcePath: path.join(roundDir, toolchain.file) }, runtimeCommand);
+                roundSpec.command = resolveCommand(roundSpec.command);
+                return await runProcess(roundSpec, { ...options, cwd: roundDir, protocol: machine });
+              } finally {
+                if (path.dirname(roundDir) === path.resolve(os.tmpdir()) && path.basename(roundDir).startsWith('fzupta-round-')) {
+                  await fs.rm(roundDir, { recursive: true, force: true, maxRetries: 2 });
+                }
+              }
+            })
+          : await runProcess(runSpec, options);
         let verdict = 'Accepted', hint = '无提示', detail = '';
         if (execution.error || (execution.code === 127 && /not found|failed to execute|no such file/i.test(execution.stderr))) {
           unavailable ||= unavailableResult(`评测环境无法启动 ${runSpec.command}。`, tests, limits);
           return;
-        } else if (execution.timedOut) {
+        } else if (execution.timedOut || execution.signal === 'SIGXCPU') {
           verdict = 'TimeLimitExceeded'; hint = '运行时间超过限制。'; detail = clipped(execution.stderr);
         } else if (execution.outputExceeded) {
           verdict = 'RuntimeError'; hint = '程序输出超过限制。'; detail = clipped(execution.stdout + execution.stderr);
+        } else if (execution.protocolPassed === false) {
+          verdict = 'WrongAnswer'; hint = execution.protocolHint || '交互协议验证失败。';
         } else if (execution.code !== 0) {
           verdict = 'RuntimeError'; hint = `程序异常退出${execution.signal ? `（${execution.signal}）` : `（退出码 ${execution.code}）`}。`; detail = clipped(execution.stderr);
-        } else if (test.compared && !checkSpecialOutput(test.checker, test.input, execution.stdout, test.expected)) {
+        } else if (!PROTOCOLS.has(test.checker) && test.compared && !checkSpecialOutput(test.checker, test.input, execution.stdout, test.expected)) {
           verdict = 'WrongAnswer';
           hint = test.checker ? '输出不满足题目要求或构造条件。' : '输出与预期不一致';
           detail = test.checker ? `你的输出：\n${execution.stdout || '(空)'}` : `你的输出：\n${execution.stdout || '(空)'}\n\n预期输出：\n${test.expected}`;
@@ -927,7 +1072,8 @@ class LocalJudge {
     const passedTests = testCases.filter(test => test.verdict === 'Accepted').length;
     const firstFailure = testCases.find(test => test.verdict === verdict);
     const compared = tests.every(test => test.compared);
-    const message = verdict === 'Accepted' ? (mode === 'sample' ? (compared ? '样例输出与预期输出一致。' : '运行完成（自定义输入未进行答案比较）。') : '所有测试点均已通过。') : firstFailure.hint;
+    const protocol = tests.some(test => PROTOCOLS.has(test.checker));
+    const message = verdict === 'Accepted' ? (mode === 'sample' ? (protocol ? '交互裁判验证通过。' : compared ? '样例输出与预期输出一致。' : '运行完成（自定义输入未进行答案比较）。') : '所有测试点均已通过。') : firstFailure.hint;
     const compilerOutput = verdict === 'Accepted'
       ? (compared ? `自建评测机运行完成\n通过测试点：${passedTests}/${tests.length}` : message)
       : `测试点 ${firstFailure.index + 1}：${firstFailure.hint}${firstFailure.detail ? `\n\n${firstFailure.detail}` : ''}`;

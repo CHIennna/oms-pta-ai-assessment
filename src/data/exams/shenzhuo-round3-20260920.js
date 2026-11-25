@@ -203,18 +203,74 @@
       "sampleInput": "1",
       "sampleOutput": "F",
       "statement": "# K. FZU 子串（Hard Version）（100分）\n\n\n**原题链接：** https://oj.fzu.edu.cn/p/521?tid=6aae8b3ae943a1ff033c9de5  \n**题目类型：** 传统题　 **时间限制：** 3000 ms　 **内存限制：** 256 MiB\n\n给定一个正整数 $n$。\n\n对于一个仅由 `F`、`Z`、`U` 三种字符组成的字符串 $S$，定义它的价值为其中本质不同的非空子串数量。\n\n子串是从原字符串中取出的一段连续字符。两个子串本质不同，当且仅当它们作为字符串不完全相同。相同的子串即使出现在不同位置，也只计数一次。\n\n例如，字符串 `FZF` 的本质不同非空子串为 `F`、`Z`、`FZ`、`ZF`、`FZF`，因此它的价值为 $5$。\n\n请构造一个长度恰好为 $n$、且仅由 `F`、`Z`、`U` 组成的字符串，使它的价值在所有满足条件的字符串中最大。\n\n### 输入格式\n\n输入一行，包含一个整数 $n$（$1\\le n\\le 2\\times 10^5$）。\n\n### 输出格式\n\n输出一行，包含一个长度恰好为 $n$、且仅由 `F`、`Z`、`U` 组成的字符串，表示你构造的方案。\n\n如果有多种最优方案，输出任意一种即可。你不需要输出字符串的价值。\n\n### 样例\n\n#### 样例 1 输入\n\n```text\n1\n```\n\n#### 样例 1 输出\n\n```text\nF\n```\n\n#### 样例 1 说明\n\n字符串 `F` 只有一个非空子串，价值为 $1$，已达到最大值。\n\n#### 样例 2 输入\n\n```text\n5\n```\n\n#### 样例 2 输出\n\n```text\nFZUUF\n```\n\n#### 样例 2 说明\n\n其中长度为 $1$ 的不同子串有 $3$ 个，长度为 $2$ 的不同子串为 `FZ`、`ZU`、`UU`、`UF`，有 $4$ 个；长度为 $3,4,5$ 的子串分别有 $3,2,1$ 个，且同长度的子串互不相同。\n\n因此价值为 $3+4+3+2+1=13$。任意长度为 $5$ 的合法字符串，在这五种长度下的不同子串数量分别不超过 $3,4,3,2,1$，所以这已经是最大值。\n\n#### 样例 3 输入\n\n```text\n10\n```\n\n#### 样例 3 输出\n\n```text\nFUUZZUFZFF\n```\n\n#### 样例 3 说明\n\n其中三种字符均有出现，九个长度为 $2$ 的子串依次为 `FU`、`UU`、`UZ`、`ZZ`、`ZU`、`UF`、`FZ`、`ZF`、`FF`，两两不同，因此所有长度至少为 $2$ 的同长度子串也两两不同。\n\n它的价值为 $3+9+8+7+6+5+4+3+2+1=48$，达到了各长度子串数量上界的总和。",
-      "testArchive": {
-        "file": "shenzhuo-round3-20260920-tests.zip",
-        "prefix": "P11",
-        "count": 10,
-        "score": 10
-      },
-      "judgeable": false,
+      "judgeable": true,
       "requiresSpecialJudge": true,
-      "judgeNote": "K允许任意正确构造，不可按文本比较；需要独立SPJ/自定义判题接入。",
+      "judgeNote": "已接入不同子串数量最优性判题器，接受任意最优构造。",
       "difficulty": "提高+/省选-",
       "difficultyNote": "人工评级，暂定",
-      "unjudgeableReason": "本题允许多种正确构造，需要特殊判题器；本站暂未接入，可前往 FZU 原站作答。"
+      "sampleChecker": "fzu-max-substrings",
+      "testCases": [
+        {
+          "input": "1",
+          "expected": "1",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "3",
+          "expected": "6",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "5",
+          "expected": "13",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "10",
+          "expected": "48",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "11",
+          "expected": "57",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "29",
+          "expected": "390",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "100",
+          "expected": "4776",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "1000",
+          "expected": "495607",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "12345",
+          "expected": "76116793",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        },
+        {
+          "input": "200000",
+          "expected": "19998165774",
+          "score": 10,
+          "checker": "fzu-max-substrings"
+        }
+      ]
     }
   ]
 };

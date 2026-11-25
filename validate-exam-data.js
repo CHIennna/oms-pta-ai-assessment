@@ -6,13 +6,7 @@ const projectRoot = path.resolve(__dirname);
 const examDataRoot = path.join(__dirname, 'src', 'data', 'exams');
 
 const LEGACY_UNJUDGEABLE = new Set([
-  '2024-transfer-major-exam:20',
-  // These imported problems require an interactor or a checker that the local
-  // judge cannot reproduce safely. Keep the exception list explicit so a new
-  // incomplete problem still fails validation by default.
-  '2026-xiamen-shenzhuo-cup-may-monthly:1036',
-  '2026-xiamen-shenzhuo-cup-may-monthly:1038',
-  '2026-xiamen-shenzhuo-cup-guiding-final-exam:1046'
+  '2024-transfer-major-exam:20'
 ]);
 
 function attachPrivateTestData(exams, testDataPaths) {
@@ -100,15 +94,12 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
 
       if (question.judgeable === false) {
         const legacyKey = `${examVersion}:${id}`;
-        const pendingSpecialJudge = examVersion === 'fzu-2026-09-shenzhuo-round3-practice'
-          && question.letter === 'K' && question.name === 'FZU 子串（Hard Version）'
-          && question.requiresSpecialJudge === true;
-        if (!LEGACY_UNJUDGEABLE.has(legacyKey) && !pendingSpecialJudge) {
+        if (!LEGACY_UNJUDGEABLE.has(legacyKey)) {
           errors.push(`${questionLabel} 不允许新增为不可评测题，必须补齐正式测试点`);
           continue;
         }
         unjudgeableProblems += 1;
-        warnings.push(pendingSpecialJudge ? `${questionLabel} 需要特殊判题器，暂不开放本站评测` : `${questionLabel} 是保留的历史资料缺失题`);
+        warnings.push(`${questionLabel} 是保留的历史资料缺失题`);
         continue;
       }
 
