@@ -68,6 +68,15 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
     else if (examVersions.has(examVersion)) errors.push(`${examLabel} 的 examVersion 重复：${examVersion}`);
     else examVersions.add(examVersion);
 
+    if (exam.pendingQuestions === true) {
+      if (exam.category !== 'contest' || !Array.isArray(exam.questions) || exam.questions.length !== 0
+          || exam.totalScore !== 0 || !Number.isFinite(Date.parse(exam.startAt))
+          || !Number.isFinite(Date.parse(exam.endAt)) || Date.parse(exam.endAt) <= Date.parse(exam.startAt)
+          || (Date.parse(exam.endAt) - Date.parse(exam.startAt)) !== Number(exam.duration) * 60000) {
+        errors.push(`${examLabel} 的待补充考试配置无效`);
+      }
+      continue;
+    }
     if (!Array.isArray(exam.questions) || !exam.questions.length) {
       errors.push(`${examLabel} 没有题目`);
       continue;
@@ -203,6 +212,7 @@ if (require.main === module) {
           path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'), path.join(examDataRoot, 'fzu-qc7-zt.js'),
           path.join(examDataRoot, 'fzu-qc8-wuyou-mengyi-20261128.js'),
           path.join(examDataRoot, 'fzu-qc9-stability-20261129.js'),
+          path.join(examDataRoot, 'shenzhuo-freshman-monthly-1-20261129.js'),
           path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'),
           path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js')
         ].filter(fs.existsSync));

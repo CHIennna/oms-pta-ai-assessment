@@ -58,6 +58,51 @@ test('route hashes preserve pages and exam question context across refreshes', (
   assert.equal(context.formatRouteHash('practice', '1168'), '#practice');
   assert.equal(context.formatRouteHash('exam', '1168'), '#exam-1168');
   assert.equal(context.formatRouteHash('info', '题目 1'), '#info-%E9%A2%98%E7%9B%AE%201');
+  assert.equal(context.parseRouteHash('#contest-info-pending-contest').name, 'contest-info');
+  assert.equal(context.parseRouteHash('#contest-info-pending-contest').questionId, 'pending-contest');
+  assert.equal(context.formatRouteHash('contest-info', 'pending-contest'), '#contest-info-pending-contest');
+});
+
+test('pending contest opens its own information page without changing the active question or drafts', () => {
+  const pending={examVersion:'pending',title:'待补充赛事',pendingQuestions:true,questions:[],duration:240,participants:5,introduction:'比赛介绍'};
+  const routes=[];
+  const context={window:{OMS_EXAM_ARCHIVE:[pending]},primaryExamVersion:'primary',primaryConfig:{},config:{examVersion:'current'},
+    current:2,activeQuestionId:'1221',route:name=>routes.push(name),escape:String,portalExamStatus:()=> '未开始',
+    contestRuleLabel:String,contestRuleOf:()=> 'ACM/ICPC',examTimeLabel:()=> '2026-11-29 18:00',portalDuration:()=> '4小时',examParticipantCount:()=>5,
+    persistActiveDraft(){throw Error('must not change editor context');}};
+  vm.createContext(context);
+  vm.runInContext(extract("let pendingContestVersion=",'const APP_ROUTE_NAMES='),context);
+  assert.equal(context.activateExam('pending'),false);
+  assert.deepEqual(routes,['contest-info']);
+  assert.equal(context.config.examVersion,'current'); assert.equal(context.activeQuestionId,'1221'); assert.equal(context.current,2);
+  const html=context.renderPendingContest('pending');
+  assert.match(html,/题目待补充/);assert.match(html,/ACM\/ICPC/);assert.match(html,/5 人/);
+  assert.doesNotMatch(html,/data-question-open|id="submit"/);
+});
+
+test('pending contest information survives refresh and missing contests return to the directory', () => {
+  const context={window:{OMS_EXAM_ARCHIVE:[{examVersion:'pending',pendingQuestions:true,questions:[]}]},
+    location:{hash:'#contest-info-pending'},pendingContestVersion:'',config:{questions:[{id:'1221'}]},current:0,
+    history:{state:null,replaceState(){},pushState(){}},primaryConfig:{},primaryExamVersion:'primary'};
+  vm.createContext(context);
+  vm.runInContext(extract('const APP_ROUTE_NAMES=','function renderOmsClientChrome('),context);
+  assert.equal(context.resolveInitialRoute(),'contest-info');assert.equal(context.pendingContestVersion,'pending');
+  context.location.hash='#contest-info-missing';assert.equal(context.resolveInitialRoute(),'home-contests');
+});
+
+test('validator allows explicit pending contests while rejecting accidental empty exams', () => {
+  const os=require('node:os'),path=require('node:path');
+  const {loadAndValidateExamData}=require('./validate-exam-data');
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'oms-pending-test-')),file=path.join(temp,'fixture.js');
+  const pending={examVersion:'pending',title:'待补充',category:'contest',pendingQuestions:true,totalScore:0,questions:[],duration:240,
+    startAt:'2026-11-29T18:00:00+08:00',endAt:'2026-11-29T22:00:00+08:00'};
+  const write=exam=>fs.writeFileSync(file,'window.OMS_EXAM_DATA='+JSON.stringify(exam)+';window.OMS_EXAM_ARCHIVE=[];');
+  try{
+    write(pending);const loaded=loadAndValidateExamData(file);assert.equal(loaded.report.judgeableProblems,0);assert.equal(loaded.report.testCases,0);
+    write({...pending,pendingQuestions:false});assert.throws(()=>loadAndValidateExamData(file),/没有题目/);
+    write({...pending,duration:120});assert.throws(()=>loadAndValidateExamData(file),/待补充考试配置无效/);
+    write({...pending,questions:[{id:'1235'}]});assert.throws(()=>loadAndValidateExamData(file),/待补充考试配置无效/);
+  }finally{fs.unlinkSync(file);fs.rmdirSync(temp);}
 });
 
 test('both home layouts show questions from the newest populated exam and retain their exam context', () => {

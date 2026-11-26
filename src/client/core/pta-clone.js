@@ -206,21 +206,33 @@ function hasUnsavedCode(){return editorCode()!==loadedCode;}
 function loadCode(source){loadingCode=true;try{code.value=source;code.dispatchEvent(new Event('input',{bubbles:true}));}finally{loadingCode=false;}lines();requestAnimationFrame(()=>document.querySelectorAll('.editor .cm-scroller,.editor textarea').forEach(scroller=>{scroller.scrollLeft=0;}));}
 function restoreSavedCode(){const source=codeForQuestion(activeQuestionId),language=draftMeta[activeQuestionId]?.language;loadedCode=submittedCodeForQuestion(activeQuestionId);if(language&&[...$('#language').options].some(option=>option.value===language)){loadingCode=true;try{$('#language').value=language;$('#language').dispatchEvent(new Event('change',{bubbles:true}));}finally{loadingCode=false;}}loadCode(source);}
 function changeQuestion(index){if(index===current)return;persistActiveDraft();current=index;problemContentTab='description';resetTesterOutput();activeQuestionId=config.questions[current].id;render();restoreSavedCode();if(activeRoute==='exam')syncBrowserRoute('exam');}
+let pendingContestVersion='';
+function openPendingContest(examVersion){
+  const exam=(window.OMS_EXAM_ARCHIVE||[]).find(item=>item.examVersion===examVersion&&item.pendingQuestions===true);
+  if(!exam)return false;
+  pendingContestVersion=exam.examVersion;route('contest-info');return true;
+}
+function renderPendingContest(examVersion){
+  const exam=(window.OMS_EXAM_ARCHIVE||[]).find(item=>item.examVersion===examVersion&&item.pendingQuestions===true);
+  if(!exam)return '<section class="contest-directory-empty">考试信息不存在。</section>';
+  return `<section class="contest-info-page"><div class="contest-heading"><span class="fzuoj-status">${portalExamStatus(exam)}</span><div><h1>${escape(exam.title)}</h1><p><span>${escape(contestRuleLabel(contestRuleOf(exam)))}</span> · <span>开始 ${examTimeLabel(exam)}</span> · <span>结束 ${examTimeLabel({...exam,startAt:exam.endAt})}</span> · <span>${portalDuration(exam.duration)}</span> · <span>${examParticipantCount(exam)} 人</span></p></div></div><section class="fzuoj-card"><h2>比赛介绍</h2><p>${escape(exam.introduction||'').replace(/\n/g,'<br>')}</p></section><section class="fzuoj-card"><h2>题目列表</h2><p>题目待补充</p><p>题目公布后开放本站作答。</p></section><button type="button" data-pending-contest-back>返回考试列表</button></section>`;
+}
 function activateExam(examVersion,questionIndex=0){
   const archive=window.OMS_EXAM_ARCHIVE||[];
   const exam=examVersion===primaryExamVersion?primaryConfig:[...archive,...(window.OMS_PRACTICE_EXAMS||[])].find(item=>item.examVersion===examVersion);
   if(!exam)return false;
+  if(exam.pendingQuestions===true){openPendingContest(exam.examVersion);return false;}
   const target=Math.max(0,Math.min(Number(questionIndex)||0,exam.questions.length-1));
   if(config.examVersion===exam.examVersion){changeQuestion(target);return current===target;}
   const identity={seat:primaryConfig.seat,candidateName:primaryConfig.candidateName,studentId:primaryConfig.studentId};
   persistActiveDraft();config={...exam,...identity,registered:exam.registered??exam.participants??primaryConfig.registered};current=target;resetTesterOutput();loadCodeStores(config.examVersion);activeQuestionId=config.questions[current].id;applyPersistedProgress(config.examVersion);mergePersistedDrafts(config.examVersion);restoreSavedCode();updateCountdown();return true;
 }
-const APP_ROUTE_NAMES=new Set(['home','problemset','knowledge','practice','home-contests','home-submissions','about','advice','info','exam','submissions','realtime','solutions']);
-const EXAM_CONTEXT_ROUTES=new Set(['info','exam','submissions','realtime','solutions']);
+const APP_ROUTE_NAMES=new Set(['home','problemset','knowledge','practice','home-contests','home-submissions','about','advice','info','exam','submissions','realtime','solutions','contest-info']);
+const EXAM_CONTEXT_ROUTES=new Set(['info','exam','submissions','realtime','solutions','contest-info']);
 function parseRouteHash(hash){
   let value='';
   try{value=decodeURIComponent(String(hash||'').replace(/^#/,''));}catch{return{name:'home',questionId:''};}
-  const contextual=/^(info|exam|submissions|realtime|solutions)-(.+)$/.exec(value);
+  const contextual=/^(contest-info|info|exam|submissions|realtime|solutions)-(.+)$/.exec(value);
   if(contextual)return{name:contextual[1],questionId:contextual[2]};
   return APP_ROUTE_NAMES.has(value)?{name:value,questionId:''}:{name:'home',questionId:''};
 }
@@ -231,6 +243,10 @@ function formatRouteHash(name,questionId=''){
 }
 function resolveInitialRoute(){
   const target=parseRouteHash(location.hash);
+  if(target.name==='contest-info'){
+    const exam=(window.OMS_EXAM_ARCHIVE||[]).find(item=>item.examVersion===target.questionId&&item.pendingQuestions===true);
+    if(!exam)return 'home-contests';pendingContestVersion=exam.examVersion;return 'contest-info';
+  }
   if(!target.questionId)return target.name;
   const exams=[primaryConfig,...(window.OMS_EXAM_ARCHIVE||[]),...(window.OMS_PRACTICE_EXAMS||[])];
   for(const exam of exams){
@@ -240,14 +256,14 @@ function resolveInitialRoute(){
   return 'home';
 }
 function syncBrowserRoute(routeName=activeRoute,historyMode='push'){
-  const questionId=config.questions?.[current]?.id;
+  const questionId=routeName==='contest-info'?pendingContestVersion:config.questions?.[current]?.id;
   const hash=formatRouteHash(routeName,questionId);
   if(location.hash===hash)return;
   const url=`${location.pathname}${location.search}${hash}`;
   if(historyMode==='replace')history.replaceState(history.state,'',url);
   else if(historyMode==='push')history.pushState({omsRoute:hash},'',url);
 }
-function renderOmsClientChrome(routeName=activeRoute){const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');if(student)student.textContent=config.studentId||'—';if(name)name.textContent=config.candidateName||'—';if(seat)seat.textContent=config.seat||'—';const displayUser=portalUser?.username||config.studentId||'未登录',displayName=portalUser?.nickname||portalUser?.username||config.candidateName||'U';if(user)user.textContent=displayUser;if(avatar)avatar.textContent=String(displayName).trim().slice(0,1).toUpperCase()||'U';if(address)address.value=`${location.origin}${location.pathname}${location.search}${formatRouteHash(routeName,question?.id)}`;}
+function renderOmsClientChrome(routeName=activeRoute){const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');if(student)student.textContent=config.studentId||'—';if(name)name.textContent=config.candidateName||'—';if(seat)seat.textContent=config.seat||'—';const displayUser=portalUser?.username||config.studentId||'未登录',displayName=portalUser?.nickname||portalUser?.username||config.candidateName||'U';if(user)user.textContent=displayUser;if(avatar)avatar.textContent=String(displayName).trim().slice(0,1).toUpperCase()||'U';if(address)address.value=`${location.origin}${location.pathname}${location.search}${formatRouteHash(routeName,routeName==='contest-info'?pendingContestVersion:question?.id)}`;}
 const OMS_CONTENT_ZOOM_KEY='oms-pta-content-zoom',OMS_CONTENT_ZOOM_MIN=.8,OMS_CONTENT_ZOOM_MAX=1.5,OMS_CONTENT_ZOOM_STEP=.1;
 let omsContentZoom=Math.min(OMS_CONTENT_ZOOM_MAX,Math.max(OMS_CONTENT_ZOOM_MIN,Number(localStorage.getItem(OMS_CONTENT_ZOOM_KEY))||1));
 function applyOmsContentZoom(next=omsContentZoom){const target=$('#pta-app');if(!target)return;omsContentZoom=Math.round(Math.min(OMS_CONTENT_ZOOM_MAX,Math.max(OMS_CONTENT_ZOOM_MIN,next))*10)/10;const chromeHeight=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--oms-client-chrome-height'))||0,viewportWidth=window.innerWidth||document.documentElement.clientWidth,scrollbarAllowance=Math.max(20,Math.abs(viewportWidth-document.documentElement.clientWidth)+2);target.style.transform='';target.style.transformOrigin='';target.style.zoom=String(omsContentZoom);target.style.width=`${100/omsContentZoom}%`;target.style.height=`${Math.max(0,window.innerHeight-chromeHeight)/omsContentZoom}px`;if(Math.abs(target.getBoundingClientRect().width-viewportWidth)>scrollbarAllowance){target.style.zoom='1';target.style.transformOrigin='top left';target.style.transform=`scale(${omsContentZoom})`;}localStorage.setItem(OMS_CONTENT_ZOOM_KEY,String(omsContentZoom));const percent=Math.round(omsContentZoom*100),zoomIn=$('#oms-client-zoom-in'),zoomOut=$('#oms-client-zoom-out');if(zoomIn){zoomIn.disabled=omsContentZoom>=OMS_CONTENT_ZOOM_MAX;zoomIn.title=`放大页面（当前 ${percent}%）`;zoomIn.setAttribute('aria-label',zoomIn.title);}if(zoomOut){zoomOut.disabled=omsContentZoom<=OMS_CONTENT_ZOOM_MIN;zoomOut.title=`缩小页面（当前 ${percent}%）`;zoomOut.setAttribute('aria-label',zoomOut.title);}}
@@ -1136,7 +1152,7 @@ async function route(name,allowGuest=false,historyMode='push'){
   }
   const previousRoute=activeRoute;activeRoute=name;syncBrowserRoute(name,historyMode);renderOmsClientChrome(name);
   if(previousRoute==='exam'&&name!=='exam')persistActiveDraft();
-  const app=$('#pta-app'),isPortalPage=['home','problemset','knowledge','practice','home-contests','home-submissions','about','advice'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
+  const app=$('#pta-app'),isPortalPage=['home','problemset','knowledge','practice','home-contests','home-submissions','about','advice','contest-info'].includes(name);app.classList.toggle('portal-mode',isPortalPage);
   const activeNavRoute=name==='problemset'?'exam':name==='home-submissions'?'submissions':name==='home-contests'?'center':name;
   document.querySelectorAll('.rail-button').forEach(button=>button.classList.toggle('active',button.dataset.route===activeNavRoute));
   $('.remain').hidden=name==='home-contests'||name==='problemset'||name==='home-submissions'||name==='advice'||isPortalPage;
@@ -1145,7 +1161,7 @@ async function route(name,allowGuest=false,historyMode='push'){
   workspace.hidden=true;overview.hidden=true;secondary.hidden=false;secondary.dataset.page=isPortalPage?'portal':name;
   let portalContent=null,paintPortalPage=null;
   if(isPortalPage){
-    secondary.innerHTML=renderFzuOjHome(name);
+    secondary.innerHTML=renderFzuOjHome(name==='contest-info'?'home-contests':name);
     portalContent=secondary.querySelector('.fzuoj-content');
     paintPortalPage=html=>{portalContent.innerHTML=`<div class="fzuoj-primary fzuoj-page-content">${html}</div>`;};
     secondary.querySelectorAll('[data-portal-route]').forEach(button=>button.onclick=()=>route(button.dataset.portalRoute));
@@ -1238,6 +1254,10 @@ async function route(name,allowGuest=false,historyMode='push'){
   }
   if(name==='realtime')secondary.innerHTML=renderScoreboard();
   if(name==='solutions')secondary.innerHTML=renderSolutions();
+  if(name==='contest-info'){
+    paintPortalPage(renderPendingContest(pendingContestVersion));
+    portalContent.querySelector('[data-pending-contest-back]')?.addEventListener('click',()=>route('home-contests'));
+  }
   if(name==='home-contests'){
     let filters={status:'all',rule:'',keyword:''},page=0;
     const paint=()=>{
