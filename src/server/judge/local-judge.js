@@ -6,6 +6,7 @@ const { StringDecoder } = require('string_decoder');
 const { PROTOCOLS, runProtocol } = require('./protocol-judge');
 
 const isWindows = process.platform === 'win32';
+const MAX_TEST_DATA_BYTES = 32 * 1024 * 1024;
 const executable = name => path.join(name.workDir, isWindows ? 'program.exe' : 'program');
 const nativeOptimization = () => process.env.RENDER ? '-O0' : '-O2';
 const DEFAULT_TOOLCHAINS = {
@@ -873,6 +874,7 @@ class LocalJudge {
         timeLimitMs: other.runTimeoutMs,
         memoryLimitKb: other.memoryLimitKb,
         codeLimitBytes: this.limits.codeLimitBytes,
+        testDataLimitBytes: MAX_TEST_DATA_BYTES,
         stackLimitKb: this.limits.stackLimitKb,
         memoryLimitEnforced: process.platform === 'linux' && this.usePrlimit,
         languageLimits: {
@@ -950,8 +952,17 @@ class LocalJudge {
     }
     if (!source.trim()) return { ...unavailableResult('请先编写代码。', tests, limits), verdict: 'CompilationError' };
     if (!tests.length || tests.length > 20) return { ...unavailableResult('该题尚未配置有效测试点。', tests, limits), verdict: 'NotConfigured' };
-    if (Buffer.byteLength(source, 'utf8') > limits.codeLimitBytes || tests.some(test => test.input.length > 10500000 || test.expected.length > 10500000)) {
-      return { ...unavailableResult('代码或测试点超过评测机限制。', tests, limits), verdict: 'CompilationError' };
+    const codeBytes = Buffer.byteLength(source, 'utf8');
+    if (codeBytes > limits.codeLimitBytes) {
+      return { ...unavailableResult(`代码长度超过限制：当前 ${codeBytes} 字节，上限 ${limits.codeLimitBytes} 字节。`, tests, limits), verdict: 'CompilationError' };
+    }
+    for (const [index, test] of tests.entries()) {
+      for (const [field, label] of [['input', '输入'], ['expected', '标准答案']]) {
+        const bytes = Buffer.byteLength(test[field], 'utf8');
+        if (bytes > MAX_TEST_DATA_BYTES) {
+          return { ...unavailableResult(`测试数据配置错误：第 ${index + 1} 个测试点的${label}为 ${bytes} 字节，超过 ${MAX_TEST_DATA_BYTES} 字节上限。请联系管理员处理。`, tests, limits), verdict: 'NotConfigured' };
+        }
+      }
     }
 
     const prefix = path.join(os.tmpdir(), 'fzupta-judge-');
@@ -995,7 +1006,7 @@ class LocalJudge {
         runSpec.command = resolveCommand(runSpec.command);
         const options = {
           cwd: workDir, input: test.input, timeoutMs: limits.runTimeoutMs,
-          outputLimitBytes: Math.max(limits.outputLimitBytes, Math.min(10500000, Buffer.byteLength(test.expected, 'utf8') + (test.expected.match(/\n/g) || []).length + 65536)), usePrlimit: this.usePrlimit,
+          outputLimitBytes: Math.max(limits.outputLimitBytes, Math.min(MAX_TEST_DATA_BYTES, Buffer.byteLength(test.expected, 'utf8') + (test.expected.match(/\n/g) || []).length + 65536)), usePrlimit: this.usePrlimit,
           limits: { cpuSeconds: PROTOCOLS.has(test.checker) ? (test.checker === 'fzu-peak-interactive' ? 2 : 1) : Math.ceil(limits.runTimeoutMs / 1000) + 1, addressBytes: limits.memoryLimitKb * 1024, stackBytes: limits.stackLimitKb * 1024, fileBytes: 1024 * 1024, processes: 32, openFiles: 64 }
         };
         const execution = PROTOCOLS.has(test.checker)

@@ -213,6 +213,33 @@ test('submission cannot opt out of comparison and source limit is measured in by
   assert.equal(result.verdict, 'WrongAnswer');
   const oversized = await judge.judge({ language: 'NodeFixture', mode: 'sample', code: '//'+ '字'.repeat(22000), tests: [{ input: '', expected: '' }] });
   assert.equal(oversized.verdict, 'CompilationError'); assert.match(oversized.message, /超过/);
+  assert.match(oversized.message, /代码长度.*字节/); assert.doesNotMatch(oversized.message, /测试点/);
+});
+
+test('formal input accepts QC8-sized data and the exact 32 MiB boundary', async () => {
+  const judge = new LocalJudge({ usePrlimit: false, runTimeoutMs: 10000, toolchains: { NodeFixture: {
+    file: 'main.js', run: job => ({ command: process.execPath, args: [job.sourcePath] })
+  } } });
+  const limit = judge.info().limits.testDataLimitBytes;
+  assert.equal(limit, 32 * 1024 * 1024);
+  for (const bytes of [11500013, limit]) {
+    const result = await judge.judge({ language: 'NodeFixture', mode: 'submit',
+      code: 'let size=0;process.stdin.on("data",c=>size+=c.length).on("end",()=>console.log(size));',
+      tests: [{ input: '1'.repeat(bytes), expected: String(bytes), score: 100 }] });
+    assert.equal(result.verdict, 'Accepted', result.compilerOutput);
+  }
+});
+
+test('oversized UTF-8 test data identifies the point and field without blaming source code', async () => {
+  const judge = nodeJudge(), limit = judge.info().limits.testDataLimitBytes;
+  for (const [field, value, label] of [['input', '字'.repeat(Math.floor(limit / 3) + 1), '输入'], ['expected', 'x'.repeat(limit + 1), '标准答案']]) {
+    const result = await judge.judge({ language: 'NodeFixture', mode: 'submit', code: 'console.log(0)',
+      tests: [{ input: '', expected: '0', score: 50 }, { input: '', expected: '', score: 50, [field]: value }] });
+    assert.equal(result.verdict, 'NotConfigured');
+    assert.match(result.message, new RegExp(`第 2 个测试点的${label}`));
+    assert.ok(result.message.includes(String(Buffer.byteLength(value, 'utf8'))));
+    assert.doesNotMatch(result.message, /代码长度/);
+  }
 });
 
 test('formal tests use bounded concurrency and keep their original result order', async () => {
