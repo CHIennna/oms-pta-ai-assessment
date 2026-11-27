@@ -271,9 +271,9 @@
       "difficulty": "提高"
     }
   ],
-  "startAt": "2026-11-27T15:00:00+08:00",
-  "endAt": "2026-11-27T17:00:00+08:00",
-  "scheduleVersion": "20261127-qc9-fixed-1127"
+  "startAt": "2026-11-27T18:30:00+08:00",
+  "endAt": "2026-11-27T20:30:00+08:00",
+  "scheduleVersion": "20261127-qc9-fixed-1830"
 };
  const archive=window.OMS_EXAM_ARCHIVE||(window.OMS_EXAM_ARCHIVE=[]);
  const existing=archive.findIndex(e=>e.examVersion===data.examVersion);
