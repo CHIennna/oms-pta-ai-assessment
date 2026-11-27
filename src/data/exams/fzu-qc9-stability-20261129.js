@@ -1,21 +1,21 @@
 (() => {
  const data = {
   "examVersion": "fzu-qc9-stability-20261129-v1",
-  "revision": "第九次质量检测·2026-11-28·正式风格独立V1",
+  "revision": "第九次质量检测·2026-11-27·正式风格独立V1",
   "title": "福州大学2025级第九次质量检测",
   "type": "IOI",
   "rule": "IOI",
   "contestType": "IOI",
   "category": "mock",
   "selfScheduled": false,
-  "date": "2026-11-28",
+  "date": "2026-11-27",
   "duration": 120,
   "totalScore": 800,
   "author": "转专业命题中心",
   "setter": {
     "label": "转专业命题中心"
   },
-  "introduction": "2026年11月28日 · 非官方自主模拟考试\n\n考试时间120分钟，8道独立编程题，每题100分，满分800分。编译标准C++11。标准输入输出，按测试点独立计分，多次提交取最高分（以实际评测平台规则为准）。题号不代表难度。建议关闭参考资料，独立完成。每题建议时间限制2秒、内存限制256 MiB；最终以OMS判题配置为准。",
+  "introduction": "2026年11月27日 · 非官方自主模拟考试\n\n考试时间120分钟，8道独立编程题，每题100分，满分800分。编译标准C++11。标准输入输出，按测试点独立计分，多次提交取最高分（以实际评测平台规则为准）。题号不代表难度。建议关闭参考资料，独立完成。每题建议时间限制2秒、内存限制256 MiB；最终以OMS判题配置为准。",
   "questions": [
     {
       "id": "20261129901",
@@ -271,9 +271,9 @@
       "difficulty": "提高"
     }
   ],
-  "startAt": "2026-11-28T15:00:00+08:00",
-  "endAt": "2026-11-28T17:00:00+08:00",
-  "scheduleVersion": "20261124-qc9-fixed-1128"
+  "startAt": "2026-11-27T15:00:00+08:00",
+  "endAt": "2026-11-27T17:00:00+08:00",
+  "scheduleVersion": "20261127-qc9-fixed-1127"
 };
  const archive=window.OMS_EXAM_ARCHIVE||(window.OMS_EXAM_ARCHIVE=[]);
  const existing=archive.findIndex(e=>e.examVersion===data.examVersion);
