@@ -31,7 +31,7 @@ const judgeStartupReady = process.env.RENDER
   : Promise.resolve();
 const { exams, practiceExams, report: examValidation } = loadAndValidateExamData(
   path.join(examDataRoot, 'exam-data.js'),
-  [path.join(examDataRoot, 'fzu-2025-freshman-cs.js'), path.join(examDataRoot, 'fzu-2025-freshman-extra.js'), path.join(examDataRoot, 'fzu-2025-freshman-difficulty.js'), path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'), path.join(examDataRoot, 'fzu-practice-homework.js'), path.join(examDataRoot, 'third-stage-weekly-20261025.js'), path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'), path.join(examDataRoot, 'zongjuesai-qc4-day1-20261114.js'), path.join(examDataRoot, 'zongjuesai-day2-20261115.js'), path.join(examDataRoot, 'fzu-qc5-final-20261122.js'), path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'), path.join(examDataRoot, 'fzu-qc7-zt.js'), path.join(examDataRoot, 'fzu-qc8-wuyou-mengyi-20261128.js'), path.join(examDataRoot, 'fzu-qc9-stability-20261129.js'), path.join(examDataRoot, 'shenzhuo-freshman-monthly-1-20261129.js'), path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'), path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js')]
+  [path.join(examDataRoot, 'fzu-2025-freshman-cs.js'), path.join(examDataRoot, 'fzu-2025-freshman-extra.js'), path.join(examDataRoot, 'fzu-2025-freshman-difficulty.js'), path.join(examDataRoot, 'zixun-contest-data.js'), path.join(examDataRoot, 'weekly-practice-2.js'), path.join(examDataRoot, 'fuzhou-quality-check-20261018.js'), path.join(examDataRoot, 'fuzhou-quality-check-b-20261018.js'), path.join(examDataRoot, 'shenzhuo-round3-20260920.js'), path.join(examDataRoot, 'gplt-homework-2024-2026.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-homework-20261109.js'), path.join(examDataRoot, 'fzu-practice-homework.js'), path.join(examDataRoot, 'third-stage-weekly-20261025.js'), path.join(examDataRoot, 'fuzhou-quality-check-2-20261031.js'), path.join(examDataRoot, 'fuzhou-quality-check-3-20261108.js'), path.join(examDataRoot, 'zongjuesai-qc4-day1-20261114.js'), path.join(examDataRoot, 'zongjuesai-day2-20261115.js'), path.join(examDataRoot, 'fzu-qc5-final-20261122.js'), path.join(examDataRoot, 'fzu-qc6-volcano-ex-20261129.js'), path.join(examDataRoot, 'fzu-qc7-zt.js'), path.join(examDataRoot, 'fzu-qc8-wuyou-mengyi-20261128.js'), path.join(examDataRoot, 'fzu-qc9-stability-20261129.js'), path.join(examDataRoot, 'shenzhuo-freshman-monthly-1-20261129.js'), path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'), path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js'), path.join(examDataRoot, 'transfer-major-2026-sophomore.js')]
 );
 const judgeExams = [...exams, ...practiceExams];
 const { testBank, testBankByExam, testAliases, questionBankByExam } = loadTestBank(judgeExams);
@@ -59,6 +59,7 @@ const publicFiles = new Map([
   ['/src/data/exams/shenzhuo-freshman-monthly-1-20261129.js', 'src/data/exams/shenzhuo-freshman-monthly-1-20261129.js'],
   ['/src/data/exams/fzu-2025-shuzhi-freshman.js', 'src/data/exams/fzu-2025-shuzhi-freshman.js'],
   ['/src/data/exams/fzu-2026-shuzhi-freshman.js', 'src/data/exams/fzu-2026-shuzhi-freshman.js'],
+  ['/src/data/exams/transfer-major-2026-sophomore.js', 'src/data/exams/transfer-major-2026-sophomore.js'],
   ['/fzu-brand-lockup-red.jpg', 'fzu-brand-lockup-red.jpg'],
   ['/', 'index.html'], ['/index.html', 'index.html'], ['/fzu-logo.png', 'fzu-logo.png'], ['/fzu-wordmark-official.jpg', 'fzu-wordmark-official.jpg'],
   ['/src/client/assets/fzu-triangle-lattice.svg', 'src/client/assets/fzu-triangle-lattice.svg'],
@@ -394,6 +395,10 @@ function trustedPayload(payload, personalSchedule = null) {
   const canonicalId = examVersion && testBankByExam.has(`${examVersion}:${requestedId}`) ? requestedId : aliasId || requestedId;
   const source = examVersion ? testBankByExam.get(`${examVersion}:${canonicalId}`) : testBank.get(canonicalId);
   if (!source) {
+    const question = examsByVersion.get(examVersion)?.questions?.find(item => String(item.id) === canonicalId);
+    if (question?.missingData === true && question.judgeable === false) {
+      throw Object.assign(new Error(question.unjudgeableReason || '暂无数据，暂不能评测。'), { statusCode: 409, verdict: 'NotConfigured' });
+    }
     const error = new Error('题号与试卷不匹配，或该题暂不可评测。请刷新题库后重试。');
     error.statusCode = 400;
     throw error;

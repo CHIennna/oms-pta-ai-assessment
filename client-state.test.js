@@ -105,6 +105,49 @@ test('validator allows explicit pending contests while rejecting accidental empt
   }finally{fs.unlinkSync(file);fs.rmdirSync(temp);}
 });
 
+test('2026 announced placeholders keep IDs 66-73 after year-only papers and cannot bypass normal validation', () => {
+  const os=require('node:os'),path=require('node:path');
+  const {loadAndValidateExamData}=require('./validate-exam-data');
+  const context={window:{OMS_EXAM_ARCHIVE:[]}};
+  vm.runInNewContext(fs.readFileSync('src/data/exams/transfer-major-2026-sophomore.js','utf8'),context);
+  const exam=JSON.parse(JSON.stringify(context.window.OMS_EXAM_ARCHIVE[0]));
+  assert.deepEqual(exam.questions.map(q=>q.id),['66','67','68','69','70','71','72','73']);
+  assert.equal(exam.participants,41);assert.equal(exam.startAt,'2026-11-30T18:30:00+08:00');assert.equal(exam.endAt,'2026-11-30T20:30:00+08:00');
+  for(const q of exam.questions){assert.equal(q.name,'暂无数据');assert.equal(q.statement,'暂无数据');assert.equal(q.judgeable,false);}
+  const prior={examVersion:'prior',title:'已存在真题',category:'past',date:'2026',questions:Array.from({length:65},(_,i)=>({id:String(i+1),name:'已有题',score:1,testCases:[{input:'',expected:'',score:1}]}))};
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'oms-placeholder-test-')),file=path.join(temp,'fixture.js');
+  const write=()=>fs.writeFileSync(file,'window.OMS_EXAM_DATA='+JSON.stringify(prior)+';window.OMS_EXAM_ARCHIVE='+JSON.stringify([exam])+';');
+  try{
+    write();const loaded=loadAndValidateExamData(file);assert.equal(loaded.report.unjudgeableProblems,8);assert.equal(loaded.report.judgeableProblems,65);
+    exam.questions[0].missingData=false;write();assert.throws(()=>loadAndValidateExamData(file),/不允许新增为不可评测题/);
+  }finally{fs.unlinkSync(file);fs.rmdirSync(temp);}
+});
+
+test('scheduled past-paper status follows the clock on both home and detail pages', () => {
+  let now=Date.parse('2026-11-27T15:00:00+08:00');
+  const exam={category:'past',startAt:'2026-11-30T18:30:00+08:00',endAt:'2026-11-30T20:30:00+08:00'};
+  const context={config:exam,Date:{now:()=>now,parse:Date.parse},personalExamStatus:()=> '个人考试状态'};
+  vm.createContext(context);
+  vm.runInContext(core.match(/^function portalExamStatus\([^\n]+/m)[0],context);
+  vm.runInContext(core.match(/^function contestStatus\([^\n]+/m)[0],context);
+  for(const [time,status]of [['2026-11-27T15:00:00+08:00','未开始'],['2026-11-30T18:30:00+08:00','进行中'],['2026-11-30T20:29:59+08:00','进行中'],['2026-11-30T20:30:00+08:00','已结束']]){
+    now=Date.parse(time);assert.equal(context.portalExamStatus(exam),status);assert.equal(context.contestStatus(),status);
+  }
+  assert.equal(context.portalExamStatus({category:'past',date:'2023'}),'已结束');
+  assert.equal(context.portalExamStatus({...exam,selfScheduled:true}),'个人考试状态');
+});
+
+test('upcoming past-paper countdown shows time to start and never enables missing-data submissions', () => {
+  let now=Date.parse('2026-11-30T17:30:00+08:00');
+  const elements={},element=selector=>elements[selector]||(elements[selector]={textContent:'',value:'C++ (g++)',classList:{toggle(){}}});
+  const context={config:{category:'past',startAt:'2026-11-30T18:30:00+08:00',endAt:'2026-11-30T20:30:00+08:00',questions:[{judgeable:false,unjudgeableReason:'暂无数据'}]},
+    current:0,Date:{now:()=>now,parse:Date.parse},$:element,applyPersonalSchedule(){},availableJudgeLanguages:null,submissionPending:false,samplePending:false};
+  vm.createContext(context);vm.runInContext(core.match(/^function updateCountdown\([^\n]+/m)[0],context);
+  context.updateCountdown();assert.equal(element('#countdown-label').textContent,'距开始');assert.equal(element('#countdown').textContent,'01:00:00');assert.equal(element('#submit').disabled,true);
+  now=Date.parse('2026-11-30T18:30:00+08:00');context.updateCountdown();assert.equal(element('#countdown-label').textContent,'剩余');assert.equal(element('#countdown').textContent,'02:00:00');assert.equal(element('#submit').disabled,true);
+  now=Date.parse('2026-11-30T20:30:00+08:00');context.updateCountdown();assert.equal(element('#countdown-label').textContent,'已结束');
+});
+
 test('both home layouts show questions from the newest populated exam and retain their exam context', () => {
   const primary = { examVersion: 'old', title: '旧试卷', startAt: '2026-10-24', questions: [{ id: '1155', name: '旧题' }] };
   const latest = { examVersion: 'new', title: '第八次质检', startAt: '2026-11-28', questions: Array.from({ length: 8 }, (_, i) => ({ id: String(1219 + i), name: `新题${i}` })) };

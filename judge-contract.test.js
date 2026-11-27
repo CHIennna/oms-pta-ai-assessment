@@ -11,7 +11,7 @@ function boundary(sampleChecker = '') {
   const cases = [{ input: '1\n', expected: '2\n', score: 100 }];
   const context = { assertExamOpen() {}, testAliases: new Map([['exam:old', 'q']]),
     testBankByExam: new Map([['exam:q', cases]]), testBank: new Map(),
-    questionBankByExam: new Map([['exam:q', { sampleInput: '1\n', sampleOutput: '2\n', sampleChecker }]]), resolveTestCases: value => value };
+    questionBankByExam: new Map([['exam:q', { sampleInput: '1\n', sampleOutput: '2\n', sampleChecker }]]), examsByVersion:new Map(), resolveTestCases: value => value };
   vm.createContext(context); vm.runInContext(extract('function trustedPayload(', 'function reply('), context);
   return context.trustedPayload;
 }
@@ -64,6 +64,13 @@ test('interactive samples keep the server protocol and reject forged test fixtur
   assert.equal(result.tests[0].expected, '');
   assert.equal(result.tests[0].compared, true);
   assert.equal(boundary()({ mode: 'submit', examVersion: 'exam', problemId: 'q', judgeProfile: 'fzu-xyz-communication' }).judgeProfile, '');
+});
+
+test('missing-data questions cannot run or submit and report their real configuration status', () => {
+  const context={assertExamOpen(){},testAliases:new Map(),testBankByExam:new Map(),testBank:new Map(),
+    examsByVersion:new Map([['pending',{questions:[{id:'66',missingData:true,judgeable:false,unjudgeableReason:'暂无数据，题目补充后开放评测。'}]}]])};
+  vm.createContext(context);vm.runInContext(extract('function trustedPayload(','function reply('),context);
+  for(const mode of ['sample','submit'])assert.throws(()=>context.trustedPayload({mode,examVersion:'pending',problemId:'66'}),error=>error.verdict==='NotConfigured'&&error.statusCode===409&&error.message.includes('暂无数据'));
 });
 
 test('storage failure preserves the real verdict and returns unsaved status instead of ReferenceError', async () => {

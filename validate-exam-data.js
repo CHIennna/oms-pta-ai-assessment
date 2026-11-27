@@ -48,9 +48,10 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
   const warnings = [];
   const examVersions = new Set();
   const globalIds = new Set();
-  const pastTimestamp = exam => Date.parse(/^\d{4}$/.test(exam.date) ? `${exam.date}-12-31` : exam.date);
+  // Match OMS_NUMBER_EXAM: year first, preserving established IDs within a year.
+  const pastYear = exam => Number(String(exam.date || '').slice(0, 4));
   const pastExams = exams.filter(exam => exam.category === 'past')
-    .sort((a, b) => pastTimestamp(a) - pastTimestamp(b));
+    .sort((a, b) => pastYear(a) - pastYear(b) || Number(a.questions?.[0]?.id) - Number(b.questions?.[0]?.id));
   const pastStarts = new Map();
   let nextPastId = 1;
   for (const exam of pastExams) {
@@ -103,12 +104,16 @@ function loadAndValidateExamData(filePath = path.join(examDataRoot, 'exam-data.j
 
       if (question.judgeable === false) {
         const legacyKey = `${examVersion}:${id}`;
-        if (!LEGACY_UNJUDGEABLE.has(legacyKey)) {
+        const announcedPlaceholder = examVersion === '2026-transfer-major-sophomore-exam' && exam.category === 'past'
+          && Number(id) >= 66 && Number(id) <= 73 && question.missingData === true
+          && question.name === '暂无数据' && question.statement === '暂无数据'
+          && question.tests === 0 && question.score === 0 && !question.testArchive && !question.testCases?.length;
+        if (!LEGACY_UNJUDGEABLE.has(legacyKey) && !announcedPlaceholder) {
           errors.push(`${questionLabel} 不允许新增为不可评测题，必须补齐正式测试点`);
           continue;
         }
         unjudgeableProblems += 1;
-        warnings.push(`${questionLabel} 是保留的历史资料缺失题`);
+        warnings.push(`${questionLabel} ${announcedPlaceholder ? '为待补充题目' : '是保留的历史资料缺失题'}`);
         continue;
       }
 
@@ -214,7 +219,8 @@ if (require.main === module) {
           path.join(examDataRoot, 'fzu-qc9-stability-20261129.js'),
           path.join(examDataRoot, 'shenzhuo-freshman-monthly-1-20261129.js'),
           path.join(examDataRoot, 'fzu-2025-shuzhi-freshman.js'),
-          path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js')
+          path.join(examDataRoot, 'fzu-2026-shuzhi-freshman.js'),
+          path.join(examDataRoot, 'transfer-major-2026-sophomore.js')
         ].filter(fs.existsSync));
     const { report } = loadAndValidateExamData(primaryPath, supplementalPaths);
     console.log(`题库校验通过：${report.exams} 套试卷，${report.judgeableProblems} 道可评测题，${report.testCases} 个正式测试点。`);
