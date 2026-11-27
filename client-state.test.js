@@ -63,6 +63,45 @@ test('route hashes preserve pages and exam question context across refreshes', (
   assert.equal(context.formatRouteHash('contest-info', 'pending-contest'), '#contest-info-pending-contest');
 });
 
+test('session header never shows cached identity while signed out or on the login page', () => {
+  const elements={'#login-screen':{hidden:true}};
+  const element=selector=>elements[selector]||(elements[selector]={textContent:'old'});
+  const context={config:{studentId:'cached-account',candidateName:'缓存姓名',seat:'OLD-SEAT',questions:[{id:'66'}]},
+    current:0,activeRoute:'home',portalAuthenticated:false,portalUser:null,$:element,
+    location:{origin:'http://localhost',pathname:'/',search:''},formatRouteHash:()=> '#home'};
+  vm.createContext(context);vm.runInContext(extract('function renderOmsClientChrome(','const OMS_CONTENT_ZOOM_KEY='),context);
+  context.renderOmsClientChrome();
+  for(const selector of ['#oms-client-student-session','#oms-client-name-session','#oms-client-seat-session'])assert.equal(element(selector).textContent,'—');
+  assert.equal(element('#oms-client-user-session').textContent,'未登录');
+  context.portalAuthenticated=true;context.portalUser={id:'current',username:'current-account',nickname:'当前昵称'};
+  context.renderOmsClientChrome();assert.equal(element('#oms-client-student-session').textContent,'current-account');assert.equal(element('#oms-client-name-session').textContent,'当前昵称');
+  elements['#login-screen'].hidden=false;context.renderOmsClientChrome();
+  assert.equal(element('#oms-client-student-session').textContent,'—');assert.equal(element('#oms-client-name-session').textContent,'—');assert.equal(element('#oms-client-seat-session').textContent,'—');
+  elements['#login-screen'].hidden=true;context.portalAuthenticated=false;context.renderOmsClientChrome();assert.equal(element('#oms-client-name-session').textContent,'—');
+});
+
+test('anonymous session responses repaint the identity header even when the profile remains null', () => {
+  let paints=0;
+  const context={portalSessionRevision:0,portalIdentityRevision:0,portalUser:null,portalCsrf:'',portalAuthenticated:false,
+    config:{},primaryConfig:{},fallback:{candidateName:'admin',studentId:'example'},renderOmsClientChrome(){paints++},
+    render(){throw Error('unchanged profile should not need a full repaint');}};
+  vm.createContext(context);vm.runInContext(extract('function setPortalSession(','async function readApiResponse('),context);
+  context.setPortalSession({authenticated:false,available:true});assert.equal(paints,1);
+});
+
+test('opening login immediately clears the visible header even before the old session is reset', () => {
+  const form={elements:{account:{value:''}}},back={},account={focus(){}};
+  const screen={hidden:true,querySelector:selector=>({'#portal-login-form':form,'[data-login-back]':back,'#portal-login-account':account}[selector]||null)};
+  const elements={'#login-screen':screen},element=selector=>elements[selector]||(elements[selector]={textContent:'cached'});
+  const context={config:{questions:[],seat:'OLD'},current:0,activeRoute:'home',portalAuthenticated:true,portalUser:{username:'previous',nickname:'旧昵称'},$:element,
+    portalRegistrationEnabled:false,portalAuthAvailable:true,portalAuthMessage:'',portalLoginBrand:()=>'',escape:String,
+    location:{origin:'http://localhost',pathname:'/',search:''},formatRouteHash:()=> '#home'};
+  vm.createContext(context);
+  vm.runInContext(extract('function renderOmsClientChrome(','const OMS_CONTENT_ZOOM_KEY='),context);
+  vm.runInContext(extract('function openLogin(','window.omsAuth='),context);
+  context.openLogin();assert.equal(screen.hidden,false);assert.equal(element('#oms-client-name-session').textContent,'—');assert.equal(element('#oms-client-student-session').textContent,'—');
+});
+
 test('pending contest opens its own information page without changing the active question or drafts', () => {
   const pending={examVersion:'pending',title:'待补充赛事',pendingQuestions:true,questions:[],duration:240,participants:5,introduction:'比赛介绍'};
   const routes=[];

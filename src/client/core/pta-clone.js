@@ -263,7 +263,18 @@ function syncBrowserRoute(routeName=activeRoute,historyMode='push'){
   if(historyMode==='replace')history.replaceState(history.state,'',url);
   else if(historyMode==='push')history.pushState({omsRoute:hash},'',url);
 }
-function renderOmsClientChrome(routeName=activeRoute){const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');if(student)student.textContent=config.studentId||'—';if(name)name.textContent=config.candidateName||'—';if(seat)seat.textContent=config.seat||'—';const displayUser=portalUser?.username||config.studentId||'未登录',displayName=portalUser?.nickname||portalUser?.username||config.candidateName||'U';if(user)user.textContent=displayUser;if(avatar)avatar.textContent=String(displayName).trim().slice(0,1).toUpperCase()||'U';if(address)address.value=`${location.origin}${location.pathname}${location.search}${formatRouteHash(routeName,routeName==='contest-info'?pendingContestVersion:question?.id)}`;}
+function renderOmsClientChrome(routeName=activeRoute){
+  const question=config.questions?.[current],student=$('#oms-client-student-session'),name=$('#oms-client-name-session'),seat=$('#oms-client-seat-session'),user=$('#oms-client-user-session'),avatar=$('#oms-client-user-avatar'),address=$('#oms-client-address');
+  const authenticated=portalAuthenticated&&portalUser&&$('#login-screen')?.hidden!==false;
+  const displayUser=authenticated?(portalUser.username||'—'):'未登录';
+  const displayName=authenticated?(portalUser.nickname||portalUser.username||'—'):'—';
+  if(student)student.textContent=authenticated?(portalUser.username||'—'):'—';
+  if(name)name.textContent=displayName;
+  if(seat)seat.textContent=authenticated?(config.seat||'—'):'—';
+  if(user)user.textContent=displayUser;
+  if(avatar)avatar.textContent=authenticated?(String(displayName).trim().slice(0,1).toUpperCase()||'U'):'U';
+  if(address)address.value=`${location.origin}${location.pathname}${location.search}${formatRouteHash(routeName,routeName==='contest-info'?pendingContestVersion:question?.id)}`;
+}
 const OMS_CONTENT_ZOOM_KEY='oms-pta-content-zoom',OMS_CONTENT_ZOOM_MIN=.8,OMS_CONTENT_ZOOM_MAX=1.5,OMS_CONTENT_ZOOM_STEP=.1;
 let omsContentZoom=Math.min(OMS_CONTENT_ZOOM_MAX,Math.max(OMS_CONTENT_ZOOM_MIN,Number(localStorage.getItem(OMS_CONTENT_ZOOM_KEY))||1));
 function applyOmsContentZoom(next=omsContentZoom){const target=$('#pta-app');if(!target)return;omsContentZoom=Math.round(Math.min(OMS_CONTENT_ZOOM_MAX,Math.max(OMS_CONTENT_ZOOM_MIN,next))*10)/10;const chromeHeight=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--oms-client-chrome-height'))||0,viewportWidth=window.innerWidth||document.documentElement.clientWidth,scrollbarAllowance=Math.max(20,Math.abs(viewportWidth-document.documentElement.clientWidth)+2);target.style.transform='';target.style.transformOrigin='';target.style.zoom=String(omsContentZoom);target.style.width=`${100/omsContentZoom}%`;target.style.height=`${Math.max(0,window.innerHeight-chromeHeight)/omsContentZoom}px`;if(Math.abs(target.getBoundingClientRect().width-viewportWidth)>scrollbarAllowance){target.style.zoom='1';target.style.transformOrigin='top left';target.style.transform=`scale(${omsContentZoom})`;}localStorage.setItem(OMS_CONTENT_ZOOM_KEY,String(omsContentZoom));const percent=Math.round(omsContentZoom*100),zoomIn=$('#oms-client-zoom-in'),zoomOut=$('#oms-client-zoom-out');if(zoomIn){zoomIn.disabled=omsContentZoom>=OMS_CONTENT_ZOOM_MAX;zoomIn.title=`放大页面（当前 ${percent}%）`;zoomIn.setAttribute('aria-label',zoomIn.title);}if(zoomOut){zoomOut.disabled=omsContentZoom<=OMS_CONTENT_ZOOM_MIN;zoomOut.title=`缩小页面（当前 ${percent}%）`;zoomOut.setAttribute('aria-label',zoomOut.title);}}
@@ -1036,6 +1047,7 @@ function setPortalSession(data){
     loadCodeStores(config.examVersion);restoreSavedCode();$('#submit-state').textContent='本地草稿已加载';
   }
   if(profileChanged){render();document.dispatchEvent(new CustomEvent('oms:auth-change',{detail:next}));}
+  renderOmsClientChrome();
 }
 async function readApiResponse(response,service='服务'){
   const body=await response.text();
@@ -1074,6 +1086,7 @@ function showRecoveryCode(recoveryCode,destination){
   const screen=$('#login-screen');
   screen.innerHTML=`<main class="portal-login">${portalLoginBrand()}<section class="portal-login-panel"><div class="portal-login-heading"><h2>请保存恢复码</h2><p>忘记密码时，需要使用此恢复码。关闭后本站不会再次显示原码。</p></div><div class="portal-login-form"><label for="portal-recovery-code">账号恢复码</label><input id="portal-recovery-code" value="${escape(recoveryCode)}" readonly autocomplete="off"><p class="portal-login-note" id="portal-recovery-note" role="status">请保存到安全位置，不要发送给他人。</p><button type="button" class="portal-login-submit" data-copy-recovery>复制恢复码</button></div><div class="portal-login-divider"><span>确认已妥善保存</span></div><button type="button" class="portal-demo-login" data-recovery-continue>继续进入平台 <span>→</span></button></section></main>`;
   screen.hidden=false;
+  renderOmsClientChrome();
   screen.querySelector('[data-copy-recovery]').onclick=async()=>{const input=screen.querySelector('#portal-recovery-code'),note=screen.querySelector('#portal-recovery-note');try{await navigator.clipboard.writeText(recoveryCode);note.textContent='恢复码已复制。';}catch{input.select();note.textContent='请手动复制选中的恢复码。';}};
   screen.querySelector('[data-recovery-continue]').onclick=()=>continuePortalLogin(destination);
   screen.querySelector('#portal-recovery-code').focus();
@@ -1086,6 +1099,7 @@ function openLogin(target='home',mode='login',accountValue=''){
   screen.innerHTML=`<main class="portal-login">${portalLoginBrand()}<section class="portal-login-panel"><div class="portal-login-heading"><h2>${heading}</h2><p>${description}</p></div><form class="portal-login-form" id="portal-login-form"><label for="portal-login-account">本站账号 / 学号</label><input id="portal-login-account" name="account" autocomplete="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]{3,32}" title="3–32 位字母、数字、下划线或连字符" placeholder="请输入本站账号" value="${escape(accountValue)}">${register?'<label for="portal-login-nickname">昵称</label><input id="portal-login-nickname" name="nickname" autocomplete="nickname" required maxlength="32" placeholder="你希望显示的名字">':''}${recover?'<label for="portal-login-recovery">恢复码</label><input id="portal-login-recovery" name="recoveryCode" autocomplete="off" required maxlength="32" placeholder="例如 ABCD-EF12-3456-7890-ABCD">':''}<label for="portal-login-password">${passwordLabel}</label><input id="portal-login-password" name="password" type="password" required minlength="${passwordMin}" maxlength="128" autocomplete="${register||recover?'new-password':'current-password'}" placeholder="${passwordHint}">${register||recover?'<label for="portal-login-confirm">确认新密码</label><input id="portal-login-confirm" name="passwordConfirm" type="password" autocomplete="new-password" required minlength="10" maxlength="128" placeholder="再次输入新密码">':''}<p class="portal-login-note" id="portal-login-note" role="status">${escape(portalAuthMessage||(portalRegistrationEnabled?(recover?'恢复成功后，旧登录会话将全部失效。':'本站独立登录，不是学校统一身份认证。请勿使用校园密码。'):'仅限管理员配置的账号登录。'))}</p><button type="submit" class="portal-login-submit" ${portalAuthAvailable?'':'disabled'}>${register?'注册并登录':recover?'重设密码并登录':'登录'}</button></form><div class="portal-login-divider"><span>${portalRegistrationEnabled?(register?'已有本站账号？':recover?'还记得密码？':'首次使用？'):'仅限指定账号'}</span></div>${portalRegistrationEnabled?`<button type="button" class="portal-demo-login" data-auth-mode>${register?'返回登录':'注册本站账号'} <span>→</span></button>${register?'':`<button type="button" class="portal-login-back" data-auth-recover>${recover?'返回账号登录':'忘记密码'}</button>`}`:''}<button type="button" class="portal-login-back" data-login-back>暂不登录，返回主页</button></section></main>`;
   screen.hidden=false;
   const form=screen.querySelector('#portal-login-form');
+  renderOmsClientChrome();
   form.onsubmit=async event=>{
     event.preventDefault();const note=screen.querySelector('#portal-login-note'),data=Object.fromEntries(new FormData(form));
     if((register||recover)&&data.password!==data.passwordConfirm){note.textContent='两次输入的密码不一致。';return;}
