@@ -12,6 +12,7 @@
     duration: 120,
     scheduleVersion: '20261127-transfer-major-2026',
     participants: 41,
+    ownerLabel: '福州大学',
     registered: 41,
     totalScore: 0,
     author: '本站集备组',
