@@ -190,6 +190,29 @@ test('float checker accepts values within 5e-6 and rejects invalid or extra outp
   assert.equal(checkFloatOutput('NaN', '3.000000'), false);
 });
 
+test('2022 chemistry formal tests accept a full parser and reject a single-group implementation', async () => {
+  const fs=require('node:fs'),vm=require('node:vm');
+  const context={window:{}};
+  vm.runInNewContext(fs.readFileSync('src/data/exams/exam-data.js','utf8'),context,{timeout:5000});
+  const question=context.window.OMS_EXAM_ARCHIVE.find(e=>e.examVersion==='2022-transfer-major-exam').questions.find(q=>q.id==='2');
+  assert.equal(question.testCases.length,20);assert.equal(question.tests,20);
+  assert.equal(question.testCases.reduce((sum,t)=>sum+t.score,0),100);
+  const flat=s=>[...s.matchAll(/([CHO])(\d*)/g)].reduce((sum,m)=>sum+({C:12,H:1,O:16})[m[1]]*Number(m[2]||1),0);
+  for(const point of question.testCases){
+    let groups=0;
+    const remainder=point.input.replace(/\(([^()]*)\)(\d*)/g,(_,contents,multiplier)=>{groups+=flat(contents)*Number(multiplier||1);return '';});
+    assert.equal(String(groups+flat(remainder)),point.expected,point.input);
+  }
+  const full=`let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{s=s.trim();let i=0;const stack=[0],mass={C:12,H:1,O:16};const number=()=>{let n=0;while(i<s.length&&/[0-9]/.test(s[i]))n=n*10+Number(s[i++]);return n||1;};while(i<s.length){const c=s[i++];if(c==='(')stack.push(0);else if(c===')'){const v=stack.pop();stack[stack.length-1]+=v*number();}else stack[stack.length-1]+=mass[c]*number();}console.log(stack[0]);});`;
+  const limited=`let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{s=s.trim();function flat(t){let n=0;for(const m of t.matchAll(/([CHO])(\\d*)/g))n+=({C:12,H:1,O:16})[m[1]]*Number(m[2]||1);return n;}let ans=flat(s),l=s.indexOf('('),r=s.indexOf(')');if(l>=0){let e=r+1;while(/^[0-9]$/.test(s[e]||''))e++;ans=flat(s.slice(0,l))+flat(s.slice(l+1,r))*Number(s.slice(r+1,e)||1)+flat(s.slice(e));}console.log(ans);});`;
+  const judge=nodeJudge();
+  const correct=await judge.judge({language:'NodeFixture',mode:'submit',code:full,tests:question.testCases});
+  assert.equal(correct.verdict,'Accepted',correct.compilerOutput);
+  const incomplete=await judge.judge({language:'NodeFixture',mode:'submit',code:limited,tests:question.testCases});
+  assert.equal(incomplete.verdict,'WrongAnswer');
+  assert.ok(incomplete.passedTests>=10&&incomplete.passedTests<20);
+});
+
 test('custom input returns actual stdout and stderr without falsely comparing against a sample', async () => {
   const result = await nodeJudge().judge({ language: 'NodeFixture', mode: 'sample',
     code: 'process.stdout.write("actual"); process.stderr.write("diagnostic");',

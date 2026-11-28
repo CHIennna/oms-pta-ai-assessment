@@ -2490,3 +2490,26 @@ for (const exam of [window.OMS_EXAM_DATA, ...window.OMS_EXAM_ARCHIVE].filter(ite
     question.statement += '\n\n### 本站交互测试\n\n点击运行将自动启动裁判，程序仍按上文协议读写并刷新输出。自定义测试输入首行为组数 T，每组先写 n：' + (id === '1038' ? '随后写出作为裁判隐藏数据的 n 个排列元素。' : '随后写出 n 场比赛的两个端点，不需要填写轮数或第一轮编码；两轮运行由裁判自动安排。') + '\n';
   }
 })();
+
+// Cover parallel non-nested groups in the 2022 chemistry problem.
+(() => {
+  const exam = window.OMS_EXAM_ARCHIVE.find(item => item.examVersion === '2022-transfer-major-exam');
+  const question = exam.questions.find(item => item.id === '2');
+  const added = [
+    ['(CH3)2(OH)2', '64'],
+    ['(CH3)(OH)2', '49'],
+    ['(CH3)2(OH)(CH2)3', '89'],
+    ['(CH3)(OH)(CH2)', '46'],
+    ['C2H5(OH)2(CH2)3O', '121'],
+    ['(C12H22O11)12(H2O)10', '4284'],
+    ['(OH)10(CH3)12', '350'],
+    ['(H)2(O)3(C)4', '98'],
+    ['(CH2)2(CH2)3(CH2)4', '126'],
+    ['(OH)2'.repeat(50), '1700']
+  ];
+  question.testCases = [
+    ...question.testCases.map(test => ({ ...test, score: 5 })),
+    ...added.map(([input, expected]) => ({ input, expected, score: 5 }))
+  ];
+  question.tests = question.testCases.length;
+})();
